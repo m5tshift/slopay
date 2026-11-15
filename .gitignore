@@ -6,19 +6,35 @@
 *.key
 *.p12
 *.pfx
-*.kubeconfig
-kubeconfig
+*kubeconfig
+*kubeconfig.yaml
+*kubeconfig.yml
 talosconfig
-# talosctl gen config output: machine configs contain cluster CA keys
+# SSH keys, including the GitOps deploy key
+id_rsa*
+id_ecdsa*
+id_ed25519*
+!*.pub
+*deploy_key*
+# Output of `bao operator init`: unseal keys and root token
+*unseal-keys*
+*root-token*
+bao-init*
+# talosctl gen config / gen secrets output: machine configs contain cluster CA keys
 infra/talos/generated/
-# talosctl gen secrets output
-infra/talos/secrets.yaml
+/controlplane.yaml
+/worker.yaml
+/secrets.yaml
+infra/talos/**/controlplane.yaml
+infra/talos/**/worker.yaml
+infra/talos/**/secrets.yaml
 
 # Terraform
 .terraform/
 *.tfstate
 *.tfstate.*
 *.tfvars
+*.tfvars.json
 !*.tfvars.example
 crash.log
 
@@ -26,16 +42,24 @@ crash.log
 *.retry
 .vault_pass*
 
+# Helm dependencies
+**/charts/*.tgz
+
 # Go
 /bin/
 *.test
 *.out
-coverage.*
+*.coverprofile
+/coverage.html
 
-# Python (Locust, payer-sim tooling)
+# Python (Locust)
 __pycache__/
 *.pyc
 .venv/
+
+# VM images
+*.iso
+*.vhdx
 
 # Claude Code personal settings
 .claude/settings.local.json
