@@ -68,16 +68,19 @@ tests/acceptance/        приёмочные испытания (SRS разде
 ## Команды
 
 ```sh
-go build ./...
-go generate ./... && git diff --exit-code     # сгенерированный код совпадает с контрактами
-golangci-lint run
-go test -race ./...                           # unit и property-based
-go test -race -tags integration ./...         # Testcontainers, нужен Docker
-helm lint charts/* && helm template charts/<component>
-terraform -chdir=infra/terraform validate
-ansible-lint infra/ansible
-pre-commit run --all-files                    # gitleaks и базовые проверки; один раз: pre-commit install
+make build              # go build ./...
+make generate-check     # go generate ./... и git diff: сгенерированный код совпадает с контрактами
+make lint               # golangci-lint run
+make test               # go test -race ./...: unit и property-based
+make test-integration   # go test -race -tags integration ./...: Testcontainers, нужен Docker
+make helm-lint          # helm lint и helm template для charts/*
+make tf-validate        # terraform validate в infra/terraform
+make ansible-lint       # ansible-lint infra/ansible
+make precommit          # gitleaks и базовые проверки; один раз: pre-commit install
 ```
+
+Цели для каталогов, которых ещё нет, пропускаются без ошибки. Те же проверки идут в CI
+(`.github/workflows/pr.yml`).
 
 ## Сборка образов
 

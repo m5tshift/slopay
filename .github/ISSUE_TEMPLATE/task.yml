@@ -1,0 +1,45 @@
+name: Задача
+description: Одна задача — один компонент (AGENTS.md, «Порядок работы»)
+body:
+  - type: input
+    id: component
+    attributes:
+      label: Компонент
+      description: Сервис, тестовый компонент, чарт или инфраструктурный компонент, например `services/invoice-service`
+    validations:
+      required: true
+  - type: input
+    id: srs
+    attributes:
+      label: Разделы SRS
+      description: Например `4.1.4, 4.1.5`
+    validations:
+      required: true
+  - type: input
+    id: requirements
+    attributes:
+      label: FR/NFR
+      description: Идентификаторы требований, которые закрывает задача, например `FR-01, NFR-06`, или `нет`
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Критерии приёмки
+      description: Проверяемые условия готовности
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Обязательные тесты
+      description: unit, property-based, контрактные, интеграционные (AGENTS.md, «Тесты»)
+    validations:
+      required: true
+  - type: input
+    id: dependencies
+    attributes:
+      label: Зависимости
+      description: Номера issues через запятую в виде `#12, #15` или `нет`. Задача берётся в работу, когда все они закрыты
+    validations:
+      required: true
