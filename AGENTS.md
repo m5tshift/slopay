@@ -69,7 +69,7 @@ tests/acceptance/        приёмочные испытания (SRS разде
 
 ```sh
 make build              # go build ./...
-make generate-check     # go generate ./... и git diff: сгенерированный код совпадает с контрактами
+make generate-check     # go generate ./... не меняет дерево: сгенерированный код совпадает с контрактами
 make lint               # golangci-lint run
 make test               # go test -race ./...: unit и property-based
 make test-integration   # go test -race -tags integration ./...: Testcontainers, нужен Docker

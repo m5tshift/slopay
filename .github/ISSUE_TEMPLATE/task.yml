@@ -16,6 +16,13 @@ body:
     validations:
       required: true
   - type: input
+    id: contract
+    attributes:
+      label: Контракт
+      description: Файлы в `contracts/`, под которые пишется код, например `contracts/openapi/invoice-service.yaml`, или `нет`
+    validations:
+      required: true
+  - type: input
     id: requirements
     attributes:
       label: FR/NFR
