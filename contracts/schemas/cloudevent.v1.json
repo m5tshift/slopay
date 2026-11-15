@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/cloudevent.v1.json",
+  "title": "CloudEvents 1.0 envelope, structured JSON mode",
+  "description": "Common envelope of every SLOPay event. The Kafka message value is the whole envelope; the Kafka key equals subject.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specversion", "id", "source", "type", "time", "subject", "dataschema", "datacontenttype", "data"],
+  "properties": {
+    "specversion": { "const": "1.0" },
+    "id": {
+      "description": "Event ID, unique within source. Consumers deduplicate by it; a repeated delivery of the same fact keeps the same ID.",
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "description": "Producer, /slopay/<service>.",
+      "type": "string",
+      "pattern": "^/slopay/[a-z][a-z-]*$"
+    },
+    "type": {
+      "description": "Event type, <aggregate>.<event>.",
+      "type": "string",
+      "pattern": "^[a-z]+\\.[a-z_]+$"
+    },
+    "time": {
+      "description": "When the producer recorded the fact.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "subject": {
+      "description": "Aggregate the event is about; equals the Kafka key.",
+      "type": "string",
+      "minLength": 1
+    },
+    "dataschema": {
+      "description": "$id of the versioned schema of this event. A breaking change is published as a new schema file and $id (<event>.v<N+1>.json).",
+      "type": "string",
+      "format": "uri"
+    },
+    "datacontenttype": { "const": "application/json" },
+    "data": { "type": "object" }
+  }
+}

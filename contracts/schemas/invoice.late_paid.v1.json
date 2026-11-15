@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_paid.v1.json",
+  "title": "invoice.late_paid",
+  "description": "A transfer to the address of an EXPIRED invoice reached N confirmations within the tracking window. received is the actual sum.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "invoice.late_paid" },
+    "source": { "const": "/slopay/invoice-service" },
+    "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_paid.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invoiceId", "merchantId", "sequence", "status", "address", "asset", "amount", "received", "confirmations", "transfers"],
+      "properties": {
+        "invoiceId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "merchantId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "sequence": { "$ref": "defs.v1.json#/definitions/sequence" },
+        "status": { "const": "LATE_PAID" },
+        "address": { "$ref": "defs.v1.json#/definitions/address" },
+        "asset": { "$ref": "defs.v1.json#/definitions/asset" },
+        "amount": { "$ref": "defs.v1.json#/definitions/positiveAmount" },
+        "received": { "$ref": "defs.v1.json#/definitions/amount" },
+        "confirmations": { "$ref": "defs.v1.json#/definitions/confirmations" },
+        "transfers": { "$ref": "defs.v1.json#/definitions/accountedTransfers" }
+      }
+    }
+  }
+}

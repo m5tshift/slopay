@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/defs.v1.json",
+  "title": "Common definitions of SLOPay events",
+  "definitions": {
+    "uuid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "amount": {
+      "description": "Non-negative integer amount in minimal units of the asset (wei for ETH, token base units for ERC-20) as a decimal string; fits NUMERIC(78,0). Floats and fractions are not allowed.",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,77})$"
+    },
+    "positiveAmount": {
+      "description": "Positive integer amount in minimal units of the asset as a decimal string.",
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,77}$"
+    },
+    "usdCents": {
+      "description": "Amount in USD, integer cents.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "rate": {
+      "description": "Exchange rate fixed at invoice creation: USD for one whole unit of the asset, as a decimal string (not a float).",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "address": {
+      "description": "EVM address, lower-case hex.",
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{40}$"
+    },
+    "hash": {
+      "description": "32-byte hash (block or transaction), lower-case hex.",
+      "type": "string",
+      "pattern": "^0x[0-9a-f]{64}$"
+    },
+    "chainId": {
+      "description": "EIP-155 chain ID (31337 for Anvil, 11155111 for Sepolia).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "blockNumber": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unixTime": {
+      "description": "Block timestamp, Unix seconds.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "logIndex": {
+      "description": "Index of the Transfer log in the block for ERC-20; null for a native ETH transfer.",
+      "type": ["integer", "null"],
+      "minimum": 0
+    },
+    "confirmations": {
+      "description": "Confirmations of the latest accounted transfer (1 = the transfer block is the head).",
+      "type": "integer",
+      "minimum": 1
+    },
+    "sequence": {
+      "description": "Invoice version number: 1 for invoice.created, incremented by every following invoice event.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "invoiceStatus": {
+      "type": "string",
+      "enum": ["NEW", "DETECTED", "CONFIRMING", "PAID", "UNDERPAID", "EXPIRED", "LATE_PAID"]
+    },
+    "asset": {
+      "description": "Asset of an invoice or a transfer: native ETH or an ERC-20 token.",
+      "oneOf": [
+        { "$ref": "#/definitions/ethAsset" },
+        { "$ref": "#/definitions/erc20Asset" }
+      ]
+    },
+    "ethAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "decimals"],
+      "properties": {
+        "kind": { "const": "ETH" },
+        "decimals": { "const": 18 }
+      }
+    },
+    "erc20Asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "contract", "decimals"],
+      "properties": {
+        "kind": { "const": "ERC20" },
+        "contract": { "$ref": "#/definitions/address" },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 77 }
+      }
+    },
+    "logIndexMatchesAsset": {
+      "description": "logIndex is null for native ETH and set for ERC-20.",
+      "if": {
+        "properties": { "asset": { "properties": { "kind": { "const": "ETH" } } } }
+      },
+      "then": {
+        "properties": { "logIndex": { "type": "null" } }
+      },
+      "else": {
+        "properties": { "logIndex": { "type": "integer" } }
+      }
+    },
+    "accountedTransfer": {
+      "description": "Transfer accounted in an invoice. blockHash + txHash + logIndex is its idempotency key (ledger postings, reconciliation).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockNumber", "blockHash", "txHash", "logIndex", "amount", "asset"],
+      "properties": {
+        "blockNumber": { "$ref": "#/definitions/blockNumber" },
+        "blockHash": { "$ref": "#/definitions/hash" },
+        "txHash": { "$ref": "#/definitions/hash" },
+        "logIndex": { "$ref": "#/definitions/logIndex" },
+        "amount": { "$ref": "#/definitions/amount" },
+        "asset": { "$ref": "#/definitions/asset" }
+      },
+      "allOf": [{ "$ref": "#/definitions/logIndexMatchesAsset" }]
+    },
+    "accountedTransfers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/accountedTransfer" }
+    },
+    "kafkaHeaders": {
+      "description": "Kafka headers of every event: CloudEvents structured mode content type and W3C trace context.",
+      "type": "object",
+      "required": ["content-type"],
+      "properties": {
+        "content-type": { "const": "application/cloudevents+json; charset=UTF-8" },
+        "traceparent": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"
+        },
+        "tracestate": { "type": "string" }
+      }
+    }
+  }
+}
