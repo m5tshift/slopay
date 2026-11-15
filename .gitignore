@@ -1,0 +1,46 @@
+# Secrets and credentials (SRS 4.1.11)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.kubeconfig
+kubeconfig
+talosconfig
+# talosctl gen config output: machine configs contain cluster CA keys
+infra/talos/generated/
+# talosctl gen secrets output
+infra/talos/secrets.yaml
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+
+# Ansible
+*.retry
+.vault_pass*
+
+# Go
+/bin/
+*.test
+*.out
+coverage.*
+
+# Python (Locust, payer-sim tooling)
+__pycache__/
+*.pyc
+.venv/
+
+# Claude Code personal settings
+.claude/settings.local.json
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
