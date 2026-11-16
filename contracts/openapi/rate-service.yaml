@@ -1,0 +1,131 @@
+openapi: 3.0.3
+info:
+  title: rate-service API
+  version: 1.0.0
+  description: |
+    Internal API of rate-service: the latest aggregated rate of a pair (SRS 4.1.2, 4.1.3, 4.1.9; FR-12).
+    The only caller is invoice-service, which fixes the rate at invoice creation. The API is not published on the
+    gateway; calls are authenticated by mesh mTLS `STRICT` and allowed by a NetworkPolicy, so there is no
+    application-level authentication. All replicas serve requests.
+
+    **Caller resilience** (SRS 4.1.9): Istio outlier detection, timeout 500 ms, 1 retry. Without a rate a new
+    invoice is not created (`503`), existing invoices keep being processed.
+
+    **Rate.** `price` is USD for one whole unit of the base currency, a decimal string, never a float. Aggregation
+    rules: both exchanges answered and diverge by no more than 1 % give the average; one source gives its price;
+    divergence above 1 % makes the rate unreliable. The age is counted from `quotedAt`. A rate older than 60 s is
+    stale and is not served: the answer is `503` with `reason: stale`.
+servers:
+  - url: http://rate-service.apps.svc.cluster.local
+    description: In-cluster service
+
+tags:
+  - name: rates
+
+paths:
+  /rates/{pair}:
+    get:
+      tags: [rates]
+      operationId: getRate
+      summary: Latest rate of a pair
+      description: |
+        Returns the latest reliable rate not older than 60 s. The rate is taken from the replica cache, which is
+        restored from `rate.latest` after a restart.
+      parameters:
+        - name: pair
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Pair'
+      responses:
+        '200':
+          description: The rate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rate'
+              example:
+                pair: ETH-USD
+                price: '3694.25'
+                quotedAt: '2026-11-28T12:00:00Z'
+                ageSeconds: 3
+                sources: [coinbase, okx]
+        '404':
+          description: Unknown pair.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: unknown_pair
+                message: Pair is not supported
+        '503':
+          description: |
+            No usable rate: no quote at all (`unavailable`), the rate is older than 60 s (`stale`) or the sources
+            diverge by more than 1 % (`diverged`).
+          headers:
+            Retry-After:
+              description: Seconds to wait before the next attempt.
+              required: true
+              schema:
+                type: integer
+                minimum: 1
+                example: 5
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: rate_unavailable
+                message: Exchange rate is unavailable
+                reason: diverged
+
+components:
+  schemas:
+    Pair:
+      type: string
+      enum: [ETH-USD, USDT-USD]
+    Source:
+      type: string
+      enum: [coinbase, okx]
+    Rate:
+      type: object
+      required: [pair, price, quotedAt, ageSeconds, sources]
+      properties:
+        pair:
+          $ref: '#/components/schemas/Pair'
+        price:
+          type: string
+          pattern: '^(0|[1-9][0-9]*)(\.[0-9]+)?$'
+          description: USD for one whole unit of the base currency, decimal string.
+          example: '3694.25'
+        quotedAt:
+          type: string
+          format: date-time
+          description: Time of the quote the rate is based on.
+        ageSeconds:
+          type: integer
+          minimum: 0
+          maximum: 60
+          description: Whole seconds from `quotedAt` to the moment of the response; at most 60 for a served rate.
+        sources:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          description: Sources the price is aggregated from.
+          items:
+            $ref: '#/components/schemas/Source'
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: rate_unavailable
+        message:
+          type: string
+        reason:
+          type: string
+          enum: [unavailable, stale, diverged]
+          description: Only for `rate_unavailable`.

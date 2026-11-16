@@ -1,0 +1,118 @@
+openapi: 3.0.3
+info:
+  title: webhook-service internal API
+  version: 1.0.0
+  description: |
+    Internal operator API of webhook-service (SRS 4.1.3, FR-09). It is not published on the gateway: the operator
+    calls it through `kubectl port-forward`; inside the mesh it is protected by mTLS `STRICT` and a NetworkPolicy,
+    so there is no application-level authentication.
+
+    The webhook that webhook-service sends to merchants is described in `webhook.yaml`; the DLQ topic in
+    `../asyncapi/webhook-service.yaml`.
+servers:
+  - url: http://localhost:8080
+    description: '`kubectl port-forward` to webhook-service'
+
+tags:
+  - name: dlq
+
+paths:
+  /internal/dlq/replay:
+    post:
+      tags: [dlq]
+      operationId: replayDlq
+      summary: Resend webhooks from the DLQ
+      description: |
+        Takes deliveries from `webhook.dlq` and delivers them again as new attempts: the timestamp and the signature
+        are made anew, the event and its `id` are the same, so the merchant deduplicates by `event.id`.
+        A delivery that succeeds leaves the DLQ; one that fails again returns to it.
+
+        The selection is the intersection of the given filters; with no filters the oldest `limit` deliveries are
+        taken. A repeated call is safe: already replayed deliveries are no longer in the DLQ.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplayRequest'
+            example:
+              invoiceId: 0d6f1c1e-6a0b-4d44-9a8e-3a8f4f0f5b21
+      responses:
+        '200':
+          description: The replay is finished.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayResult'
+              example:
+                selected: 3
+                delivered: 2
+                failed: 1
+        '400':
+          description: The request is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: validation_failed
+                message: Request validation failed
+        '503':
+          description: The DLQ is temporarily unavailable; repeat later.
+          headers:
+            Retry-After:
+              required: true
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    ReplayRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+          description: Only deliveries of this invoice.
+        merchantId:
+          type: string
+          format: uuid
+          description: Only deliveries to this merchant.
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 1000
+          default: 100
+          description: Maximum number of deliveries to replay in this call.
+
+    ReplayResult:
+      type: object
+      required: [selected, delivered, failed]
+      properties:
+        selected:
+          type: integer
+          minimum: 0
+          description: Deliveries taken from the DLQ.
+        delivered:
+          type: integer
+          minimum: 0
+          description: Answered with 2xx; removed from the DLQ.
+        failed:
+          type: integer
+          minimum: 0
+          description: Not delivered; returned to the DLQ.
