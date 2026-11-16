@@ -134,7 +134,10 @@ func TestPostgresMigrate(t *testing.T) {
 	if _, err := pg.Pool().Exec(ctx, "INSERT INTO t VALUES (1)"); err != nil {
 		t.Fatal(err)
 	}
-	bad := fstest.MapFS{"00001_t.sql": {Data: []byte("-- +goose Up\nSELEKT;\n-- +goose Down\nSELECT 1;\n")}}
+	bad := fstest.MapFS{
+		"00001_t.sql": fsys["00001_t.sql"],
+		"00002_bad.sql": {Data: []byte("-- +goose Up\nSELEKT;\n-- +goose Down\nSELECT 1;\n")},
+	}
 	if _, err := pg.Migrate(ctx, bad); err == nil {
 		t.Fatal("broken migration must fail")
 	}
