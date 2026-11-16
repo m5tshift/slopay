@@ -178,3 +178,189 @@ func TestInvoiceServiceAPI(t *testing.T) {
 		t.Errorf("status enum has %d values, want 7 (SRS 4.1.4)", n)
 	}
 }
+
+func hasOp(t *testing.T, doc *openapi3.T, method, path string) *openapi3.Operation {
+	t.Helper()
+	item := doc.Paths.Find(path)
+	if item == nil || item.GetOperation(method) == nil {
+		t.Errorf("missing %s %s", method, path)
+		return nil
+	}
+	return item.GetOperation(method)
+}
+
+// TestInternalAPIsAreNotPublic checks that the internal APIs carry no gateway authentication: they are
+// protected by mesh mTLS and not published (SRS 4.1.2, FR-09).
+func TestInternalAPIsAreNotPublic(t *testing.T) {
+	for _, name := range []string{"rate-service", "ledger-service", "webhook-service"} {
+		doc, err := openapi3.NewLoader().LoadFromFile("openapi/" + name + ".yaml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if doc.Components != nil && len(doc.Components.SecuritySchemes) != 0 {
+			t.Errorf("%s: internal API must not define security schemes", name)
+		}
+		if doc.Security != nil && len(doc.Security) != 0 {
+			t.Errorf("%s: internal API must not require security", name)
+		}
+	}
+}
+
+// TestRateServiceAPI checks the rate-service contract against SRS 4.1.2, 4.1.9 (FR-12).
+func TestRateServiceAPI(t *testing.T) {
+	doc, err := openapi3.NewLoader().LoadFromFile("openapi/rate-service.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := hasOp(t, doc, "GET", "/rates/{pair}")
+	if get == nil {
+		return
+	}
+	pair := doc.Components.Schemas["Pair"].Value
+	var got []string
+	for _, v := range pair.Enum {
+		got = append(got, v.(string))
+	}
+	if !slices.Equal(got, []string{"ETH-USD", "USDT-USD"}) {
+		t.Errorf("pair enum = %v", got)
+	}
+	for _, code := range []string{"200", "404", "503"} {
+		if get.Responses.Value(code) == nil {
+			t.Errorf("no %s response", code)
+		}
+	}
+	if ra := get.Responses.Value("503").Value.Headers["Retry-After"]; ra == nil || !ra.Value.Required {
+		t.Error("503 must carry a required Retry-After header")
+	}
+	rate := doc.Components.Schemas["Rate"].Value
+	for _, f := range []string{"price", "quotedAt", "ageSeconds"} {
+		if !slices.Contains(rate.Required, f) {
+			t.Errorf("rate: %s is not required", f)
+		}
+	}
+	if typ := rate.Properties["price"].Value.Type; typ == nil || !typ.Is("string") {
+		t.Error("price must be a decimal string, not a number")
+	}
+	if age := rate.Properties["ageSeconds"].Value; age.Max == nil || *age.Max != 60 {
+		t.Error("a served rate is at most 60 s old")
+	}
+}
+
+// TestLedgerServiceAPI checks the ledger-service contract against SRS 4.1.2, 4.1.3 (FR-12).
+func TestLedgerServiceAPI(t *testing.T) {
+	doc, err := openapi3.NewLoader().LoadFromFile("openapi/ledger-service.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	merchant := hasOp(t, doc, "GET", "/internal/merchants/{merchantId}/statement")
+	addrs := hasOp(t, doc, "GET", "/internal/addresses/statement")
+	hasOp(t, doc, "GET", "/internal/addresses/{address}/postings")
+	if merchant == nil || addrs == nil {
+		return
+	}
+	req := map[string]bool{}
+	for _, p := range merchant.Parameters {
+		req[p.Value.Name] = p.Value.Required
+	}
+	if !req["from"] || !req["to"] {
+		t.Error("merchant statement: from and to must be required")
+	}
+	if len(addrs.Parameters) != 1 || addrs.Parameters[0].Value.Name != "address" || !addrs.Parameters[0].Value.Required {
+		t.Error("addresses statement: required address parameter expected")
+	}
+	for _, name := range []string{"Amount", "Posting", "MerchantStatement", "AddressesStatement"} {
+		if doc.Components.Schemas[name] == nil {
+			t.Fatalf("no schema %s", name)
+		}
+	}
+	if typ := doc.Components.Schemas["Amount"].Value.Type; typ == nil || !typ.Is("string") {
+		t.Error("amounts must be decimal strings")
+	}
+	for _, f := range []string{"merchantId", "invoiceId", "address", "transfer", "fee", "postedAt"} {
+		if !slices.Contains(doc.Components.Schemas["Posting"].Value.Required, f) {
+			t.Errorf("posting: %s is not required", f)
+		}
+	}
+	if _, ok := doc.Components.Schemas["MerchantStatement"].Value.Properties["nextCursor"]; !ok {
+		t.Error("merchant statement has no nextCursor")
+	}
+}
+
+// TestWebhookServiceAPI checks the DLQ replay endpoint against SRS 4.1.3, FR-09.
+func TestWebhookServiceAPI(t *testing.T) {
+	doc, err := openapi3.NewLoader().LoadFromFile("openapi/webhook-service.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay := hasOp(t, doc, "POST", "/internal/dlq/replay")
+	if replay == nil {
+		return
+	}
+	if len(doc.Paths.Map()) != 1 {
+		t.Error("webhook-service exposes only /internal/dlq/replay")
+	}
+	for _, code := range []string{"200", "400"} {
+		if replay.Responses.Value(code) == nil {
+			t.Errorf("no %s response", code)
+		}
+	}
+	props := doc.Components.Schemas["ReplayRequest"].Value.Properties
+	for _, f := range []string{"invoiceId", "merchantId", "limit"} {
+		if _, ok := props[f]; !ok {
+			t.Errorf("replay request: no %s", f)
+		}
+	}
+}
+
+// TestMerchantWebhook checks the webhook contract against SRS 4.1.10 (FR-07): the body carries sequence,
+// the headers carry the timestamp, the HMAC-SHA256 signature and the secret version, and the string to sign
+// is spelled out.
+func TestMerchantWebhook(t *testing.T) {
+	doc, err := openapi3.NewLoader().LoadFromFile("openapi/webhook.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	post := hasOp(t, doc, "POST", "/")
+	if post == nil {
+		return
+	}
+	hdr := map[string]*openapi3.Parameter{}
+	for _, p := range post.Parameters {
+		if p.Value.In == "header" {
+			hdr[p.Value.Name] = p.Value
+		}
+	}
+	for _, n := range []string{"X-SLOPay-Timestamp", "X-SLOPay-Signature", "X-SLOPay-Secret-Version"} {
+		if hdr[n] == nil || !hdr[n].Required {
+			t.Errorf("header %s is not required", n)
+		}
+	}
+	if h := hdr["X-SLOPay-Signature"]; h != nil {
+		// v1= plus the 64 hex characters of HMAC-SHA256.
+		if !strings.Contains(h.Schema.Value.Pattern, "{64}") {
+			t.Errorf("signature pattern %q must fix 64 hex characters", h.Schema.Value.Pattern)
+		}
+	}
+	for _, want := range []string{"HMAC-SHA256", "<timestamp>", "raw", "Secret-Version", "`sequence`"} {
+		if !strings.Contains(doc.Info.Description+post.Description+hdr["X-SLOPay-Signature"].Description, want) {
+			t.Errorf("description does not mention %q", want)
+		}
+	}
+	if !strings.Contains(doc.Info.Description, "`timestamp` + `.`") {
+		t.Error("the string to sign must be spelled out: timestamp + '.' + raw body")
+	}
+
+	body := doc.Components.Schemas["InvoiceWebhook"].Value
+	data := body.Properties["data"].Value
+	for _, f := range []string{"invoiceId", "sequence", "status"} {
+		if !slices.Contains(data.Required, f) {
+			t.Errorf("webhook data: %s is not required", f)
+		}
+	}
+	if len(body.Properties["type"].Value.Enum) != 9 {
+		t.Errorf("want 9 invoice event types (SRS 4.1.5), got %d", len(body.Properties["type"].Value.Enum))
+	}
+	if post.Responses.Value("2XX") == nil {
+		t.Error("no 2XX response")
+	}
+}
