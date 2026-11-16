@@ -7,6 +7,7 @@ require (
 	github.com/getkin/kin-openapi v0.153.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	go.yaml.in/yaml/v3 v3.0.6
+	pgregory.net/rapid v1.3.0
 )
 
 require (
