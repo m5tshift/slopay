@@ -3,7 +3,6 @@ package outbox
 import (
 	"context"
 	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -36,8 +35,9 @@ VALUES ($1, $2, $3, $4, $5, $6)`
 
 // Add stores the event for publication to topic. Call it with the transaction that changes the data:
 // the event becomes visible to the relay only when that transaction commits, and disappears on rollback.
-// The Kafka key is ev.Subject. The trace context of ctx is saved and continues in the relay's span.
-func Add(ctx context.Context, tx Execer, topic string, ev kafka.Event) error {
+// The event is validated by codec (envelope and the schema named by dataschema) before anything is written;
+// the error wraps kafka.ErrInvalidEvent. The Kafka key is ev.Subject. The trace context of ctx is saved and continues in the relay's span.
+func Add(ctx context.Context, tx Execer, codec *kafka.Codec, topic string, ev kafka.Event) error {
 	switch {
 	case topic == "":
 		return errors.New("outbox: topic is empty")
@@ -46,9 +46,11 @@ func Add(ctx context.Context, tx Execer, topic string, ev kafka.Event) error {
 	case ev.Subject == "":
 		return errors.New("outbox: event subject is empty, it is the Kafka key")
 	}
-	raw, err := json.Marshal(ev)
+	// The same validation as at publication: an event that the relay could never publish is refused here,
+	// so the caller's transaction fails at once instead of blocking the relay later.
+	raw, err := codec.Encode(ev)
 	if err != nil {
-		return fmt.Errorf("outbox: marshal event: %w", err)
+		return fmt.Errorf("outbox: %s: %w", ev.ID, err)
 	}
 	var headers []kgo.RecordHeader
 	kafka.InjectTrace(ctx, &headers)

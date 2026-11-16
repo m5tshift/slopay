@@ -23,25 +23,27 @@ func (f *fakeExec) Exec(_ context.Context, sql string, args ...any) (pgconn.Comm
 	return pgconn.CommandTag{}, f.err
 }
 
-func testEvent(t *testing.T) kafka.Event {
+func testEvent(t *testing.T) kafka.Event { return event(t, invoiceID(1), 1) }
+
+func testCodec(t *testing.T) *kafka.Codec {
 	t.Helper()
-	ev, err := kafka.NewEvent("/slopay/invoice-service", "invoice.created", "inv-1", 1, map[string]any{"a": 1})
+	c, err := kafka.NewCodec()
 	if err != nil {
 		t.Fatal(err)
 	}
-	return ev
+	return c
 }
 
 func TestAddInserts(t *testing.T) {
 	ev := testEvent(t)
 	tx := &fakeExec{}
-	if err := Add(context.Background(), tx, "invoice.events", ev); err != nil {
+	if err := Add(context.Background(), tx, testCodec(t), "invoice.events", ev); err != nil {
 		t.Fatal(err)
 	}
 	if tx.sql != insertSQL {
 		t.Fatalf("sql = %q", tx.sql)
 	}
-	if tx.args[0] != ev.ID || tx.args[1] != "invoice.events" || tx.args[2] != "inv-1" {
+	if tx.args[0] != ev.ID || tx.args[1] != "invoice.events" || tx.args[2] != invoiceID(1) {
 		t.Fatalf("args = %v", tx.args[:3])
 	}
 	if tx.args[4] != "" || tx.args[5] != "" {
@@ -58,7 +60,7 @@ func TestAddSavesTraceContext(t *testing.T) {
 	})
 	ctx := trace.ContextWithSpanContext(context.Background(), sc)
 	tx := &fakeExec{}
-	if err := Add(ctx, tx, "t", testEvent(t)); err != nil {
+	if err := Add(ctx, tx, testCodec(t), "t", testEvent(t)); err != nil {
 		t.Fatal(err)
 	}
 	parent, state := tx.args[4].(string), tx.args[5].(string)
@@ -101,12 +103,15 @@ func TestAddValidation(t *testing.T) {
 		{"no topic", "", good},
 		{"no id", "t", noID},
 		{"no subject", "t", noSubject},
-		{"bad data", "t", func() kafka.Event { e := good; e.Data = []byte("{"); return e }()},
+		{"bad json", "t", func() kafka.Event { e := good; e.Data = []byte("{"); return e }()},
+		{"schema violation", "t", func() kafka.Event { e := good; e.Data = []byte(`{"a":1}`); return e }()},
+		{"unknown schema", "t", func() kafka.Event { e := good; e.DataSchema = "https://example.com/x.json"; return e }()},
+		{"empty data", "t", func() kafka.Event { e := good; e.Data = nil; return e }()},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			tx := &fakeExec{}
-			if err := Add(context.Background(), tx, tc.topic, tc.ev); err == nil {
+			if err := Add(context.Background(), tx, testCodec(t), tc.topic, tc.ev); err == nil {
 				t.Fatal("expected error")
 			}
 			if tx.sql != "" {
@@ -118,7 +123,7 @@ func TestAddValidation(t *testing.T) {
 
 func TestAddExecError(t *testing.T) {
 	boom := errors.New("boom")
-	err := Add(context.Background(), &fakeExec{err: boom}, "t", testEvent(t))
+	err := Add(context.Background(), &fakeExec{err: boom}, testCodec(t), "t", testEvent(t))
 	if !errors.Is(err, boom) {
 		t.Fatalf("err = %v", err)
 	}
@@ -131,4 +136,14 @@ func TestMigrationsEmbedded(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = f.Close()
+}
+
+func TestAddInvalidSchemaWrapsErrInvalidEvent(t *testing.T) {
+	ev := testEvent(t)
+	ev.Data = []byte(`{"a":1}`)
+	tx := &fakeExec{}
+	err := Add(context.Background(), tx, testCodec(t), "t", ev)
+	if !errors.Is(err, kafka.ErrInvalidEvent) || tx.sql != "" {
+		t.Fatalf("err=%v sql=%q", err, tx.sql)
+	}
 }

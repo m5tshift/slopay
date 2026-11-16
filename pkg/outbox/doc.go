@@ -1,7 +1,7 @@
 // Package outbox implements the transactional outbox of SRS 4.1.5.
 //
 // A handler calls Add inside the pgx transaction that changes the data, so the event is stored if and
-// only if the transaction commits. A Relay reads the stored events and publishes them to Kafka.
+// only if the transaction commits. Add validates the event with kafka.Codec first (envelope and the schema of dataschema) and refuses an invalid one, so a poison event never reaches the relay. A Relay reads the stored events and publishes them to Kafka.
 //
 // Guarantees of the relay:
 //   - at-least-once: a row is marked published only after the brokers acknowledged it, in the same

@@ -153,31 +153,6 @@ func newRelayT(t *testing.T, pub Publisher, mut func(*Config)) *Relay {
 	return r
 }
 
-// invoiceID returns a valid invoice UUID for n (the schemas require UUIDs).
-func invoiceID(n int) string { return fmt.Sprintf("5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e%02x", n) }
-
-// event builds a valid invoice.created for the invoice (the Kafka key) whose amountUsdCents carries seq.
-func event(t *testing.T, invoice string, seq int) kafka.Event {
-	t.Helper()
-	ev, err := kafka.NewEvent("/slopay/invoice-service", "invoice.created", invoice, 1, map[string]any{
-		"invoiceId":      invoice,
-		"merchantId":     "0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b",
-		"sequence":       1, // invoice.created is always sequence 1
-		"status":         "NEW",
-		"address":        "0x8ba1f109551bd432803012645ac136ddd64dba72",
-		"asset":          map[string]any{"kind": "ETH", "decimals": 18},
-		"amount":         "10000000000000000",
-		"orderId":        "order-1001",
-		"amountUsdCents": seq, // carries the ordering counter of the tests
-		"rate":           "2500.00",
-		"expiresAt":      "2026-11-15T10:15:00Z",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ev
-}
-
 // addTx stores events in one committed transaction.
 func addTx(t *testing.T, topic string, evs ...kafka.Event) {
 	t.Helper()
@@ -187,7 +162,7 @@ func addTx(t *testing.T, topic string, evs ...kafka.Event) {
 		t.Fatal(err)
 	}
 	for _, ev := range evs {
-		if err := Add(ctx, tx, topic, ev); err != nil {
+		if err := Add(ctx, tx, codec, topic, ev); err != nil {
 			_ = tx.Rollback(ctx)
 			t.Fatal(err)
 		}
@@ -237,7 +212,7 @@ func TestRollbackDoesNotPublish(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Add(ctx, tx, topic, ghost); err != nil {
+	if err := Add(ctx, tx, codec, topic, ghost); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Rollback(ctx); err != nil {
@@ -428,3 +403,34 @@ func TestRelayLockExcludesSecondRelay(t *testing.T) {
 }
 
 func jsonUnmarshal(b []byte, v any) error { return json.Unmarshal(b, v) }
+
+// TestInvalidEventIsRefusedAndRelayContinues: an invalid event fails Add (the service transaction can roll
+// back), nothing is stored, and the relay keeps publishing valid events.
+func TestInvalidEventIsRefusedAndRelayContinues(t *testing.T) {
+	topic := setup(t)
+	ctx := ctxT(t)
+	bad := event(t, invoiceID(1), 1)
+	bad.Data = []byte(`{"invoiceId":"not-a-uuid"}`)
+	tx, err := pg.Pool().Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Add(ctx, tx, codec, topic, bad); !errors.Is(err, kafka.ErrInvalidEvent) {
+		t.Fatalf("err = %v", err)
+	}
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if p, _, err := (pgStore{pg.Pool()}).stats(ctx); err != nil || p != 0 {
+		t.Fatalf("pending=%d err=%v", p, err)
+	}
+	good := event(t, invoiceID(2), 1)
+	addTx(t, topic, good)
+	if n, err := newRelayT(t, newProducer(t), nil).Flush(ctx); err != nil || n != 1 {
+		t.Fatalf("flush n=%d err=%v", n, err)
+	}
+	got := consume(t, topic, func(e []kafka.Event) bool { return len(e) >= 1 })
+	if got[0].ID != good.ID {
+		t.Fatalf("got %v", got[0].ID)
+	}
+}
