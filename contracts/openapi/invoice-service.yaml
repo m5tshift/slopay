@@ -1,0 +1,503 @@
+openapi: 3.0.3
+info:
+  title: invoice-service API
+  version: 1.0.0
+  description: |
+    Invoices: creation, status and list for merchants, and the public payment page data for payers
+    (SRS 4.1.4, 4.1.8, UC-01; FR-01, FR-02, FR-03, FR-08). Served through the Istio Ingress Gateway, HTTPS only:
+    `/api/v1/*` is the merchant API, `/pay/*` is public.
+
+    **Authentication.** `/api/v1/*` requires a JWT (`Authorization: Bearer`) issued by merchant-service
+    (see `merchant-service.yaml`); the gateway verifies it, the merchant id is the `sub` claim. A merchant sees
+    only its own invoices: someone else's invoice is `404`. `/pay/*` is public.
+
+    **Money.** USD is an integer number of cents (`amountUsdCents`). The crypto amount is an integer in minimal
+    units of the asset (wei for ETH) as a decimal string, never a float. The rate is a decimal string.
+    The rate is fixed at creation and is not older than 60 s (NFR-08). The invoice lives 15 minutes.
+
+    **Status.** `NEW`, `DETECTED`, `CONFIRMING`, `PAID`, `UNDERPAID`, `EXPIRED`, `LATE_PAID` (SRS 4.1.4).
+    Deadlines are counted in chain time, so `expiresAt` is the deadline for the block timestamp of the transfer;
+    an invoice is not `EXPIRED` until the service has processed a block later than `expiresAt`.
+
+    **Rate limits** (SRS 4.1.8). `POST /api/v1/invoices`: 60 requests/min per merchant.
+    `GET /api/v1/invoices/{id}`: 10 requests/s per merchant. `GET /pay/{id}/status`: 1 request/s per IP.
+    When a limit is exceeded the response is `429` with `Retry-After`.
+
+    **Rate unavailable.** If the rate is unavailable, stale (older than 60 s) or unreliable (sources diverge by
+    more than 1 %, SRS 4.1.9), a new invoice is not created: `503` with `Retry-After`. Existing invoices keep
+    being processed and read.
+
+    Invoice state changes are published to `invoice.events` from the transactional outbox (see
+    `../asyncapi/invoice-service.yaml`).
+servers:
+  - url: https://slopay.example.com
+    description: Stand gateway (the real host is set by the gateway route)
+
+tags:
+  - name: invoices
+  - name: payment-page
+
+security:
+  - bearerAuth: []
+
+paths:
+  /api/v1/invoices:
+    post:
+      tags: [invoices]
+      operationId: createInvoice
+      summary: Create an invoice
+      description: |
+        Fixes the ETH/USD rate, derives a unique address from the merchant xpub and returns the amount to pay
+        (UC-01). Limit: 60 requests/min per merchant.
+
+        **Idempotency** (FR-01). The `Idempotency-Key` header is required. A repeat with the same key and the
+        same body returns the same invoice (`200`, no second invoice, also after a Valkey restart). The same key
+        with a different body is `422`. The webhook URL is never passed here: it is set in merchant-service.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvoiceRequest'
+      responses:
+        '201':
+          description: Invoice created.
+          headers:
+            Location:
+              description: URL of the created invoice.
+              schema:
+                type: string
+                example: /api/v1/invoices/0d6f1c1e-6a0b-4d44-9a8e-3a8f4f0f5b21
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        '200':
+          description: A repeat with the same `Idempotency-Key` and body; the invoice created earlier.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: >-
+            Merchant has no xpub yet (the address cannot be derived), or a request with this key is still in progress.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: xpub_not_set
+                message: Upload the xpub before creating invoices
+        '422':
+          description: The `Idempotency-Key` was already used with a different request body.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: idempotency_key_reuse
+                message: Idempotency-Key was used with a different request body
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/RateUnavailable'
+    get:
+      tags: [invoices]
+      operationId: listInvoices
+      summary: List the merchant invoices
+      description: |
+        Invoices of the authenticated merchant, newest first (`createdAt` descending, ties by id).
+        Keyset pagination: pass `nextCursor` of the previous page as `cursor`. Filters are combined with AND.
+      parameters:
+        - name: status
+          in: query
+          description: Only invoices in this status. Repeat the parameter to select several statuses.
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/InvoiceStatus'
+          style: form
+          explode: true
+        - name: orderId
+          in: query
+          description: Exact match of the merchant order id.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - name: createdFrom
+          in: query
+          description: Created at or after this moment (inclusive).
+          schema:
+            type: string
+            format: date-time
+        - name: createdTo
+          in: query
+          description: Created before this moment (exclusive).
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          description: Opaque page cursor from `nextCursor`.
+          schema:
+            type: string
+            maxLength: 512
+      responses:
+        '200':
+          description: A page of invoices.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoicePage'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /api/v1/invoices/{id}:
+    get:
+      tags: [invoices]
+      operationId: getInvoice
+      summary: Get an invoice
+      description: 'Limit: 10 requests/s per merchant.'
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+      responses:
+        '200':
+          description: The invoice.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /pay/{id}:
+    get:
+      tags: [payment-page]
+      operationId: getPaymentPage
+      summary: Payment page data
+      description: |
+        Public, no authentication (FR-03). JSON for the payment page: address, amount, asset, `expiresAt`
+        and status. The invoice id is an unguessable UUID. Contains no merchant data other than the order id.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+      responses:
+        '200':
+          description: Payment data.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /pay/{id}/status:
+    get:
+      tags: [payment-page]
+      operationId: getPaymentStatus
+      summary: Payment status for polling
+      description: |
+        Public, no authentication. The same JSON as `GET /pay/{id}`, served from the status cache, for the
+        page to poll. Limit: 1 request/s per IP.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+      responses:
+        '200':
+          description: Payment data with the current status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT from `POST /api/v1/auth/token` of merchant-service, ES256, 15 minutes.
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Client-generated unique key of the creation request, unique per merchant.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+        example: 6f1d2b0e-0c63-4a57-9d4e-2f5c3f6a7a10
+    InvoiceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    ValidationError:
+      description: The request is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          example:
+            code: validation_failed
+            message: Request validation failed
+            details:
+              - field: amountUsdCents
+                message: must be a positive integer
+    Unauthorized:
+      description: Missing, invalid or expired JWT.
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            example: Bearer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: unauthorized
+            message: Invalid credentials
+    NotFound:
+      description: No such invoice (or it belongs to another merchant).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: not_found
+            message: Invoice not found
+    TooManyRequests:
+      description: Rate limit exceeded.
+      headers:
+        Retry-After:
+          description: Seconds to wait before the next request.
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 30
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: rate_limited
+            message: Too many requests
+    RateUnavailable:
+      description: |
+        The ETH/USD rate is unavailable, older than 60 s or unreliable (sources diverge by more than 1 %).
+        The invoice is not created; repeat later.
+      headers:
+        Retry-After:
+          description: Seconds to wait before the next attempt.
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            example: 5
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: rate_unavailable
+            message: Exchange rate is unavailable
+            reason: diverged
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code.
+          example: not_found
+        message:
+          type: string
+          description: Human-readable text. Never contains keys, tokens or secrets.
+        reason:
+          type: string
+          enum: [unavailable, stale, diverged]
+          description: Only for `rate_unavailable`.
+    ValidationError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          properties:
+            details:
+              type: array
+              items:
+                type: object
+                required: [field, message]
+                properties:
+                  field:
+                    type: string
+                  message:
+                    type: string
+
+    CreateInvoiceRequest:
+      type: object
+      required: [amountUsdCents, orderId]
+      additionalProperties: false
+      properties:
+        amountUsdCents:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Amount in USD, integer cents. 1999 is 19.99 USD.
+          example: 1999
+        orderId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: Merchant order id, returned in the invoice and in webhooks.
+          example: order-10042
+        asset:
+          type: string
+          enum: [ETH, USDT]
+          default: ETH
+          description: Payment asset. `USDT` is the test ERC-20 token (FR-10).
+
+    InvoiceStatus:
+      type: string
+      enum: [NEW, DETECTED, CONFIRMING, PAID, UNDERPAID, EXPIRED, LATE_PAID]
+
+    Asset:
+      oneOf:
+        - type: object
+          required: [kind, decimals]
+          properties:
+            kind:
+              type: string
+              enum: [ETH]
+            decimals:
+              type: integer
+              enum: [18]
+        - type: object
+          required: [kind, contract, decimals]
+          properties:
+            kind:
+              type: string
+              enum: [ERC20]
+            contract:
+              type: string
+              pattern: '^0x[0-9a-f]{40}$'
+            decimals:
+              type: integer
+              minimum: 0
+              maximum: 77
+
+    Amount:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,77})$'
+      description: Integer amount in minimal units of the asset (wei for ETH) as a decimal string.
+      example: '5412000000000000'
+
+    PaymentPage:
+      type: object
+      required: [invoiceId, status, address, amount, asset, orderId, expiresAt]
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/InvoiceStatus'
+        address:
+          type: string
+          pattern: '^0x[0-9a-f]{40}$'
+          description: Payment address derived from the merchant xpub.
+          example: '0x71c7656ec7ab88b098defb751b7401b5f6d8976f'
+        amount:
+          $ref: '#/components/schemas/Amount'
+        asset:
+          $ref: '#/components/schemas/Asset'
+        orderId:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          description: Deadline for the block timestamp of the transfer (chain time).
+
+    Invoice:
+      allOf:
+        - $ref: '#/components/schemas/PaymentPage'
+        - type: object
+          required: [merchantId, amountUsdCents, rate, createdAt, sequence, confirmations, receivedAmount, overpaid]
+          properties:
+            merchantId:
+              type: string
+              format: uuid
+            amountUsdCents:
+              type: integer
+              format: int64
+              minimum: 1
+            rate:
+              type: string
+              pattern: '^(0|[1-9][0-9]*)(\.[0-9]+)?$'
+              description: USD for one whole unit of the asset, fixed at creation, decimal string.
+              example: '3694.25'
+            createdAt:
+              type: string
+              format: date-time
+            sequence:
+              type: integer
+              minimum: 1
+              description: Invoice version, as in the `invoice.events` events.
+            confirmations:
+              type: integer
+              minimum: 0
+              description: Confirmations of the latest accounted transfer; 0 while there is none.
+            receivedAmount:
+              $ref: '#/components/schemas/Amount'
+            overpaid:
+              type: boolean
+              description: More than the invoice amount was received.
+
+    InvoicePage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Cursor of the next page; null or absent on the last page.
