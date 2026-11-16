@@ -166,18 +166,16 @@ func TestAddressKnownVector(t *testing.T) {
 	}
 }
 
-// Golden addresses for the public BIP-32 vector xpub (m/0H of vector 1),
-// path .../0/index. The key derivation itself is pinned by
-// TestChildMatchesBIP32Vector; these values pin the address step and the
-// path layout against regressions.
-func TestDeriveGolden(t *testing.T) {
-	for index, want := range goldenAddresses {
-		got, err := Derive(vec1M0H, uint32(index))
+// Exact comparison (including EIP-55 case) with the external reference
+// from golden_test.go.
+func TestDeriveHardhatReference(t *testing.T) {
+	for index, want := range hardhatAddresses {
+		got, err := Derive(hardhatXpub, uint32(index))
 		if err != nil {
 			t.Fatal(err)
 		}
 		if got != want {
-			t.Errorf("index %d: %s, want %s", index, got, want)
+			t.Errorf("index %d: got %s, want %s", index, got, want)
 		}
 	}
 }
