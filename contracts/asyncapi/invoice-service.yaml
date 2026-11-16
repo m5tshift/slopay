@@ -1,0 +1,432 @@
+asyncapi: 3.0.0
+id: urn:slopay:invoice-service
+info:
+  title: invoice-service events
+  version: 1.0.0
+  description: |
+    Invoice lifecycle events (SRS 4.1.4, 4.1.5). Published from the transactional outbox.
+
+    Every event is a CloudEvents 1.0 envelope in structured JSON mode (`../schemas/cloudevent.v1.json`);
+    the Kafka key equals the CloudEvent `subject`. Every invoice event carries `sequence`, the invoice
+    version. Delivery is at-least-once: consumers deduplicate by the event `id`, transfers by
+    `blockHash + txHash + logIndex`.
+
+    Amounts are decimal strings of integers in minimal units of the asset (wei, token base units).
+    `dataschema` is the `$id` of the versioned schema `<event>.v<N>.json`. A non-breaking change
+    (a new optional field, a relaxed constraint) edits the current version; a breaking change adds
+    `<event>.v<N+1>.json` and producers switch `dataschema` to it.
+defaultContentType: application/cloudevents+json
+
+channels:
+  invoiceEvents:
+    address: invoice.events
+    title: invoice.events
+    description: Invoice lifecycle. Key `invoiceId`, so the events of one invoice are ordered.
+    x-producer: invoice-service
+    x-consumers: [chain-watcher, webhook-service, ledger-service, reconciliation-service, clickhouse]
+    bindings:
+      kafka:
+        partitions: 6
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      created:
+        $ref: '#/components/messages/created'
+      detected:
+        $ref: '#/components/messages/detected'
+      confirming:
+        $ref: '#/components/messages/confirming'
+      paid:
+        $ref: '#/components/messages/paid'
+      underpaid:
+        $ref: '#/components/messages/underpaid'
+      expired:
+        $ref: '#/components/messages/expired'
+      latePaid:
+        $ref: '#/components/messages/latePaid'
+      reverted:
+        $ref: '#/components/messages/reverted'
+      lateTransfer:
+        $ref: '#/components/messages/lateTransfer'
+  chainBlocks:
+    $ref: './chain-watcher.yaml#/channels/chainBlocks'
+  chainTransfers:
+    $ref: './chain-watcher.yaml#/channels/chainTransfers'
+
+operations:
+  publishInvoiceEvents:
+    action: send
+    summary: Publish invoice transitions from the outbox.
+    channel:
+      $ref: '#/channels/invoiceEvents'
+  consumeChainBlocks:
+    action: receive
+    summary: Maintain the canonical chain and chain time, count confirmations, handle reorgs.
+    channel:
+      $ref: '#/channels/chainBlocks'
+  consumeChainTransfers:
+    action: receive
+    summary: Apply transfers whose block is in the canonical chain.
+    channel:
+      $ref: '#/channels/chainTransfers'
+
+components:
+  messageTraits:
+    invoiceEvent:
+      contentType: application/cloudevents+json
+      headers:
+        $ref: '../schemas/defs.v1.json#/definitions/kafkaHeaders'
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: invoiceId, equals the CloudEvent subject.
+            format: uuid
+          bindingVersion: 0.5.0
+
+  messages:
+    created:
+      name: invoice.created
+      title: Invoice created
+      traits:
+        - $ref: '#/components/messageTraits/invoiceEvent'
+      payload:
+        $ref: '../schemas/invoice.created.v1.json'
+      examples:
+        - name: eth
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+            traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d01
+            source: /slopay/invoice-service
+            type: invoice.created
+            time: '2026-11-15T10:00:00Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.created.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 1
+              status: NEW
+              address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              asset: {kind: ETH, decimals: 18}
+              amount: '10000000000000000'
+              orderId: order-1001
+              amountUsdCents: 2500
+              rate: '2500.00'
+              expiresAt: '2026-11-15T10:15:00Z'
+        - name: erc20
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d02
+            source: /slopay/invoice-service
+            type: invoice.created
+            time: '2026-11-15T10:00:00Z'
+            subject: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.created.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 1
+              status: NEW
+              address: '0x2546bcd3c84621e976d8185a91a922ae77ecec30'
+              asset: {kind: ERC20, contract: '0x5fbdb2315678afecb367f032d93f642f64180aa3', decimals: 6}
+              amount: '25000000'
+              orderId: order-1002
+              amountUsdCents: 2500
+              rate: '1'
+              expiresAt: '2026-11-15T10:15:00Z'
+
+    detected:
+      name: invoice.detected
+      title: Transfer detected
+      traits:
+        - $ref: '#/components/messageTraits/invoiceEvent'
+      payload:
+        $ref: '../schemas/invoice.detected.v1.json'
+      examples:
+        - name: eth
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d03
+            source: /slopay/invoice-service
+            type: invoice.detected
+            time: '2026-11-15T10:02:01Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.detected.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 2
+              status: DETECTED
+              address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              asset: {kind: ETH, decimals: 18}
+              amount: '10000000000000000'
+              received: '6000000000000000'
+              confirmations: 1
+
+    confirming:
+      name: invoice.confirming
+      title: Confirming
+      traits:
+        - $ref: '#/components/messageTraits/invoiceEvent'
+      payload:
+        $ref: '../schemas/invoice.confirming.v1.json'
+      examples:
+        - name: eth
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d04
+            source: /slopay/invoice-service
+            type: invoice.confirming
+            time: '2026-11-15T10:02:13Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.confirming.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 3
+              status: CONFIRMING
+              address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              asset: {kind: ETH, decimals: 18}
+              amount: '10000000000000000'
+              received: '6000000000000000'
+              confirmations: 2
+
+    paid:
+      name: invoice.paid
+      title: Paid
+      traits:
+        - $ref: '#/components/messageTraits/invoiceEvent'
+      payload:
+        $ref: '../schemas/invoice.paid.v1.json'
+      examples:
+        - name: eth-two-transfers
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d05
+            source: /slopay/invoice-service
+            type: invoice.paid
+            time: '2026-11-15T10:03:13Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.paid.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 4
+              status: PAID
+              address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              asset: {kind: ETH, decimals: 18}
+              amount: '10000000000000000'
+              received: '10000000000000000'
+              overpaid: false
+              confirmations: 6
+              paidAt: '2026-11-15T10:03:12Z'
+              transfers:
+                - blockNumber: 100
+                  blockHash: '0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4'
+                  txHash: '0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7'
+                  logIndex: null
+                  amount: '6000000000000000'
+                  asset: {kind: ETH, decimals: 18}
+                - blockNumber: 101
+                  blockHash: '0xb2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5'
+                  txHash: '0xe5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8'
+                  logIndex: null
+                  amount: '4000000000000000'
+                  asset: {kind: ETH, decimals: 18}
+
+    underpaid:
+      name: invoice.underpaid
+      title: Underpaid
+      traits:
+        - $ref: '#/components/messageTraits/invoiceEvent'
+      payload:
+        $ref: '../schemas/invoice.underpaid.v1.json'
+      examples:
+        - name: erc20
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d06
+            source: /slopay/invoice-service
+            type: invoice.underpaid
+            time: '2026-11-15T10:04:01Z'
+            subject: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.underpaid.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 4
+              status: UNDERPAID
+              address: '0x2546bcd3c84621e976d8185a91a922ae77ecec30'
+              asset: {kind: ERC20, contract: '0x5fbdb2315678afecb367f032d93f642f64180aa3', decimals: 6}
+              amount: '25000000'
+              received: '20000000'
+              confirmations: 6
+              transfers:
+                - blockNumber: 102
+                  blockHash: '0xc3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6'
+                  txHash: '0xf6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9'
+                  logIndex: 0
+                  amount: '20000000'
+                  asset: {kind: ERC20, contract: '0x5fbdb2315678afecb367f032d93f642f64180aa3', decimals: 6}
+
+    expired:
+      name: invoice.expired
+      title: Expired
+      traits:
+        - $ref: '#/components/messageTraits/invoiceEvent'
+      payload:
+        $ref: '../schemas/invoice.expired.v1.json'
+      examples:
+        - name: eth
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d07
+            source: /slopay/invoice-service
+            type: invoice.expired
+            time: '2026-11-15T10:15:13Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.expired.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 2
+              status: EXPIRED
+              address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              asset: {kind: ETH, decimals: 18}
+              amount: '10000000000000000'
+
+    latePaid:
+      name: invoice.late_paid
+      title: Paid after expiry
+      traits:
+        - $ref: '#/components/messageTraits/invoiceEvent'
+      payload:
+        $ref: '../schemas/invoice.late_paid.v1.json'
+      examples:
+        - name: eth
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d08
+            source: /slopay/invoice-service
+            type: invoice.late_paid
+            time: '2026-11-15T11:00:01Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_paid.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 3
+              status: LATE_PAID
+              address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              asset: {kind: ETH, decimals: 18}
+              amount: '10000000000000000'
+              received: '10000000000000000'
+              confirmations: 6
+              transfers:
+                - blockNumber: 400
+                  blockHash: '0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4'
+                  txHash: '0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7'
+                  logIndex: null
+                  amount: '10000000000000000'
+                  asset: {kind: ETH, decimals: 18}
+
+    reverted:
+      name: invoice.reverted
+      title: Reverted by reorg
+      traits:
+        - $ref: '#/components/messageTraits/invoiceEvent'
+      payload:
+        $ref: '../schemas/invoice.reverted.v1.json'
+      examples:
+        - name: eth-back-to-new
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d09
+            source: /slopay/invoice-service
+            type: invoice.reverted
+            time: '2026-11-15T10:02:25Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.reverted.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 4
+              status: NEW
+              previousStatus: CONFIRMING
+              address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              asset: {kind: ETH, decimals: 18}
+              amount: '10000000000000000'
+              received: '0'
+              fromBlock: 100
+              revertedTransfers:
+                - blockNumber: 100
+                  blockHash: '0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4'
+                  txHash: '0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7'
+                  logIndex: null
+                  amount: '6000000000000000'
+                  asset: {kind: ETH, decimals: 18}
+
+    lateTransfer:
+      name: invoice.late_transfer
+      title: Transfer to a final invoice
+      traits:
+        - $ref: '#/components/messageTraits/invoiceEvent'
+      payload:
+        $ref: '../schemas/invoice.late_transfer.v1.json'
+      examples:
+        - name: erc20
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d10
+            source: /slopay/invoice-service
+            type: invoice.late_transfer
+            time: '2026-11-15T10:30:01Z'
+            subject: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_transfer.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              sequence: 5
+              status: UNDERPAID
+              address: '0x2546bcd3c84621e976d8185a91a922ae77ecec30'
+              asset: {kind: ERC20, contract: '0x5fbdb2315678afecb367f032d93f642f64180aa3', decimals: 6}
+              amount: '25000000'
+              transfers:
+                - blockNumber: 250
+                  blockHash: '0xb2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5'
+                  txHash: '0xe5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8e5f6a7b8'
+                  logIndex: 3
+                  amount: '5000000'
+                  asset: {kind: ERC20, contract: '0x5fbdb2315678afecb367f032d93f642f64180aa3', decimals: 6}

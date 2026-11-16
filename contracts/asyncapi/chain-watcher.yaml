@@ -1,0 +1,200 @@
+asyncapi: 3.0.0
+id: urn:slopay:chain-watcher
+info:
+  title: chain-watcher events
+  version: 1.0.0
+  description: |
+    Blocks, reorgs and transfers to tracked addresses (SRS 4.1.3, 4.1.5, 4.1.9). chain-watcher keeps
+    no state in PostgreSQL and publishes to Kafka directly and idempotently: a republished block or
+    transfer keeps its deterministic event `id`.
+
+    Envelope, key, amount and versioning rules are the same as in `invoice-service.yaml`.
+
+    Order between `chain.blocks` and `chain.transfers` is not guaranteed. A consumer applies a transfer
+    only when its `blockNumber -> blockHash` is in the canonical chain built from `chain.blocks`;
+    a transfer that arrives before its block waits for it, a transfer from a reorged block is dropped.
+defaultContentType: application/cloudevents+json
+
+channels:
+  chainBlocks:
+    address: chain.blocks
+    title: chain.blocks
+    description: New canonical blocks and reorgs. One partition, key `chainId`, strict global order.
+    x-producer: chain-watcher
+    x-consumers: [invoice-service]
+    bindings:
+      kafka:
+        partitions: 1
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      newHead:
+        $ref: '#/components/messages/newHead'
+      reorg:
+        $ref: '#/components/messages/reorg'
+  chainTransfers:
+    address: chain.transfers
+    title: chain.transfers
+    description: Transfers to tracked addresses with the block number and hash. Key is the recipient address.
+    x-producer: chain-watcher
+    x-consumers: [invoice-service, clickhouse]
+    bindings:
+      kafka:
+        partitions: 6
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      transfer:
+        $ref: '#/components/messages/transfer'
+  invoiceEvents:
+    $ref: './invoice-service.yaml#/channels/invoiceEvents'
+
+operations:
+  publishChainBlocks:
+    action: send
+    summary: Publish processed blocks and detected reorgs.
+    channel:
+      $ref: '#/channels/chainBlocks'
+  publishChainTransfers:
+    action: send
+    summary: Publish transfers to tracked addresses.
+    channel:
+      $ref: '#/channels/chainTransfers'
+  consumeInvoiceEvents:
+    action: receive
+    summary: Track the address from invoice.created until the tracking window ends.
+    channel:
+      $ref: '#/channels/invoiceEvents'
+
+components:
+  messageTraits:
+    blockEvent:
+      contentType: application/cloudevents+json
+      headers:
+        $ref: '../schemas/defs.v1.json#/definitions/kafkaHeaders'
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: chainId as a decimal string, equals the CloudEvent subject.
+            pattern: '^[1-9][0-9]*$'
+          bindingVersion: 0.5.0
+    transferEvent:
+      contentType: application/cloudevents+json
+      headers:
+        $ref: '../schemas/defs.v1.json#/definitions/kafkaHeaders'
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: Recipient address in lower-case hex, equals the CloudEvent subject.
+            pattern: '^0x[0-9a-f]{40}$'
+          bindingVersion: 0.5.0
+
+  messages:
+    newHead:
+      name: chain.new_head
+      title: NewHead
+      traits:
+        - $ref: '#/components/messageTraits/blockEvent'
+      payload:
+        $ref: '../schemas/chain.new_head.v1.json'
+      examples:
+        - name: anvil
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+            traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+          payload:
+            specversion: '1.0'
+            id: '31337:0xb2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5'
+            source: /slopay/chain-watcher
+            type: chain.new_head
+            time: '2026-11-15T10:02:12Z'
+            subject: '31337'
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.new_head.v1.json
+            datacontenttype: application/json
+            data:
+              chainId: 31337
+              number: 101
+              hash: '0xb2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5'
+              parentHash: '0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4'
+              timestamp: 1794736932
+
+    reorg:
+      name: chain.reorg
+      title: Reorg
+      traits:
+        - $ref: '#/components/messageTraits/blockEvent'
+      payload:
+        $ref: '../schemas/chain.reorg.v1.json'
+      examples:
+        - name: depth-2
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 3a1f0e2d-5c4b-4a39-8e7f-6d5c4b3a2f10
+            source: /slopay/chain-watcher
+            type: chain.reorg
+            time: '2026-11-15T10:02:24Z'
+            subject: '31337'
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.reorg.v1.json
+            datacontenttype: application/json
+            data:
+              chainId: 31337
+              fromBlock: 100
+
+    transfer:
+      name: chain.transfer
+      title: Transfer
+      traits:
+        - $ref: '#/components/messageTraits/transferEvent'
+      payload:
+        $ref: '../schemas/chain.transfer.v1.json'
+      examples:
+        - name: eth
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: '0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4:0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7:'
+            source: /slopay/chain-watcher
+            type: chain.transfer
+            time: '2026-11-15T10:02:01Z'
+            subject: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.transfer.v1.json
+            datacontenttype: application/json
+            data:
+              chainId: 31337
+              blockNumber: 100
+              blockHash: '0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4'
+              blockTimestamp: 1794736920
+              txHash: '0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7'
+              logIndex: null
+              from: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
+              to: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              amount: '6000000000000000'
+              asset: {kind: ETH, decimals: 18}
+        - name: erc20
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: '0xc3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6:0xf6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9:0'
+            source: /slopay/chain-watcher
+            type: chain.transfer
+            time: '2026-11-15T10:03:01Z'
+            subject: '0x2546bcd3c84621e976d8185a91a922ae77ecec30'
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.transfer.v1.json
+            datacontenttype: application/json
+            data:
+              chainId: 31337
+              blockNumber: 102
+              blockHash: '0xc3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6'
+              blockTimestamp: 1794736980
+              txHash: '0xf6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9'
+              logIndex: 0
+              from: '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266'
+              to: '0x2546bcd3c84621e976d8185a91a922ae77ecec30'
+              amount: '20000000'
+              asset: {kind: ERC20, contract: '0x5fbdb2315678afecb367f032d93f642f64180aa3', decimals: 6}

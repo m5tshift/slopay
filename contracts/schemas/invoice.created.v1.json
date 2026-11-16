@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.created.v1.json",
+  "title": "invoice.created",
+  "description": "Invoice created in NEW with the rate fixed and the address derived from the merchant xpub. chain-watcher starts tracking the address.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "invoice.created" },
+    "source": { "const": "/slopay/invoice-service" },
+    "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.created.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invoiceId", "merchantId", "sequence", "status", "address", "asset", "amount", "orderId", "amountUsdCents", "rate", "expiresAt"],
+      "properties": {
+        "invoiceId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "merchantId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "sequence": { "const": 1 },
+        "status": { "const": "NEW" },
+        "address": { "$ref": "defs.v1.json#/definitions/address" },
+        "asset": { "$ref": "defs.v1.json#/definitions/asset" },
+        "amount": { "$ref": "defs.v1.json#/definitions/positiveAmount" },
+        "orderId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "amountUsdCents": { "$ref": "defs.v1.json#/definitions/usdCents" },
+        "rate": { "$ref": "defs.v1.json#/definitions/rate" },
+        "expiresAt": {
+          "description": "Deadline for the transfer block timestamp (chain time).",
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

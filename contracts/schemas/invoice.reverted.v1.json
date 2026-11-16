@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.reverted.v1.json",
+  "title": "invoice.reverted",
+  "description": "A reorg removed accounted transfers. received and status are recalculated from the remaining transfers; status is NEW when none remain. If the latest remaining transfer already has N confirmations, invoice-service publishes status CONFIRMING here and then invoice.paid or invoice.underpaid with the remaining transfers, so ledger postings come only from those events.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "invoice.reverted" },
+    "source": { "const": "/slopay/invoice-service" },
+    "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.reverted.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invoiceId", "merchantId", "sequence", "status", "previousStatus", "address", "asset", "amount", "received", "fromBlock", "revertedTransfers"],
+      "properties": {
+        "invoiceId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "merchantId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "sequence": { "$ref": "defs.v1.json#/definitions/sequence" },
+        "status": {
+          "description": "Status after the recalculation.",
+          "enum": ["NEW", "DETECTED", "CONFIRMING"]
+        },
+        "previousStatus": { "enum": ["DETECTED", "CONFIRMING"] },
+        "address": { "$ref": "defs.v1.json#/definitions/address" },
+        "asset": { "$ref": "defs.v1.json#/definitions/asset" },
+        "amount": { "$ref": "defs.v1.json#/definitions/positiveAmount" },
+        "received": { "$ref": "defs.v1.json#/definitions/amount" },
+        "fromBlock": {
+          "description": "fromBlock of the chain.reorg event that caused the revert.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "revertedTransfers": { "$ref": "defs.v1.json#/definitions/accountedTransfers" }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.transfer.v1.json",
+  "title": "chain.transfer",
+  "description": "Transfer to a tracked address: native ETH (logIndex null) or an ERC-20 Transfer log. Idempotency key: blockHash + txHash + logIndex; after a reorg the same txHash arrives again from another block. The ID is deterministic for the key: <blockHash>:<txHash>:<logIndex or empty>.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "chain.transfer" },
+    "source": { "const": "/slopay/chain-watcher" },
+    "subject": {
+      "description": "Recipient address (data.to).",
+      "allOf": [{ "$ref": "defs.v1.json#/definitions/address" }]
+    },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.transfer.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chainId", "blockNumber", "blockHash", "blockTimestamp", "txHash", "logIndex", "from", "to", "amount", "asset"],
+      "properties": {
+        "chainId": { "$ref": "defs.v1.json#/definitions/chainId" },
+        "blockNumber": { "$ref": "defs.v1.json#/definitions/blockNumber" },
+        "blockHash": { "$ref": "defs.v1.json#/definitions/hash" },
+        "blockTimestamp": { "$ref": "defs.v1.json#/definitions/unixTime" },
+        "txHash": { "$ref": "defs.v1.json#/definitions/hash" },
+        "logIndex": { "$ref": "defs.v1.json#/definitions/logIndex" },
+        "from": { "$ref": "defs.v1.json#/definitions/address" },
+        "to": { "$ref": "defs.v1.json#/definitions/address" },
+        "amount": { "$ref": "defs.v1.json#/definitions/amount" },
+        "asset": { "$ref": "defs.v1.json#/definitions/asset" }
+      },
+      "allOf": [{ "$ref": "defs.v1.json#/definitions/logIndexMatchesAsset" }]
+    }
+  }
+}

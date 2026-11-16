@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.expired.v1.json",
+  "title": "invoice.expired",
+  "description": "A NEW invoice expired: a block with timestamp > expiresAt was processed (including the wait after a reorg).",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "invoice.expired" },
+    "source": { "const": "/slopay/invoice-service" },
+    "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.expired.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invoiceId", "merchantId", "sequence", "status", "address", "asset", "amount"],
+      "properties": {
+        "invoiceId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "merchantId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "sequence": { "$ref": "defs.v1.json#/definitions/sequence" },
+        "status": { "const": "EXPIRED" },
+        "address": { "$ref": "defs.v1.json#/definitions/address" },
+        "asset": { "$ref": "defs.v1.json#/definitions/asset" },
+        "amount": { "$ref": "defs.v1.json#/definitions/positiveAmount" }
+      }
+    }
+  }
+}

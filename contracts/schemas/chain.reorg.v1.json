@@ -1,0 +1,30 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.reorg.v1.json",
+  "title": "chain.reorg",
+  "description": "Reorg detected: blocks with number >= fromBlock are no longer canonical, transfers from them are void. The new branch follows as chain.new_head events starting at fromBlock.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "chain.reorg" },
+    "source": { "const": "/slopay/chain-watcher" },
+    "subject": {
+      "description": "chainId as a decimal string.",
+      "type": "string",
+      "pattern": "^[1-9][0-9]*$"
+    },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.reorg.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chainId", "fromBlock"],
+      "properties": {
+        "chainId": { "$ref": "defs.v1.json#/definitions/chainId" },
+        "fromBlock": {
+          "description": "First block number that is no longer canonical: the common ancestor + 1.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

@@ -1,3 +1,11 @@
 module github.com/m5tshift/slopay
 
 go 1.27.4
+
+require (
+	github.com/asyncapi/spec-json-schemas/v6 v6.11.2
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
+	go.yaml.in/yaml/v3 v3.0.6
+)
+
+require golang.org/x/text v0.14.0 // indirect
