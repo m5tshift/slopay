@@ -4,6 +4,7 @@ go 1.27.4
 
 require (
 	github.com/asyncapi/spec-json-schemas/v6 v6.11.2
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.1
 	github.com/getkin/kin-openapi v0.153.0
 	github.com/prometheus/client_golang v1.25.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
@@ -16,6 +17,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
 	go.yaml.in/yaml/v3 v3.0.6
+	golang.org/x/crypto v0.59.0
 	k8s.io/apimachinery v0.37.2
 	k8s.io/client-go v0.37.2
 	pgregory.net/rapid v1.3.0
@@ -63,11 +65,11 @@ require (
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
-	golang.org/x/term v0.46.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
+	golang.org/x/term v0.48.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc // indirect
