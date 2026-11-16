@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/webhook.dead_lettered.v1.json",
+  "title": "webhook.dead_lettered",
+  "description": "A webhook whose delivery attempts are exhausted (SRS 4.1.3, 4.1.5), published to webhook.dlq. The event ID: <invoice event id>:dlq.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "webhook.dead_lettered" },
+    "id": { "pattern": "^.+:dlq$" },
+    "source": { "const": "/slopay/webhook-service" },
+    "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/webhook.dead_lettered.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invoiceId", "merchantId", "attempts", "firstAttemptAt", "failedAt", "lastError", "event"],
+      "properties": {
+        "invoiceId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "merchantId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "attempts": { "type": "integer", "minimum": 1 },
+        "firstAttemptAt": { "type": "string", "format": "date-time" },
+        "failedAt": { "type": "string", "format": "date-time" },
+        "lastError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason"],
+      "properties": {
+        "statusCode": {
+          "description": "HTTP status of the merchant endpoint; null when there was no response (timeout, connection error, open circuit breaker).",
+          "type": ["integer", "null"],
+          "minimum": 100,
+          "maximum": 599
+        },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+        "event": {
+          "description": "The invoice event the webhook is built from.",
+          "allOf": [{ "$ref": "cloudevent.v1.json" }],
+          "properties": {
+            "type": { "pattern": "^invoice\\.[a-z_]+$" },
+            "source": { "const": "/slopay/invoice-service" }
+          }
+        }
+      }
+    }
+  }
+}

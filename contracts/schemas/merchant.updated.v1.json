@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/merchant.updated.v1.json",
+  "title": "merchant.updated",
+  "description": "Full current state of a merchant (event-carried state transfer, SRS 4.1.2). Published on registration and on every change of the xpub, the webhook URL, the tolerance or the webhook secret version. The topic is compacted by merchantId: the last event is the state, a consumer keeps the projection and ignores an event whose version is lower than the one it holds. The webhook secret is never published, only its version; webhook-service reads the secret from OpenBao.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "merchant.updated" },
+    "source": { "const": "/slopay/merchant-service" },
+    "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/merchant.updated.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["merchantId", "version", "xpub", "webhookUrl", "toleranceBps", "webhookSecretVersion"],
+      "properties": {
+        "merchantId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "version": {
+          "description": "Version of the merchant state: 1 on registration, incremented by every following event.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "xpub": {
+          "description": "Extended public key (BIP-32, Base58Check) the invoice addresses are derived from. Never a private key.",
+          "type": "string",
+          "pattern": "^[xt]pub[1-9A-HJ-NP-Za-km-z]{107}$"
+        },
+        "webhookUrl": {
+          "description": "Webhook endpoint of the merchant; null until the merchant sets it. Set in the merchant settings only.",
+          "type": ["string", "null"],
+          "pattern": "^https?://[^\\s]+$",
+          "maxLength": 2048
+        },
+        "toleranceBps": {
+          "description": "Amount tolerance in basis points (1 bp = 0.01 %): 0..500, i.e. 0..5 % (SRS 4.1.4). The default is 100 (1 %).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 500
+        },
+        "webhookSecretVersion": {
+          "description": "Version of the current webhook signing secret. Sent to the merchant in the webhook header; the secret itself is not here.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

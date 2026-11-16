@@ -1,0 +1,156 @@
+asyncapi: 3.0.0
+id: urn:slopay:rate-service
+info:
+  title: rate-service events
+  version: 1.0.0
+  description: |
+    Quotes and the latest aggregated rate (SRS 4.1.3, 4.1.5, 4.1.9). rate-service keeps no state in
+    PostgreSQL and publishes to Kafka directly and idempotently.
+
+    Envelope, key and versioning rules are the same as in `invoice-service.yaml`. Prices are decimal
+    strings, never floats.
+defaultContentType: application/cloudevents+json
+
+channels:
+  rateTicks:
+    address: rate.ticks
+    title: rate.ticks
+    description: Quotes of every source. Key `<source>:<pair>`, the order is kept within a source.
+    x-producer: rate-service
+    x-consumers: [clickhouse]
+    bindings:
+      kafka:
+        partitions: 3
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      tick:
+        $ref: '#/components/messages/tick'
+  rateLatest:
+    address: rate.latest
+    title: rate.latest
+    description: The latest aggregated rate of a pair. Key `pair`, compacted.
+    x-producer: rate-service
+    x-consumers: [rate-service]
+    bindings:
+      kafka:
+        partitions: 1
+        replicas: 3
+        topicConfiguration:
+          cleanup.policy: [compact]
+        bindingVersion: 0.5.0
+    messages:
+      latest:
+        $ref: '#/components/messages/latest'
+
+operations:
+  publishRateTicks:
+    action: send
+    summary: Publish every accepted quote.
+    channel:
+      $ref: '#/channels/rateTicks'
+  publishRateLatest:
+    action: send
+    summary: Publish the aggregated rate after each update.
+    channel:
+      $ref: '#/channels/rateLatest'
+  consumeRateLatest:
+    action: receive
+    summary: Restore the rate after a restart.
+    channel:
+      $ref: '#/channels/rateLatest'
+
+components:
+  messageTraits:
+    tickEvent:
+      contentType: application/cloudevents+json
+      headers:
+        $ref: '../schemas/defs.v1.json#/definitions/kafkaHeaders'
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: '<source>:<pair>, equals the CloudEvent subject.'
+            pattern: '^(coinbase:(ETH-USD|USDT-USD)|okx:ETH-USDT)$'
+          bindingVersion: 0.5.0
+    latestEvent:
+      contentType: application/cloudevents+json
+      headers:
+        $ref: '../schemas/defs.v1.json#/definitions/kafkaHeaders'
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: Pair, equals the CloudEvent subject.
+            enum: [ETH-USD, USDT-USD]
+          bindingVersion: 0.5.0
+
+  messages:
+    tick:
+      name: rate.tick
+      title: Quote
+      traits:
+        - $ref: '#/components/messageTraits/tickEvent'
+      payload:
+        $ref: '../schemas/rate.tick.v1.json'
+      examples:
+        - name: coinbase-eth-usd
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+            source: /slopay/rate-service
+            type: rate.tick
+            time: '2026-11-15T10:00:00Z'
+            subject: 'coinbase:ETH-USD'
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.tick.v1.json
+            datacontenttype: application/json
+            data:
+              source: coinbase
+              pair: ETH-USD
+              price: '2501.35'
+              quotedAt: '2026-11-15T09:59:59Z'
+        - name: okx-eth-usdt
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
+            source: /slopay/rate-service
+            type: rate.tick
+            time: '2026-11-15T10:00:00Z'
+            subject: 'okx:ETH-USDT'
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.tick.v1.json
+            datacontenttype: application/json
+            data:
+              source: okx
+              pair: ETH-USDT
+              price: '2500.80'
+              quotedAt: '2026-11-15T09:59:59Z'
+
+    latest:
+      name: rate.latest
+      title: Latest rate
+      traits:
+        - $ref: '#/components/messageTraits/latestEvent'
+      payload:
+        $ref: '../schemas/rate.latest.v1.json'
+      examples:
+        - name: eth-usd
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 3c4d5e6f-7a8b-4c9d-8e1f-2a3b4c5d6e7f
+            source: /slopay/rate-service
+            type: rate.latest
+            time: '2026-11-15T10:00:05Z'
+            subject: ETH-USD
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.latest.v1.json
+            datacontenttype: application/json
+            data:
+              pair: ETH-USD
+              price: '2501.075'
+              quotedAt: '2026-11-15T10:00:04Z'
+              sources: [coinbase, okx]

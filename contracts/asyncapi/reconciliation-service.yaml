@@ -1,0 +1,163 @@
+asyncapi: 3.0.0
+id: urn:slopay:reconciliation-service
+info:
+  title: reconciliation-service events
+  version: 1.0.0
+  description: |
+    Results of the periodic reconciliation (SRS 4.1.3, 4.1.5). The service keeps its state in MongoDB
+    and publishes to Kafka directly and idempotently.
+
+    Envelope, key and versioning rules are the same as in `invoice-service.yaml`. All events of a run
+    have the key `runId`. A run publishes one `reconciliation.mismatch` per discrepancy, then
+    `reconciliation.completed`. A mismatch raises an alert.
+defaultContentType: application/cloudevents+json
+
+channels:
+  reconciliationEvents:
+    address: reconciliation.events
+    title: reconciliation.events
+    description: Results of runs and discrepancies. Key `runId`.
+    x-producer: reconciliation-service
+    x-consumers: []
+    bindings:
+      kafka:
+        partitions: 1
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      completed:
+        $ref: '#/components/messages/completed'
+      mismatch:
+        $ref: '#/components/messages/mismatch'
+  invoiceEvents:
+    $ref: './invoice-service.yaml#/channels/invoiceEvents'
+
+operations:
+  publishReconciliationEvents:
+    action: send
+    summary: Publish discrepancies and the result of a run.
+    channel:
+      $ref: '#/channels/reconciliationEvents'
+  consumeInvoiceEvents:
+    action: receive
+    summary: Build the projection of invoices and their accounted transfers.
+    channel:
+      $ref: '#/channels/invoiceEvents'
+
+components:
+  messageTraits:
+    reconciliationEvent:
+      contentType: application/cloudevents+json
+      headers:
+        $ref: '../schemas/defs.v1.json#/definitions/kafkaHeaders'
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: runId, equals the CloudEvent subject.
+            format: uuid
+          bindingVersion: 0.5.0
+
+  messages:
+    completed:
+      name: reconciliation.completed
+      title: Run completed
+      traits:
+        - $ref: '#/components/messageTraits/reconciliationEvent'
+      payload:
+        $ref: '../schemas/reconciliation.completed.v1.json'
+      examples:
+        - name: ok
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+            traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+          payload:
+            specversion: '1.0'
+            id: 'c0a8e1f2-3b4d-4c5e-8f60-7a8b9c0d1e2f:completed'
+            source: /slopay/reconciliation-service
+            type: reconciliation.completed
+            time: '2026-11-15T10:10:07Z'
+            subject: c0a8e1f2-3b4d-4c5e-8f60-7a8b9c0d1e2f
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.completed.v1.json
+            datacontenttype: application/json
+            data:
+              runId: c0a8e1f2-3b4d-4c5e-8f60-7a8b9c0d1e2f
+              chainId: 31337
+              blockNumber: 130
+              startedAt: '2026-11-15T10:10:00Z'
+              finishedAt: '2026-11-15T10:10:07Z'
+              addressesChecked: 42
+              mismatches: 0
+              result: OK
+        - name: with-mismatches
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 'd1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30:completed'
+            source: /slopay/reconciliation-service
+            type: reconciliation.completed
+            time: '2026-11-15T10:20:09Z'
+            subject: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.completed.v1.json
+            datacontenttype: application/json
+            data:
+              runId: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
+              chainId: 31337
+              blockNumber: 150
+              startedAt: '2026-11-15T10:20:00Z'
+              finishedAt: '2026-11-15T10:20:09Z'
+              addressesChecked: 44
+              mismatches: 1
+              result: MISMATCH
+
+    mismatch:
+      name: reconciliation.mismatch
+      title: Discrepancy
+      traits:
+        - $ref: '#/components/messageTraits/reconciliationEvent'
+      payload:
+        $ref: '../schemas/reconciliation.mismatch.v1.json'
+      examples:
+        - name: eth-chain-vs-invoices
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 'd1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30:0x8ba1f109551bd432803012645ac136ddd64dba72:ETH'
+            source: /slopay/reconciliation-service
+            type: reconciliation.mismatch
+            time: '2026-11-15T10:20:05Z'
+            subject: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.mismatch.v1.json
+            datacontenttype: application/json
+            data:
+              runId: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              asset: {kind: ETH, decimals: 18}
+              kind: chain_vs_invoices
+              chainBalance: '16000000000000000'
+              invoicesTotal: '10000000000000000'
+              ledgerTotal: '10000000000000000'
+        - name: erc20-invoices-vs-ledger
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 'd1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30:0x2546bcd3c84621e976d8185a91a922ae77ecec30:0x5fbdb2315678afecb367f032d93f642f64180aa3'
+            source: /slopay/reconciliation-service
+            type: reconciliation.mismatch
+            time: '2026-11-15T10:20:06Z'
+            subject: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.mismatch.v1.json
+            datacontenttype: application/json
+            data:
+              runId: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              address: '0x2546bcd3c84621e976d8185a91a922ae77ecec30'
+              asset: {kind: ERC20, contract: '0x5fbdb2315678afecb367f032d93f642f64180aa3', decimals: 6}
+              kind: invoices_vs_ledger
+              chainBalance: '20000000'
+              invoicesTotal: '20000000'
+              ledgerTotal: '0'

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.fee_accrued.v1.json",
+  "title": "ledger.fee_accrued",
+  "description": "Platform fee accrued on a posted receipt (SRS 4.1.3): debit of the merchant, the merchant owes the platform. The fee is counted in the asset of the transfer, rounded down. The event ID: fee:<blockHash>:<txHash>:<logIndex or empty>.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "ledger.fee_accrued" },
+    "id": { "pattern": "^fee:0x[0-9a-f]{64}:0x[0-9a-f]{64}:[0-9]*$" },
+    "source": { "const": "/slopay/ledger-service" },
+    "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.fee_accrued.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["merchantId", "invoiceId", "transfer", "feeBps", "amount", "debitAccount", "creditAccount", "postedAt"],
+      "properties": {
+        "merchantId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "invoiceId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "transfer": {
+          "description": "The transfer the fee is accrued on.",
+          "$ref": "defs.v1.json#/definitions/accountedTransfer"
+        },
+        "feeBps": {
+          "description": "Fee rate in basis points, from the configuration (50 = 0.5 %).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000
+        },
+        "amount": {
+          "description": "Fee in minimal units of the transfer asset: floor(transfer.amount * feeBps / 10000).",
+          "$ref": "defs.v1.json#/definitions/amount"
+        },
+        "debitAccount": {
+          "description": "merchant:<merchantId>:fee_due.",
+          "type": "string",
+          "pattern": "^merchant:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:fee_due$"
+        },
+        "creditAccount": { "const": "platform:fee_income" },
+        "postedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

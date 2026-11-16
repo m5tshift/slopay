@@ -52,6 +52,8 @@ channels:
     $ref: './chain-watcher.yaml#/channels/chainBlocks'
   chainTransfers:
     $ref: './chain-watcher.yaml#/channels/chainTransfers'
+  merchantEvents:
+    $ref: './merchant-service.yaml#/channels/merchantEvents'
 
 operations:
   publishInvoiceEvents:
@@ -69,6 +71,11 @@ operations:
     summary: Apply transfers whose block is in the canonical chain.
     channel:
       $ref: '#/channels/chainTransfers'
+  consumeMerchantEvents:
+    action: receive
+    summary: Keep the projection of merchant xpubs and tolerances.
+    channel:
+      $ref: '#/channels/merchantEvents'
 
 components:
   messageTraits:
