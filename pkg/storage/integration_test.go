@@ -135,7 +135,7 @@ func TestPostgresMigrate(t *testing.T) {
 		t.Fatal(err)
 	}
 	bad := fstest.MapFS{
-		"00001_t.sql": fsys["00001_t.sql"],
+		"00001_t.sql":   fsys["00001_t.sql"],
 		"00002_bad.sql": {Data: []byte("-- +goose Up\nSELEKT;\n-- +goose Down\nSELECT 1;\n")},
 	}
 	if _, err := pg.Migrate(ctx, bad); err == nil {
