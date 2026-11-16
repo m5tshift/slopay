@@ -28,7 +28,8 @@ const (
 
 type topicSpec struct {
 	partitions int
-	key        string // data field that is the Kafka key and the CloudEvent subject
+	key        string   // data field that is the Kafka key and the CloudEvent subject
+	keyParts   []string // data fields joined with ":" when the key is composite; key is then empty
 	producer   string
 	consumers  []string
 	types      []string
@@ -61,7 +62,64 @@ var srsTopics = map[string]topicSpec{
 		consumers:  []string{"invoice-service", "clickhouse"},
 		types:      []string{"chain.transfer"},
 	},
+	"merchant.events": {
+		partitions: 3,
+		key:        "merchantId",
+		producer:   "merchant-service",
+		consumers:  []string{"invoice-service", "webhook-service"},
+		types:      []string{"merchant.updated"},
+	},
+	"rate.ticks": {
+		partitions: 3,
+		keyParts:   []string{"source", "pair"},
+		producer:   "rate-service",
+		consumers:  []string{"clickhouse"},
+		types:      []string{"rate.tick"},
+	},
+	"rate.latest": {
+		partitions: 1,
+		key:        "pair",
+		producer:   "rate-service",
+		consumers:  []string{"rate-service"},
+		types:      []string{"rate.latest"},
+	},
+	"ledger.events": {
+		partitions: 3,
+		key:        "merchantId",
+		producer:   "ledger-service",
+		consumers:  []string{},
+		types:      []string{"ledger.receipt_posted", "ledger.fee_accrued"},
+	},
+	"reconciliation.events": {
+		partitions: 1,
+		key:        "runId",
+		producer:   "reconciliation-service",
+		consumers:  []string{},
+		types:      []string{"reconciliation.completed", "reconciliation.mismatch"},
+	},
+	"webhook.retry.1m":  webhookRetry,
+	"webhook.retry.5m":  webhookRetry,
+	"webhook.retry.30m": webhookRetry,
+	"webhook.dlq": {
+		partitions: 1,
+		key:        "invoiceId",
+		producer:   "webhook-service",
+		consumers:  []string{},
+		types:      []string{"webhook.dead_lettered"},
+	},
 }
+
+// webhookRetry is the spec of the three retry topics: the same message, the delay is set by the topic.
+var webhookRetry = topicSpec{
+	partitions: 3,
+	key:        "invoiceId",
+	producer:   "webhook-service",
+	consumers:  []string{"webhook-service"},
+	types:      []string{"webhook.retry"},
+}
+
+// compactedTopics are the topics SRS 4.1.5 marks as compacted.
+var compactedTopics = []string{"merchant.events", "rate.latest"}
 
 // loader reads YAML and JSON documents as JSON values and resolves $ref between them.
 type loader struct {
@@ -420,7 +478,11 @@ func TestTopicsMatchSRS(t *testing.T) {
 			if got := str(ch.node["x-producer"]); got != want.producer {
 				t.Errorf("x-producer %q, want %q", got, want.producer)
 			}
-			var consumers []string
+			policy, _ := obj(kafka["topicConfiguration"])["cleanup.policy"].([]any)
+			if compacted := len(policy) == 1 && str(policy[0]) == "compact"; compacted != slices.Contains(compactedTopics, topic) {
+				t.Errorf("cleanup.policy %v, compacted must be %t", policy, !compacted)
+			}
+			consumers := []string{}
 			for _, c := range ch.node["x-consumers"].([]any) {
 				consumers = append(consumers, str(c))
 			}
@@ -467,7 +529,8 @@ func TestExamplesMatchSchemas(t *testing.T) {
 		if !ok {
 			t.Fatalf("%s: unknown topic %q", m.file, m.topic)
 		}
-		if prev, dup := published[m.schemaFile]; dup {
+		// One message may be published on several topics (the webhook retry tiers).
+		if prev, dup := published[m.schemaFile]; dup && prev != m.name {
 			t.Errorf("%s is the payload of %s and %s", m.schemaFile, prev, m.name)
 		}
 		published[m.schemaFile] = m.name
@@ -502,8 +565,16 @@ func TestExamplesMatchSchemas(t *testing.T) {
 				if got := str(p["type"]); got != m.name {
 					t.Errorf("type %q, want %q", got, m.name)
 				}
-				if subject, key := str(p["subject"]), str(obj(p["data"])[spec.key]); subject != key {
-					t.Errorf("subject %q, want data.%s %q (the Kafka key)", subject, spec.key, key)
+				fields := spec.keyParts
+				if spec.key != "" {
+					fields = []string{spec.key}
+				}
+				var parts []string
+				for _, f := range fields {
+					parts = append(parts, str(obj(p["data"])[f]))
+				}
+				if subject, key := str(p["subject"]), strings.Join(parts, ":"); subject != key {
+					t.Errorf("subject %q, want data.%v %q (the Kafka key)", subject, fields, key)
 				}
 			})
 		}
@@ -625,6 +696,42 @@ func TestSchemasRejectInvalidEvents(t *testing.T) {
 		{"wrong source", "invoice.paid", "eth-two-transfers", "source", "/slopay/ledger-service"},
 		{"time not RFC 3339", "invoice.created", "eth", "time", "15.11.2026 10:00"},
 		{"wrong specversion", "chain.reorg", "depth-2", "specversion", "0.3"},
+		{"merchant with a webhook secret", "merchant.updated", "registered", "data.webhookSecret", "s3cret"},
+		{"merchant without secret version", "merchant.updated", "registered", "data.webhookSecretVersion", removed{}},
+		{"merchant without xpub", "merchant.updated", "registered", "data.xpub", removed{}},
+		{"merchant with a private key", "merchant.updated", "registered", "data.xpub", "xprv9s21ZrQH143K3QTDL4LXw2F7HEK3wJUD2nW2nRk4stbPy6cq3jPPqjiChkVvvNKmPGJxWUtg6LnF5kejMRNNU3TGtRBeJgk33yuGBxrMPHi"},
+		{"merchant tolerance above 5 percent", "merchant.updated", "registered", "data.toleranceBps", json.Number("501")},
+		{"merchant tolerance as float", "merchant.updated", "registered", "data.toleranceBps", json.Number("1.5")},
+		{"merchant webhook URL over ftp", "merchant.updated", "webhook-secret-rotated", "data.webhookUrl", "ftp://merchant.example.com"},
+		{"merchant version zero", "merchant.updated", "registered", "data.version", json.Number("0")},
+		{"rate tick with a number price", "rate.tick", "coinbase-eth-usd", "data.price", json.Number("2501.35")},
+		{"okx quote of ETH-USD", "rate.tick", "okx-eth-usdt", "data.pair", "ETH-USD"},
+		{"unknown rate source", "rate.tick", "coinbase-eth-usd", "data.source", "binance"},
+		{"rate tick subject is not the key", "rate.tick", "coinbase-eth-usd", "subject", "ETH-USD"},
+		{"latest rate without sources", "rate.latest", "eth-usd", "data.sources", []any{}},
+		{"latest rate with a duplicate source", "rate.latest", "eth-usd", "data.sources", []any{"okx", "okx"}},
+		{"latest rate as number", "rate.latest", "eth-usd", "data.price", json.Number("2501.075")},
+		{"receipt without logIndex of ERC-20", "ledger.receipt_posted", "erc20", "data.transfer.logIndex", nil},
+		{"receipt ID is not the idempotency key", "ledger.receipt_posted", "eth", "id", "9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d01"},
+		{"receipt debit is not an address", "ledger.receipt_posted", "eth", "data.debitAccount", "platform:fee_income"},
+		{"fee as float", "ledger.fee_accrued", "eth", "data.amount", json.Number("5e13")},
+		{"fee rate above 100 percent", "ledger.fee_accrued", "eth", "data.feeBps", json.Number("10001")},
+		{"fee credited to a merchant", "ledger.fee_accrued", "eth", "data.creditAccount", "merchant:0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b:received"},
+		{"fee without transfer", "ledger.fee_accrued", "eth", "data.transfer", removed{}},
+		{"clean run with mismatches", "reconciliation.completed", "ok", "data.mismatches", json.Number("2")},
+		{"run with mismatches reported OK", "reconciliation.completed", "with-mismatches", "data.result", "OK"},
+		{"run without runId", "reconciliation.completed", "ok", "data.runId", removed{}},
+		{"mismatch with a fractional sum", "reconciliation.mismatch", "eth-chain-vs-invoices", "data.ledgerTotal", "1.5"},
+		{"mismatch without ledger sum", "reconciliation.mismatch", "eth-chain-vs-invoices", "data.ledgerTotal", removed{}},
+		{"unknown mismatch kind", "reconciliation.mismatch", "eth-chain-vs-invoices", "data.kind", "other"},
+		{"retry without attempt", "webhook.retry", "first-failure", "data.attempt", removed{}},
+		{"retry attempt zero", "webhook.retry", "first-failure", "data.attempt", json.Number("0")},
+		{"retry without the event", "webhook.retry", "first-failure", "data.event", removed{}},
+		{"retry of a non-invoice event", "webhook.retry", "first-failure", "data.event.type", "chain.transfer"},
+		{"retry with a secret", "webhook.retry", "first-failure", "data.secret", "s3cret"},
+		{"retry HTTP status out of range", "webhook.retry", "first-failure", "data.lastError.statusCode", json.Number("42")},
+		{"dead letter without attempts", "webhook.dead_lettered", "exhausted", "data.attempts", removed{}},
+		{"dead letter without the error", "webhook.dead_lettered", "exhausted", "data.lastError", removed{}},
 		{"unknown envelope attribute", "chain.reorg", "depth-2", "extra", "x"},
 	}
 	for _, tc := range cases {

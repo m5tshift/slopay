@@ -1,0 +1,276 @@
+asyncapi: 3.0.0
+id: urn:slopay:webhook-service
+info:
+  title: webhook-service events
+  version: 1.0.0
+  description: |
+    Delayed repeats of webhook deliveries and the dead-letter queue (SRS 4.1.3, 4.1.5, 4.1.10).
+    webhook-service keeps its delivery log in MongoDB and publishes to Kafka directly and idempotently.
+
+    Envelope, key and versioning rules are the same as in `invoice-service.yaml`. The three retry
+    topics carry the same message, the delay is set by the topic. A message carries the invoice
+    event the webhook is built from: the secret, the URL and the signature are not stored in it,
+    webhook-service takes the URL and the secret version from the `merchant.events` projection and the
+    secret from OpenBao for every attempt. After the last retry the delivery goes to `webhook.dlq`.
+defaultContentType: application/cloudevents+json
+
+channels:
+  webhookRetry1m:
+    address: webhook.retry.1m
+    title: webhook.retry.1m
+    description: Deliveries to repeat after 1m. Key `invoiceId`.
+    x-producer: webhook-service
+    x-consumers: [webhook-service]
+    bindings:
+      kafka:
+        partitions: 3
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      retry:
+        $ref: '#/components/messages/retry'
+  webhookRetry5m:
+    address: webhook.retry.5m
+    title: webhook.retry.5m
+    description: Deliveries to repeat after 5m. Key `invoiceId`.
+    x-producer: webhook-service
+    x-consumers: [webhook-service]
+    bindings:
+      kafka:
+        partitions: 3
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      retry:
+        $ref: '#/components/messages/retry'
+  webhookRetry30m:
+    address: webhook.retry.30m
+    title: webhook.retry.30m
+    description: Deliveries to repeat after 30m. Key `invoiceId`.
+    x-producer: webhook-service
+    x-consumers: [webhook-service]
+    bindings:
+      kafka:
+        partitions: 3
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      retry:
+        $ref: '#/components/messages/retry'
+  webhookDlq:
+    address: webhook.dlq
+    title: webhook.dlq
+    description: Deliveries with exhausted attempts. Key `invoiceId`.
+    x-producer: webhook-service
+    x-consumers: []
+    bindings:
+      kafka:
+        partitions: 1
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      deadLettered:
+        $ref: '#/components/messages/deadLettered'
+  invoiceEvents:
+    $ref: './invoice-service.yaml#/channels/invoiceEvents'
+  merchantEvents:
+    $ref: './merchant-service.yaml#/channels/merchantEvents'
+
+operations:
+  publishWebhookRetry1m:
+    action: send
+    summary: Schedule a repeat after 1 minute.
+    channel:
+      $ref: '#/channels/webhookRetry1m'
+  publishWebhookRetry5m:
+    action: send
+    summary: Schedule a repeat after 5 minutes.
+    channel:
+      $ref: '#/channels/webhookRetry5m'
+  publishWebhookRetry30m:
+    action: send
+    summary: Schedule a repeat after 30 minutes.
+    channel:
+      $ref: '#/channels/webhookRetry30m'
+  consumeWebhookRetry1m:
+    action: receive
+    summary: Repeat the delivery when the delay is over.
+    channel:
+      $ref: '#/channels/webhookRetry1m'
+  consumeWebhookRetry5m:
+    action: receive
+    summary: Repeat the delivery when the delay is over.
+    channel:
+      $ref: '#/channels/webhookRetry5m'
+  consumeWebhookRetry30m:
+    action: receive
+    summary: Repeat the delivery when the delay is over.
+    channel:
+      $ref: '#/channels/webhookRetry30m'
+  publishWebhookDlq:
+    action: send
+    summary: Park a delivery after the last failed attempt.
+    channel:
+      $ref: '#/channels/webhookDlq'
+  consumeInvoiceEvents:
+    action: receive
+    summary: Deliver a webhook for every invoice event.
+    channel:
+      $ref: '#/channels/invoiceEvents'
+  consumeMerchantEvents:
+    action: receive
+    summary: Keep the projection of webhook URLs and secret versions.
+    channel:
+      $ref: '#/channels/merchantEvents'
+
+components:
+  messageTraits:
+    webhookEvent:
+      contentType: application/cloudevents+json
+      headers:
+        $ref: '../schemas/defs.v1.json#/definitions/kafkaHeaders'
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: invoiceId, equals the CloudEvent subject.
+            format: uuid
+          bindingVersion: 0.5.0
+
+  messages:
+    retry:
+      name: webhook.retry
+      title: Delivery to repeat
+      traits:
+        - $ref: '#/components/messageTraits/webhookEvent'
+      payload:
+        $ref: '../schemas/webhook.retry.v1.json'
+      examples:
+        - name: first-failure
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+            traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+          payload:
+            specversion: '1.0'
+            id: '9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d01:1'
+            source: /slopay/webhook-service
+            type: webhook.retry
+            time: '2026-11-15T10:00:02Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/webhook.retry.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              attempt: 1
+              nextAttemptAt: '2026-11-15T10:01:02Z'
+              lastError: {statusCode: 503, reason: merchant endpoint answered 503}
+              event:
+                specversion: '1.0'
+                id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d01
+                source: /slopay/invoice-service
+                type: invoice.created
+                time: '2026-11-15T10:00:00Z'
+                subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+                dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.created.v1.json
+                datacontenttype: application/json
+                data:
+                  invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+                  merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+                  sequence: 1
+                  status: NEW
+                  address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+                  asset: {kind: ETH, decimals: 18}
+                  amount: '10000000000000000'
+                  orderId: order-1001
+                  amountUsdCents: 2500
+                  rate: '2500.00'
+                  expiresAt: '2026-11-15T10:15:00Z'
+        - name: no-response
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: '9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d01:3'
+            source: /slopay/webhook-service
+            type: webhook.retry
+            time: '2026-11-15T10:06:03Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/webhook.retry.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              attempt: 3
+              nextAttemptAt: '2026-11-15T10:36:03Z'
+              lastError: {statusCode: null, reason: circuit breaker is open}
+              event:
+                specversion: '1.0'
+                id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d01
+                source: /slopay/invoice-service
+                type: invoice.created
+                time: '2026-11-15T10:00:00Z'
+                subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+                dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.created.v1.json
+                datacontenttype: application/json
+                data:
+                  invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+                  merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+                  sequence: 1
+                  status: NEW
+                  address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+                  asset: {kind: ETH, decimals: 18}
+                  amount: '10000000000000000'
+                  orderId: order-1001
+                  amountUsdCents: 2500
+                  rate: '2500.00'
+                  expiresAt: '2026-11-15T10:15:00Z'
+
+    deadLettered:
+      name: webhook.dead_lettered
+      title: Delivery given up
+      traits:
+        - $ref: '#/components/messageTraits/webhookEvent'
+      payload:
+        $ref: '../schemas/webhook.dead_lettered.v1.json'
+      examples:
+        - name: exhausted
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: '9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d01:dlq'
+            source: /slopay/webhook-service
+            type: webhook.dead_lettered
+            time: '2026-11-15T11:08:00Z'
+            subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/webhook.dead_lettered.v1.json
+            datacontenttype: application/json
+            data:
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              attempts: 5
+              firstAttemptAt: '2026-11-15T10:00:02Z'
+              failedAt: '2026-11-15T11:08:00Z'
+              lastError: {statusCode: 500, reason: merchant endpoint answered 500}
+              event:
+                specversion: '1.0'
+                id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d01
+                source: /slopay/invoice-service
+                type: invoice.created
+                time: '2026-11-15T10:00:00Z'
+                subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+                dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.created.v1.json
+                datacontenttype: application/json
+                data:
+                  invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+                  merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+                  sequence: 1
+                  status: NEW
+                  address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+                  asset: {kind: ETH, decimals: 18}
+                  amount: '10000000000000000'
+                  orderId: order-1001
+                  amountUsdCents: 2500
+                  rate: '2500.00'
+                  expiresAt: '2026-11-15T10:15:00Z'

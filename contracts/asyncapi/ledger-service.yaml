@@ -1,0 +1,158 @@
+asyncapi: 3.0.0
+id: urn:slopay:ledger-service
+info:
+  title: ledger-service events
+  version: 1.0.0
+  description: |
+    Double-entry postings (SRS 4.1.3, 4.1.5). Published from the transactional outbox.
+
+    Envelope, key and versioning rules are the same as in `invoice-service.yaml`. The postings are
+    idempotent by `blockHash + txHash + logIndex`: the event `id` repeats the key, so a repeated
+    posting has the same `id`. There are no reversing postings. Reconciliation does not read this
+    topic: it checks the ledger through the statement API.
+defaultContentType: application/cloudevents+json
+
+channels:
+  ledgerEvents:
+    address: ledger.events
+    title: ledger.events
+    description: Receipt and fee postings. Key `merchantId`.
+    x-producer: ledger-service
+    x-consumers: []
+    bindings:
+      kafka:
+        partitions: 3
+        replicas: 3
+        bindingVersion: 0.5.0
+    messages:
+      receiptPosted:
+        $ref: '#/components/messages/receiptPosted'
+      feeAccrued:
+        $ref: '#/components/messages/feeAccrued'
+  invoiceEvents:
+    $ref: './invoice-service.yaml#/channels/invoiceEvents'
+
+operations:
+  publishLedgerEvents:
+    action: send
+    summary: Publish postings from the outbox.
+    channel:
+      $ref: '#/channels/ledgerEvents'
+  consumeInvoiceEvents:
+    action: receive
+    summary: Post a receipt and the fee for every transfer that reached N confirmations.
+    channel:
+      $ref: '#/channels/invoiceEvents'
+
+components:
+  messageTraits:
+    ledgerEvent:
+      contentType: application/cloudevents+json
+      headers:
+        $ref: '../schemas/defs.v1.json#/definitions/kafkaHeaders'
+      bindings:
+        kafka:
+          key:
+            type: string
+            description: merchantId, equals the CloudEvent subject.
+            format: uuid
+          bindingVersion: 0.5.0
+
+  messages:
+    receiptPosted:
+      name: ledger.receipt_posted
+      title: Receipt posted
+      traits:
+        - $ref: '#/components/messageTraits/ledgerEvent'
+      payload:
+        $ref: '../schemas/ledger.receipt_posted.v1.json'
+      examples:
+        - name: eth
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+            traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
+          payload:
+            specversion: '1.0'
+            id: 'receipt:0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4:0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7:'
+            source: /slopay/ledger-service
+            type: ledger.receipt_posted
+            time: '2026-11-15T10:03:00Z'
+            subject: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.receipt_posted.v1.json
+            datacontenttype: application/json
+            data:
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              address: '0x8ba1f109551bd432803012645ac136ddd64dba72'
+              transfer:
+                blockNumber: 100
+                blockHash: '0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4'
+                txHash: '0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7'
+                logIndex: null
+                amount: '10000000000000000'
+                asset: {kind: ETH, decimals: 18}
+              debitAccount: 'address:0x8ba1f109551bd432803012645ac136ddd64dba72'
+              creditAccount: 'merchant:0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b:received'
+              postedAt: '2026-11-15T10:03:00Z'
+        - name: erc20
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 'receipt:0xc3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6:0xf6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9:0'
+            source: /slopay/ledger-service
+            type: ledger.receipt_posted
+            time: '2026-11-15T10:04:00Z'
+            subject: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.receipt_posted.v1.json
+            datacontenttype: application/json
+            data:
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              invoiceId: 8e1d2c3b-4a59-4687-b7a6-5f4e3d2c1b0a
+              address: '0x2546bcd3c84621e976d8185a91a922ae77ecec30'
+              transfer:
+                blockNumber: 102
+                blockHash: '0xc3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6'
+                txHash: '0xf6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9'
+                logIndex: 0
+                amount: '20000000'
+                asset: {kind: ERC20, contract: '0x5fbdb2315678afecb367f032d93f642f64180aa3', decimals: 6}
+              debitAccount: 'address:0x2546bcd3c84621e976d8185a91a922ae77ecec30'
+              creditAccount: 'merchant:0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b:received'
+              postedAt: '2026-11-15T10:04:00Z'
+
+    feeAccrued:
+      name: ledger.fee_accrued
+      title: Fee accrued
+      traits:
+        - $ref: '#/components/messageTraits/ledgerEvent'
+      payload:
+        $ref: '../schemas/ledger.fee_accrued.v1.json'
+      examples:
+        - name: eth
+          headers:
+            content-type: application/cloudevents+json; charset=UTF-8
+          payload:
+            specversion: '1.0'
+            id: 'fee:0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4:0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7:'
+            source: /slopay/ledger-service
+            type: ledger.fee_accrued
+            time: '2026-11-15T10:03:00Z'
+            subject: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.fee_accrued.v1.json
+            datacontenttype: application/json
+            data:
+              merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
+              invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
+              transfer:
+                blockNumber: 100
+                blockHash: '0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4'
+                txHash: '0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7'
+                logIndex: null
+                amount: '10000000000000000'
+                asset: {kind: ETH, decimals: 18}
+              feeBps: 50
+              amount: '50000000000000'
+              debitAccount: 'merchant:0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b:fee_due'
+              creditAccount: 'platform:fee_income'
+              postedAt: '2026-11-15T10:03:00Z'

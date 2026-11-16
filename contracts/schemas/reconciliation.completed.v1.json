@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.completed.v1.json",
+  "title": "reconciliation.completed",
+  "description": "Result of a reconciliation run (SRS 4.1.3): blockchain balances against invoices and ledger postings. Published once per run, after the mismatches of the run; mismatches counts the reconciliation.mismatch events of the run.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "reconciliation.completed" },
+    "id": { "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:completed$" },
+    "source": { "const": "/slopay/reconciliation-service" },
+    "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.completed.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runId", "chainId", "blockNumber", "startedAt", "finishedAt", "addressesChecked", "mismatches", "result"],
+      "properties": {
+        "runId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "chainId": { "$ref": "defs.v1.json#/definitions/chainId" },
+        "blockNumber": {
+          "description": "Block the balances were read at.",
+          "$ref": "defs.v1.json#/definitions/blockNumber"
+        },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "finishedAt": { "type": "string", "format": "date-time" },
+        "addressesChecked": { "type": "integer", "minimum": 0 },
+        "mismatches": { "type": "integer", "minimum": 0 },
+        "result": { "enum": ["OK", "MISMATCH"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "mismatches": { "const": 0 } } },
+          "then": { "properties": { "result": { "const": "OK" } } },
+          "else": { "properties": { "result": { "const": "MISMATCH" } } }
+        }
+      ]
+    }
+  }
+}

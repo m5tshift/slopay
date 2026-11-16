@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/webhook.retry.v1.json",
+  "title": "webhook.retry",
+  "description": "A webhook delivery to repeat later (SRS 4.1.3, 4.1.5). The same message goes to webhook.retry.1m, .5m or .30m: the topic sets the delay. The retry carries the invoice event the webhook is built from; the timestamp and the signature are made again for every attempt (SRS 4.1.10). The event ID: <invoice event id>:<attempt>.",
+  "allOf": [{ "$ref": "cloudevent.v1.json" }],
+  "properties": {
+    "type": { "const": "webhook.retry" },
+    "id": { "pattern": "^.+:[1-9][0-9]*$" },
+    "source": { "const": "/slopay/webhook-service" },
+    "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/webhook.retry.v1.json" },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["invoiceId", "merchantId", "attempt", "nextAttemptAt", "lastError", "event"],
+      "properties": {
+        "invoiceId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "merchantId": { "$ref": "defs.v1.json#/definitions/uuid" },
+        "attempt": {
+          "description": "Number of the failed attempts, 1 after the first failure.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "nextAttemptAt": { "type": "string", "format": "date-time" },
+        "lastError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason"],
+      "properties": {
+        "statusCode": {
+          "description": "HTTP status of the merchant endpoint; null when there was no response (timeout, connection error, open circuit breaker).",
+          "type": ["integer", "null"],
+          "minimum": 100,
+          "maximum": 599
+        },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    },
+        "event": {
+          "description": "The invoice event the webhook is built from, as it was published to invoice.events.",
+          "allOf": [{ "$ref": "cloudevent.v1.json" }],
+          "properties": {
+            "type": { "pattern": "^invoice\\.[a-z_]+$" },
+            "source": { "const": "/slopay/invoice-service" }
+          }
+        }
+      }
+    }
+  }
+}
