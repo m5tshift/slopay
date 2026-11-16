@@ -200,7 +200,7 @@ func TestInternalAPIsAreNotPublic(t *testing.T) {
 		if doc.Components != nil && len(doc.Components.SecuritySchemes) != 0 {
 			t.Errorf("%s: internal API must not define security schemes", name)
 		}
-		if doc.Security != nil && len(doc.Security) != 0 {
+		if len(doc.Security) != 0 {
 			t.Errorf("%s: internal API must not require security", name)
 		}
 	}
