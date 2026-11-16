@@ -153,6 +153,9 @@ func newRelayT(t *testing.T, pub Publisher, mut func(*Config)) *Relay {
 	return r
 }
 
+// invoiceID returns a valid invoice UUID for n (the schemas require UUIDs).
+func invoiceID(n int) string { return fmt.Sprintf("5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e%02x", n) }
+
 // event builds a valid invoice.created for the invoice (the Kafka key) with the given sequence.
 func event(t *testing.T, invoice string, seq int) kafka.Event {
 	t.Helper()
@@ -229,7 +232,7 @@ func consume(t *testing.T, topic string, stop func([]kafka.Event) bool) []kafka.
 func TestRollbackDoesNotPublish(t *testing.T) {
 	topic := setup(t)
 	ctx := ctxT(t)
-	ghost := event(t, "inv-ghost", 1)
+	ghost := event(t, invoiceID(90), 1)
 	tx, err := pg.Pool().Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -240,7 +243,7 @@ func TestRollbackDoesNotPublish(t *testing.T) {
 	if err := tx.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	real := event(t, "inv-real", 1)
+	real := event(t, invoiceID(91), 1)
 	addTx(t, topic, real)
 
 	n, err := newRelayT(t, newProducer(t), nil).Flush(ctx)
@@ -273,7 +276,7 @@ func TestRestartLosesNothingAndKeepsOrder(t *testing.T) {
 	prod := newProducer(t)
 	var want []string
 	for i := 1; i <= 10; i++ {
-		ev := event(t, "inv-1", i)
+		ev := event(t, invoiceID(1), i)
 		want = append(want, ev.ID)
 		addTx(t, topic, ev)
 	}
@@ -318,7 +321,7 @@ func TestTwoRelaysKeepOrderPerKey(t *testing.T) {
 	total := keys * perKey
 	for s := 1; s <= perKey; s++ {
 		for k := 0; k < keys; k++ {
-			addTx(t, topic, event(t, fmt.Sprintf("inv-%d", k), s))
+			addTx(t, topic, event(t, invoiceID(k), s))
 		}
 	}
 	rctx, stop := context.WithCancel(ctx)
@@ -375,7 +378,7 @@ func TestStatsAndPurge(t *testing.T) {
 	if p, o, err := st.stats(ctx); err != nil || p != 0 || o != 0 {
 		t.Fatalf("empty: %d %v %v", p, o, err)
 	}
-	addTx(t, topic, event(t, "inv-1", 1), event(t, "inv-1", 2))
+	addTx(t, topic, event(t, invoiceID(1), 1), event(t, invoiceID(1), 2))
 	time.Sleep(50 * time.Millisecond)
 	p, o, err := st.stats(ctx)
 	if err != nil || p != 2 || o < 50*time.Millisecond {
@@ -400,7 +403,7 @@ func TestStatsAndPurge(t *testing.T) {
 func TestRelayLockExcludesSecondRelay(t *testing.T) {
 	topic := setup(t)
 	ctx := ctxT(t)
-	addTx(t, topic, event(t, "inv-1", 1))
+	addTx(t, topic, event(t, invoiceID(1), 1))
 	st := pgStore{pg.Pool()}
 	in, release := make(chan struct{}), make(chan struct{})
 	done := make(chan struct{})
