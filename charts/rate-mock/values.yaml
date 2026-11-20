@@ -1,0 +1,26 @@
+# rate-mock on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag) are set in slopay-gitops.
+image:
+  repository: zot.example.internal/slopay/rate-mock
+  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  tag: dev
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 64Mi
+
+# The state of the commands (disabled source, divergence) is kept in memory per replica, so there is one replica.
+replicaCount: 1
+pdb:
+  enabled: false
+
+env:
+  # The price ETH-USD and USDT-USD walk around; the walk is bounded by WALK_BAND_BPS (at most 33).
+  BASE_PRICE_ETH_USD: "3700"
+  BASE_PRICE_USDT_USD: "1"
+  TICK_INTERVAL: 1s
+  WALK_STEP_BPS: "2"
+  WALK_BAND_BPS: "10"
+  LOG_LEVEL: info
