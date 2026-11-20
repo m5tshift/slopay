@@ -1,0 +1,234 @@
+openapi: 3.0.3
+info:
+  title: rate-mock API
+  version: 1.0.0
+  description: |
+    Test component that replaces Coinbase and OKX for `rate-service` in the `mock` mode (SRS 4.1.3, 8.2д).
+    It runs two independent sources. Each source walks randomly around a configured price; the walk of one source
+    does not depend on the other. `coinbase` quotes `ETH-USD` and `USDT-USD`, `okx` quotes `ETH-USDT`, so
+    `rate-service` aggregates and converts exactly as it does with the exchanges.
+
+    **Commands** (`/control/*`) disable a source, make the sources diverge by more than 1 % and return everything
+    to normal. The component lives in the cluster mesh only and is not published on the gateway; like the other
+    internal APIs it has no application-level authentication. The state is kept in memory: a restart returns
+    the normal mode.
+
+    **Prices** are USD (`ETH-USD`, `USDT-USD`) or USDT (`ETH-USDT`) for one whole unit of the base currency,
+    decimal strings with six digits after the point, never floats.
+servers:
+  - url: http://rate-mock.apps.svc.cluster.local
+    description: In-cluster service
+
+tags:
+  - name: quotes
+  - name: control
+
+paths:
+  /sources/{source}/quotes/{pair}:
+    get:
+      tags: [quotes]
+      operationId: getQuote
+      summary: Latest quote of a pair from a source
+      description: |
+        `404` for an unknown source or a pair the source does not quote, `503` while the source is disabled (a failed exchange).
+      parameters:
+        - $ref: '#/components/parameters/Source'
+        - $ref: '#/components/parameters/Pair'
+      responses:
+        '200':
+          description: The quote.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+              example:
+                source: coinbase
+                pair: ETH-USD
+                price: '3694.250000'
+                quotedAt: '2026-11-28T12:00:00Z'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          description: The source is disabled.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: source_disabled
+                message: Source is disabled
+
+  /control:
+    get:
+      tags: [control]
+      operationId: getControl
+      summary: Current state of the sources
+      responses:
+        '200':
+          $ref: '#/components/responses/State'
+
+  /control/sources/{source}/disable:
+    post:
+      tags: [control]
+      operationId: disableSource
+      summary: Disable a source
+      description: The source answers `503` until it is enabled. Repeating the command changes nothing.
+      parameters:
+        - $ref: '#/components/parameters/Source'
+      responses:
+        '200':
+          $ref: '#/components/responses/State'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /control/sources/{source}/enable:
+    post:
+      tags: [control]
+      operationId: enableSource
+      summary: Enable a source
+      description: Repeating the command changes nothing.
+      parameters:
+        - $ref: '#/components/parameters/Source'
+      responses:
+        '200':
+          $ref: '#/components/responses/State'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /control/divergence:
+    put:
+      tags: [control]
+      operationId: setDivergence
+      summary: Shift `okx` against `coinbase`
+      description: |
+        Moves the price of `okx` by `bps` basis points relative to `coinbase` (positive - up, negative - down).
+        A shift of more than 100 in absolute terms plus the walk band (10 bps by default, so 150 and more) is a
+        divergence of more than 1 %, which `rate-service` treats as unreliable (SRS 4.1.9). `0` removes the shift.
+        The prices move to the new level at the next tick of the walk.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Divergence'
+            example:
+              bps: 150
+      responses:
+        '200':
+          $ref: '#/components/responses/State'
+        '400':
+          description: The body is not valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: invalid_request
+                message: bps must be between -5000 and 5000
+
+  /control/reset:
+    post:
+      tags: [control]
+      operationId: resetControl
+      summary: Return to the normal mode
+      description: Enables both sources and removes the divergence.
+      responses:
+        '200':
+          $ref: '#/components/responses/State'
+
+components:
+  parameters:
+    Source:
+      name: source
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Source'
+    Pair:
+      name: pair
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Pair'
+  responses:
+    State:
+      description: The state after the command.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/State'
+          example:
+            sources:
+              coinbase: {enabled: true}
+              okx: {enabled: false}
+            divergenceBps: 0
+    NotFound:
+      description: Unknown source, or the source does not quote the pair.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: not_found
+            message: Source does not quote the pair
+  schemas:
+    Source:
+      type: string
+      enum: [coinbase, okx]
+    Pair:
+      type: string
+      enum: [ETH-USD, ETH-USDT, USDT-USD]
+    Quote:
+      type: object
+      required: [source, pair, price, quotedAt]
+      properties:
+        source:
+          $ref: '#/components/schemas/Source'
+        pair:
+          $ref: '#/components/schemas/Pair'
+        price:
+          type: string
+          pattern: '^(0|[1-9][0-9]*)\.[0-9]{6}$'
+          description: Quote currency for one whole unit of the base currency.
+        quotedAt:
+          type: string
+          format: date-time
+          description: Time of the last step of the walk.
+    SourceState:
+      type: object
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    State:
+      type: object
+      required: [sources, divergenceBps]
+      properties:
+        sources:
+          type: object
+          required: [coinbase, okx]
+          properties:
+            coinbase:
+              $ref: '#/components/schemas/SourceState'
+            okx:
+              $ref: '#/components/schemas/SourceState'
+        divergenceBps:
+          type: integer
+          minimum: -5000
+          maximum: 5000
+    Divergence:
+      type: object
+      required: [bps]
+      properties:
+        bps:
+          type: integer
+          minimum: -5000
+          maximum: 5000
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string

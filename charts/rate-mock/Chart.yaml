@@ -1,0 +1,10 @@
+apiVersion: v2
+name: rate-mock
+description: SLOPay rate-mock - two imitated rate sources for rate-service in the mock mode (SRS 4.1.3, 8.2д)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: slopay-lib
+    version: 0.1.0
+    repository: file://../slopay-lib
