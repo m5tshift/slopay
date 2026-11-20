@@ -376,3 +376,10 @@ func TestNewServiceDefaultLogger(t *testing.T) {
 		t.Error("nil logger")
 	}
 }
+
+func TestNowMatchesPostgresPrecision(t *testing.T) {
+	n := now()
+	if n.Location() != time.UTC || n.Nanosecond()%1000 != 0 {
+		t.Errorf("now = %v", n)
+	}
+}

@@ -55,8 +55,11 @@ func NewService(store Store, cfg Config, log *slog.Logger) *Service {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Service{store: store, cfg: cfg, log: log, now: time.Now}
+	return &Service{store: store, cfg: cfg, log: log, now: now}
 }
+
+// now is UTC with the microsecond precision of PostgreSQL, so that returned and stored times are equal.
+func now() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }
 
 // IssuedKey is a new API key; Key is shown once and never stored.
 type IssuedKey struct {
