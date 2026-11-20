@@ -1,0 +1,68 @@
+# rate-service on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in slopay-gitops.
+image:
+  repository: zot.example.internal/slopay/rate-service
+  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  tag: dev
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+# Every replica serves GET /rates/{pair}; only the Lease holder polls the sources (SRS 4.1.3).
+leader:
+  enabled: true
+
+kafka:
+  enabled: true
+  brokers:
+    - slopay-kafka-bootstrap.kafka.svc:9092
+
+secrets:
+  # Password of the service's Valkey user: /var/run/secrets/slopay/valkey/password.
+  - name: valkey
+
+valkey:
+  enabled: true
+  addrs:
+    - valkey.db.svc:6379
+  username: rate-service
+  password:
+    secret: valkey
+    key: password
+
+# Calls invoice-service -> rate-service (SRS 4.1.9): 500 ms timeout, one retry, outlier detection.
+# Off by default: the minimal stand has no Istio CRDs; slopay-gitops enables them.
+istio:
+  destinationRule:
+    enabled: false
+  virtualService:
+    enabled: false
+    timeout: 500ms
+    retries:
+      attempts: 1
+      perTryTimeout: 500ms
+
+env:
+  # Only the mock mode exists so far; the exchanges mode is a separate task.
+  RATE_SOURCE_MODE: mock
+  RATE_MOCK_URL: http://rate-mock.apps.svc:8080
+  SOURCE_TIMEOUT: 2s
+  # SRS 4.1.3: poll every 5 s, a rate older than 60 s is stale, USDT/USD is used for 1 h,
+  # sources diverging by more than 1 % (100 bps) give 503.
+  POLL_INTERVAL: 5s
+  RATE_MAX_AGE: 60s
+  USDT_MAX_AGE: 1h
+  DIVERGENCE_MAX_BPS: "100"
+  RETRY_AFTER: 5s
+  VALKEY_TIMEOUT: 200ms
+  # SRS 4.1.9: circuit breaker per source.
+  SOURCE_BREAKER_FAILURE_THRESHOLD: "3"
+  SOURCE_BREAKER_OPEN_TIMEOUT: 30s
+  SOURCE_BREAKER_HALF_OPEN_MAX: "1"
+  # PUT /test/fault for the trial 8.2a; slopay-gitops enables it on the stand.
+  FAULT_INJECTION_ENABLED: "false"
+  LOG_LEVEL: info

@@ -126,14 +126,14 @@ const (
 // maxBps give Diverged. The quote time of a mean is the older one, so the age is never understated.
 // divergenceBps is the divergence of two quotes, 0 otherwise.
 func Aggregate(pair Pair, quotes []Quote, maxBps int64) (r Rate, out Outcome, divergenceBps int64) {
-	switch len(quotes) {
-	case 0:
+	if len(quotes) == 0 {
 		return Rate{}, NoQuote, 0
-	case 1:
-		q := quotes[0]
-		return Rate{Pair: pair, Price: q.Price, QuotedAt: q.QuotedAt, Sources: []Source{q.Source}}, Aggregated, 0
 	}
-	a, b := quotes[0], quotes[1]
+	a := quotes[0]
+	if len(quotes) < 2 {
+		return Rate{Pair: pair, Price: a.Price, QuotedAt: a.QuotedAt, Sources: []Source{a.Source}}, Aggregated, 0
+	}
+	b := quotes[1]
 	divergenceBps = DivergenceBps(a.Price, b.Price)
 	if !WithinBps(a.Price, b.Price, maxBps) {
 		return Rate{}, Diverged, divergenceBps
