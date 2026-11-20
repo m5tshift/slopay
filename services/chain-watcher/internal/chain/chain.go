@@ -5,6 +5,7 @@ package chain
 import (
 	"errors"
 	"math"
+	"math/big"
 	"slices"
 )
 
@@ -38,6 +39,46 @@ type Header struct {
 	ParentHash string
 	// Timestamp is the block time, Unix seconds.
 	Timestamp uint64
+}
+
+// Tx is a value transfer of a block: a transaction with a recipient and a positive value in wei. Hashes and
+// addresses are lower-case hex with 0x. Whether it succeeded is told by its receipt.
+type Tx struct {
+	Hash  string
+	From  string
+	To    string
+	Value *big.Int
+}
+
+// Block is a header with the value transfers of its transactions, in block order.
+type Block struct {
+	Header
+	Txs []Tx
+}
+
+// Recipients returns the distinct recipients of the transfers of b, in block order.
+func (b Block) Recipients() []string {
+	seen := make(map[string]bool, len(b.Txs))
+	out := make([]string, 0, len(b.Txs))
+	for _, tx := range b.Txs {
+		if !seen[tx.To] {
+			seen[tx.To] = true
+			out = append(out, tx.To)
+		}
+	}
+	return out
+}
+
+// Receipt is the outcome of a transaction in the block BlockHash.
+type Receipt struct {
+	BlockHash string
+	Success   bool
+}
+
+// Transfer is a native ETH transfer to a tracked address (chain.transfer with logIndex null).
+type Transfer struct {
+	Block Header
+	Tx    Tx
 }
 
 // State is the reading state of one chain. Window holds the last processed headers in ascending,

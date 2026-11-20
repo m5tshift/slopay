@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strings"
 	"time"
@@ -77,20 +78,72 @@ type rpcHeader struct {
 	Timestamp  *hexutil.Uint64 `json:"timestamp"`
 }
 
+type rpcTx struct {
+	Hash  *common.Hash    `json:"hash"`
+	From  *common.Address `json:"from"`
+	To    *common.Address `json:"to"`
+	Value *hexutil.Big    `json:"value"`
+}
+
+type rpcBlock struct {
+	rpcHeader
+	Transactions []rpcTx `json:"transactions"`
+}
+
 // HeaderByNumber returns the header of block n (eth_getBlockByNumber without transactions) or
 // chain.ErrNotFound when the node has no such block.
 func (c *Client) HeaderByNumber(ctx context.Context, n uint64) (chain.Header, error) {
-	var raw json.RawMessage
-	if err := c.call(ctx, &raw, "eth_getBlockByNumber", hexutil.Uint64(n), false); err != nil {
+	// Without full transactions the node lists their hashes: only the header fields are read.
+	var h rpcHeader
+	if err := c.block(ctx, n, false, &h); err != nil {
 		return chain.Header{}, err
 	}
+	return h.header(n)
+}
+
+// BlockByNumber returns block n with its value transfers (eth_getBlockByNumber with transactions): the
+// transactions with a recipient and a positive value. A contract creation has no recipient and is left out.
+func (c *Client) BlockByNumber(ctx context.Context, n uint64) (chain.Block, error) {
+	var b rpcBlock
+	if err := c.block(ctx, n, true, &b); err != nil {
+		return chain.Block{}, err
+	}
+	h, err := b.header(n)
+	if err != nil {
+		return chain.Block{}, err
+	}
+	out := chain.Block{Header: h}
+	for i, tx := range b.Transactions {
+		if tx.Hash == nil || tx.From == nil || tx.Value == nil {
+			return chain.Block{}, fmt.Errorf("node: block %d: transaction %d: hash, from or value missing", n, i)
+		}
+		v := (*big.Int)(tx.Value)
+		if tx.To == nil || v.Sign() <= 0 {
+			continue
+		}
+		out.Txs = append(out.Txs, chain.Tx{
+			Hash: strings.ToLower(tx.Hash.Hex()), From: strings.ToLower(tx.From.Hex()),
+			To: strings.ToLower(tx.To.Hex()), Value: new(big.Int).Set(v),
+		})
+	}
+	return out, nil
+}
+
+func (c *Client) block(ctx context.Context, n uint64, full bool, b any) error {
+	var raw json.RawMessage
+	if err := c.call(ctx, &raw, "eth_getBlockByNumber", hexutil.Uint64(n), full); err != nil {
+		return err
+	}
 	if len(raw) == 0 || string(raw) == "null" {
-		return chain.Header{}, chain.ErrNotFound
+		return chain.ErrNotFound
 	}
-	var h rpcHeader
-	if err := json.Unmarshal(raw, &h); err != nil {
-		return chain.Header{}, fmt.Errorf("node: block %d: %w", n, err)
+	if err := json.Unmarshal(raw, b); err != nil {
+		return fmt.Errorf("node: block %d: %w", n, err)
 	}
+	return nil
+}
+
+func (h rpcHeader) header(n uint64) (chain.Header, error) {
 	if h.Number == nil || h.Hash == nil || h.ParentHash == nil || h.Timestamp == nil {
 		return chain.Header{}, fmt.Errorf("node: block %d: number, hash, parentHash or timestamp missing", n)
 	}
@@ -106,4 +159,29 @@ func (c *Client) HeaderByNumber(ctx context.Context, n uint64) (chain.Header, er
 		ParentHash: strings.ToLower(h.ParentHash.Hex()),
 		Timestamp:  uint64(*h.Timestamp),
 	}, nil
+}
+
+type rpcReceipt struct {
+	BlockHash *common.Hash    `json:"blockHash"`
+	Status    *hexutil.Uint64 `json:"status"`
+}
+
+// Receipt returns the receipt of a transaction (eth_getTransactionReceipt) or chain.ErrNotFound when the
+// node does not know it, for example after a reorg dropped it.
+func (c *Client) Receipt(ctx context.Context, txHash string) (chain.Receipt, error) {
+	var raw json.RawMessage
+	if err := c.call(ctx, &raw, "eth_getTransactionReceipt", txHash); err != nil {
+		return chain.Receipt{}, err
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return chain.Receipt{}, chain.ErrNotFound
+	}
+	var r rpcReceipt
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return chain.Receipt{}, fmt.Errorf("node: receipt %s: %w", txHash, err)
+	}
+	if r.BlockHash == nil || r.Status == nil {
+		return chain.Receipt{}, fmt.Errorf("node: receipt %s: blockHash or status missing", txHash)
+	}
+	return chain.Receipt{BlockHash: strings.ToLower(r.BlockHash.Hex()), Success: *r.Status == 1}, nil
 }

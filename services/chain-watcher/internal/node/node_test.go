@@ -91,7 +91,7 @@ func TestChainIDAndHead(t *testing.T) {
 
 func TestHeaderByNumber(t *testing.T) {
 	c, seen := server(t, map[string]string{"eth_getBlockByNumber": `{"number":"0x65","hash":"` + hashA +
-		`","parentHash":"` + hashB + `","timestamp":"0x6afa0a24","transactions":[]}`}, 0)
+		`","parentHash":"` + hashB + `","timestamp":"0x6afa0a24","transactions":["` + hashB + `"]}`}, 0)
 	h, err := c.HeaderByNumber(context.Background(), 101)
 	if err != nil {
 		t.Fatal(err)
@@ -150,5 +150,108 @@ func TestTimeout(t *testing.T) {
 	c.timeout = 50 * time.Millisecond
 	if _, err := c.HeadNumber(context.Background()); err == nil {
 		t.Fatal("slow node did not time out")
+	}
+}
+
+const (
+	addrTo   = "0x71C7656EC7ab88b098defB751B7401B5f6d8976F"
+	addrFrom = "0x00000000000000000000000000000000000000f1"
+)
+
+func TestBlockByNumber(t *testing.T) {
+	txs := `[
+		{"hash":"` + hashA + `","from":"` + addrFrom + `","to":"` + addrTo + `","value":"0x1bc16d674ec80000"},
+		{"hash":"` + hashB + `","from":"` + addrFrom + `","to":null,"value":"0x1"},
+		{"hash":"` + hashB + `","from":"` + addrFrom + `","to":"` + addrTo + `","value":"0x0"}]`
+	c, seen := server(t, map[string]string{"eth_getBlockByNumber": `{"number":"0x65","hash":"` + hashA +
+		`","parentHash":"` + hashB + `","timestamp":"0x6afa0a24","transactions":` + txs + `}`}, 0)
+	b, err := c.BlockByNumber(context.Background(), 101)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.Number != 101 || b.Hash != strings.ToLower(hashA) || b.ParentHash != hashB || b.Timestamp != 0x6afa0a24 {
+		t.Fatalf("header %+v", b.Header)
+	}
+	// Contract creations and zero-value calls are not transfers.
+	if len(b.Txs) != 1 {
+		t.Fatalf("txs %+v", b.Txs)
+	}
+	tx := b.Txs[0]
+	if tx.Hash != strings.ToLower(hashA) || tx.From != addrFrom || tx.To != strings.ToLower(addrTo) ||
+		tx.Value.String() != "2000000000000000000" {
+		t.Fatalf("tx %+v", tx)
+	}
+	if p := seen.first().Params; len(p) != 2 || p[0] != "0x65" || p[1] != true {
+		t.Fatalf("params = %v", p)
+	}
+}
+
+func TestBlockByNumberInvalid(t *testing.T) {
+	header := `"number":"0x5","hash":"` + hashA + `","parentHash":"` + hashB + `","timestamp":"0x1"`
+	for name, res := range map[string]string{
+		"missing header": `{"hash":"` + hashA + `","transactions":[]}`,
+		"missing value":  `{` + header + `,"transactions":[{"hash":"` + hashA + `","from":"` + addrFrom + `","to":"` + addrTo + `"}]}`,
+		"missing hash":   `{` + header + `,"transactions":[{"from":"` + addrFrom + `","to":"` + addrTo + `","value":"0x1"}]}`,
+		"hashes only":    `{` + header + `,"transactions":["` + hashA + `"]}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, _ := server(t, map[string]string{"eth_getBlockByNumber": res}, 0)
+			if _, err := c.BlockByNumber(context.Background(), 5); err == nil || errors.Is(err, chain.ErrNotFound) {
+				t.Fatalf("err = %v", err)
+			}
+		})
+	}
+	c, _ := server(t, map[string]string{"eth_getBlockByNumber": `null`}, 0)
+	if _, err := c.BlockByNumber(context.Background(), 5); !errors.Is(err, chain.ErrNotFound) {
+		t.Fatalf("not found: err = %v", err)
+	}
+	c, _ = server(t, map[string]string{}, 0)
+	if _, err := c.BlockByNumber(context.Background(), 5); err == nil {
+		t.Fatal("rpc error accepted")
+	}
+}
+
+func TestReceipt(t *testing.T) {
+	for name, tc := range map[string]struct {
+		status  string
+		success bool
+	}{"success": {"0x1", true}, "reverted": {"0x0", false}} {
+		t.Run(name, func(t *testing.T) {
+			c, seen := server(t, map[string]string{"eth_getTransactionReceipt": `{"blockHash":"` + hashA +
+				`","status":"` + tc.status + `"}`}, 0)
+			r, err := c.Receipt(context.Background(), hashB)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if r.BlockHash != strings.ToLower(hashA) || r.Success != tc.success {
+				t.Fatalf("receipt %+v", r)
+			}
+			if p := seen.first().Params; len(p) != 1 || p[0] != hashB {
+				t.Fatalf("params = %v", p)
+			}
+		})
+	}
+}
+
+func TestReceiptErrors(t *testing.T) {
+	c, _ := server(t, map[string]string{"eth_getTransactionReceipt": `null`}, 0)
+	if _, err := c.Receipt(context.Background(), hashB); !errors.Is(err, chain.ErrNotFound) {
+		t.Fatalf("not found: err = %v", err)
+	}
+	for name, res := range map[string]string{
+		"pending":   `{"blockHash":null,"status":"0x1"}`,
+		"no status": `{"blockHash":"` + hashA + `"}`,
+		"bad json":  `{"status":1}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, _ := server(t, map[string]string{"eth_getTransactionReceipt": res}, 0)
+			if _, err := c.Receipt(context.Background(), hashB); err == nil || errors.Is(err, chain.ErrNotFound) {
+				t.Fatalf("err = %v", err)
+			}
+		})
+	}
+	c, _ = server(t, map[string]string{}, 0)
+	if _, err := c.Receipt(context.Background(), hashB); err == nil {
+		t.Fatal("rpc error accepted")
 	}
 }
