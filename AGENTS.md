@@ -88,7 +88,8 @@ make precommit          # gitleaks и базовые проверки; один 
 
 - `Dockerfile` лежит в каталоге компонента: `services/<service>/`, `testkit/<name>/`, `tools/holmes-bridge/`.
   Контекст сборки — корень репозитория. `.dockerignore` в корне исключает всё, кроме `go.mod`, `go.sum`,
-  `pkg/`, `services/`, `testkit/` и `tools/`.
+  `pkg/`, `services/`, `testkit/`, `tools/` и схем событий (`contracts/schemas.go`, `contracts/schemas/`):
+  их встраивает `pkg/kafka`, поэтому образ сервиса с Kafka копирует их тоже.
 - Сборка двухэтапная: статический бинарник (`CGO_ENABLED=0`, `-trimpath`) на образе Go той версии,
   что в `go.mod`, затем финальный образ distroless static, пользователь `nonroot`. Shell и пакетного
   менеджера в финальном образе нет.

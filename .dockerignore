@@ -2,6 +2,9 @@
 *
 !go.mod
 !go.sum
+# pkg/kafka embeds the event schemas.
+!contracts/schemas.go
+!contracts/schemas/
 !pkg/
 !services/
 !testkit/
