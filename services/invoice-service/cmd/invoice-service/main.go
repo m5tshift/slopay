@@ -1,5 +1,6 @@
 // Command invoice-service creates invoices with a fixed rate and a derived address, serves their status and
-// list to merchants and the public payment page (SRS 4.1.3, 4.1.4, 4.1.7). Configuration is read from the
+// list to merchants and the public payment page, and runs the invoice lifecycle on chain.blocks and
+// chain.transfers (SRS 4.1.3, 4.1.4, 4.1.5, 4.1.7). Configuration is read from the
 // environment, see services/invoice-service/AGENTS.md.
 package main
 
@@ -25,6 +26,7 @@ import (
 	"github.com/m5tshift/slopay/services/invoice-service/internal/cache"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/config"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/slopay/services/invoice-service/internal/lifecycle"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/projection"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/rates"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/store"
@@ -111,6 +113,37 @@ func run(log *slog.Logger) error {
 	}
 	defer consumer.Close()
 
+	// The invoice lifecycle (SRS 4.1.4, 4.1.5): chain.transfers and chain.blocks in two groups; a block waits
+	// until the transfers group has committed what chain.transfers held when the block was read.
+	engine, err := lifecycle.NewEngine(store.NewLifecycle(pg.Pool(), codec), statusCache, lifecycle.EngineConfig{
+		Config: lifecycle.Config{
+			Confirmations: cfg.Confirmations, RevertWait: cfg.RevertWait, Window: cfg.TrackingWindow,
+		},
+		ChainID: cfg.ChainID, KeepBlocks: cfg.ChainBlocks,
+	}, log)
+	if err != nil {
+		return err
+	}
+	transfersGroup, blocksGroup := cfg.ConsumerGroup+"-chain-transfers", cfg.ConsumerGroup+"-chain-blocks"
+	transfers, err := kafka.NewConsumer(codec, log, cfg.KafkaBrokers, transfersGroup,
+		[]string{lifecycle.TopicTransfers}, kgo.ClientID(serviceName))
+	if err != nil {
+		return err
+	}
+	defer transfers.Close()
+	blocks, err := kafka.NewConsumer(codec, log, cfg.KafkaBrokers, blocksGroup,
+		[]string{lifecycle.TopicBlocks}, kgo.ClientID(serviceName))
+	if err != nil {
+		return err
+	}
+	defer blocks.Close()
+	admin, err := kgo.NewClient(kgo.SeedBrokers(cfg.KafkaBrokers...), kgo.ClientID(serviceName))
+	if err != nil {
+		return err
+	}
+	defer admin.Close()
+	barrier := lifecycle.NewBarrier(admin, lifecycle.TopicTransfers, transfersGroup, cfg.BarrierPoll, log)
+
 	health := telemetry.NewHealth(log, 0)
 	// Valkey is a cache and rate-service is needed only for new invoices, so neither is a readiness check.
 	health.AddReadiness("postgresql", pg.Ready)
@@ -130,7 +163,7 @@ func run(log *slog.Logger) error {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	errc := make(chan error, 3)
+	errc := make(chan error, 5)
 	go statusCache.Connect(ctx, openValkey, valkeyRetry)
 	go func() {
 		if err := relay.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -140,6 +173,18 @@ func run(log *slog.Logger) error {
 	go func() {
 		if err := consumer.Run(ctx); err != nil && ctx.Err() == nil {
 			errc <- fmt.Errorf("merchant.events consumer: %w", err)
+		}
+	}()
+	go func() {
+		h := lifecycle.TransfersHandler(engine, projection.DefaultBackoff, log)
+		if err := transfers.Run(ctx, h); err != nil && ctx.Err() == nil {
+			errc <- fmt.Errorf("chain.transfers consumer: %w", err)
+		}
+	}()
+	go func() {
+		h := lifecycle.BlocksHandler(engine, barrier, projection.DefaultBackoff, log)
+		if err := blocks.Run(ctx, h); err != nil && ctx.Err() == nil {
+			errc <- fmt.Errorf("chain.blocks consumer: %w", err)
 		}
 	}()
 	go func() {

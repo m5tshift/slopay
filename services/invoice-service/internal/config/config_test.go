@@ -30,6 +30,11 @@ func TestDefaults(t *testing.T) {
 		c.RateRetryAfter != 5*time.Second || c.RateServiceTimeout != time.Second || c.ValkeyTimeout != 100*time.Millisecond {
 		t.Errorf("%+v", c)
 	}
+	// Numbers of SRS 3.1 and 4.1.4 on Anvil.
+	if c.ChainID != 31337 || c.Confirmations != 7 || c.RevertWait != 10*time.Minute || c.TrackingWindow != 24*time.Hour ||
+		c.ChainBlocks != 256 || c.BarrierPoll != 50*time.Millisecond {
+		t.Errorf("%+v", c)
+	}
 }
 
 func TestOverrides(t *testing.T) {
@@ -38,9 +43,15 @@ func TestOverrides(t *testing.T) {
 	t.Setenv("RATE_MAX_AGE", "30s")
 	t.Setenv("STATUS_CACHE_TTL", "5s")
 	t.Setenv("JWT_ISSUER", "other")
+	t.Setenv("CHAIN_ID", "11155111")
+	t.Setenv("CONFIRMATIONS", "12")
+	t.Setenv("REVERT_WAIT", "1m")
+	t.Setenv("TRACKING_WINDOW", "1h")
+	t.Setenv("CHAIN_BLOCKS", "64")
 	c, err := FromEnv()
 	if err != nil || c.InvoiceTTL != 10*time.Minute || c.RateMaxAge != 30*time.Second || c.StatusCacheTTL != 5*time.Second ||
-		c.JWTIssuer != "other" {
+		c.JWTIssuer != "other" || c.ChainID != 11155111 || c.Confirmations != 12 || c.RevertWait != time.Minute ||
+		c.TrackingWindow != time.Hour || c.ChainBlocks != 64 {
 		t.Errorf("%+v %v", c, err)
 	}
 }
@@ -55,6 +66,14 @@ func TestInvalid(t *testing.T) {
 		"STATUS_CACHE_TTL":  {"STATUS_CACHE_TTL", "soon"},
 		"POSTGRES_URL":      {"POSTGRES_URL", ""},
 		"VALKEY_ADDRS":      {"VALKEY_ADDRS", ""},
+		"CHAIN_ID":          {"CHAIN_ID", "anvil"},
+		"CONFIRMATIONS":     {"CONFIRMATIONS", "1"},
+		"CONFIRMATIONS ":    {"CONFIRMATIONS", "0"},
+		"REVERT_WAIT":       {"REVERT_WAIT", "0s"},
+		"TRACKING_WINDOW":   {"TRACKING_WINDOW", "-1h"},
+		"CHAIN_BLOCKS":      {"CHAIN_BLOCKS", "7"},
+		"CHAIN_BLOCKS ":     {"CHAIN_BLOCKS", "x"},
+		"BARRIER_POLL":      {"BARRIER_POLL", "0"},
 	}
 	for name, kv := range cases {
 		t.Run(name, func(t *testing.T) {
