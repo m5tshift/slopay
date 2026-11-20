@@ -1,0 +1,89 @@
+# Every option of slopay-lib switched on; rendered by test.sh.
+image:
+  repository: zot.example.internal/slopay/example
+  tag: 0123abc
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 3
+  targetMemoryUtilizationPercentage: 80
+serviceMonitor:
+  enabled: true
+leader:
+  enabled: true
+telemetry:
+  otlpEndpoint: otel-collector.observability.svc:4318
+  traceSampleRatio: 0.5
+env:
+  CONFIRMATIONS: 6
+extraEnv:
+  - name: EXTRA
+    value: "1"
+secrets:
+  - name: postgres
+    externalSecret:
+      enabled: true
+      data:
+        - secretKey: password
+          remoteRef:
+            key: database/static-creds/example
+            property: password
+  - name: mongodb
+    externalSecret:
+      enabled: true
+      secretStore:
+        kind: SecretStore
+        name: local
+      data:
+        - secretKey: password
+          remoteRef:
+            key: kv/apps/example-mongodb
+            property: password
+  - name: valkey
+    secretName: valkey-auth
+kafka:
+  enabled: true
+  brokers:
+    - slopay-kafka-bootstrap.kafka.svc:9092
+postgres:
+  enabled: true
+  url: postgres://example@pg-rw.db.svc:5432/example
+  password:
+    secret: postgres
+  maxConns: 10
+mongodb:
+  enabled: true
+  uri: mongodb://mongo.db.svc:27017
+  username: example
+  database: example
+  authSource: admin
+  password:
+    secret: mongodb
+valkey:
+  enabled: true
+  addrs:
+    - valkey.db.svc:6379
+  username: example
+  password:
+    secret: valkey
+istio:
+  destinationRule:
+    enabled: true
+  virtualService:
+    enabled: true
+    timeout: 500ms
+    retries:
+      attempts: 1
+      perTryTimeout: 500ms
+    fault:
+      enabled: true
+      abort:
+        percentage: 100
+        httpStatus: 503

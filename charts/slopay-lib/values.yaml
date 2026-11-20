@@ -1,0 +1,2 @@
+# Values of a library chart are not passed to consumers. The defaults live in
+# templates/_defaults.tpl and are merged with the consumer's values; see README.md.

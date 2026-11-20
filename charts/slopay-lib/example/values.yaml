@@ -1,0 +1,11 @@
+# Minimal component: only the required values. Istio, ExternalSecret and ServiceMonitor are off.
+image:
+  repository: zot.example.internal/slopay/example
+  tag: 0123abc
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
