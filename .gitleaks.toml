@@ -1,0 +1,11 @@
+# gitleaks configuration: the default rules plus narrow allowlists for known false positives.
+[extend]
+useDefault = true
+
+# oapi-codegen copies the example UUID of the Idempotency-Key header from the contract into a comment of the
+# generated code ("// IdempotencyKey Example: <uuid>"), and generic-api-key takes it for a key. Only this
+# exact match is allowed. A path condition is not used: gitleaks skips the whole file on a path match.
+[[allowlists]]
+description = "Example Idempotency-Key in code generated from the OpenAPI contracts"
+regexTarget = "match"
+regexes = ['''^IdempotencyKey Example: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$''']

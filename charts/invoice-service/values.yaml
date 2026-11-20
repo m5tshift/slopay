@@ -1,0 +1,59 @@
+# invoice-service on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in slopay-gitops.
+image:
+  repository: zot.example.internal/slopay/invoice-service
+  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  tag: dev
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+  limits:
+    cpu: "1"
+    memory: 256Mi
+
+kafka:
+  enabled: true
+  brokers:
+    - slopay-kafka-bootstrap.kafka.svc:9092
+
+secrets:
+  # Password of the service's PostgreSQL user: /var/run/secrets/slopay/postgres/password.
+  - name: postgres
+  # Password of the service's Valkey user: /var/run/secrets/slopay/valkey/password.
+  - name: valkey
+
+postgres:
+  enabled: true
+  url: postgres://invoice-service@pg-rw.db.svc:5432/invoice
+  password:
+    secret: postgres
+    key: password
+
+# Status cache of the payment page (SRS 4.1.7). Not part of readiness: on a miss PostgreSQL answers.
+valkey:
+  enabled: true
+  addrs:
+    - valkey.db.svc:6379
+  username: invoice-service
+  password:
+    secret: valkey
+    key: password
+
+env:
+  KAFKA_CONSUMER_GROUP: invoice-service
+  # Timeouts and retries of this call are in the VirtualService of rate-service (SRS 4.1.9, ADR 0003);
+  # the client timeout only bounds a call without a sidecar.
+  RATE_SERVICE_URL: http://rate-service.apps.svc:8080
+  RATE_SERVICE_TIMEOUT: 1s
+  # SRS 4.1.3: a rate older than 60 s is not used; Retry-After of a 503 without one from rate-service.
+  RATE_MAX_AGE: 60s
+  RATE_RETRY_AFTER: 5s
+  # SRS 4.1.4: invoice lifetime 15 min.
+  INVOICE_TTL: 15m
+  # SRS 4.1.7: status cache TTL 30 s.
+  STATUS_CACHE_TTL: 30s
+  VALKEY_TIMEOUT: 100ms
+  # iss of the merchant-service JWT; the gateway verifies the signature (SRS 4.1.10).
+  JWT_ISSUER: slopay-merchant-service
+  LOG_LEVEL: info
