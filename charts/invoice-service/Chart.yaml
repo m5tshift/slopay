@@ -1,0 +1,10 @@
+apiVersion: v2
+name: invoice-service
+description: SLOPay invoice-service - invoices, rate fixing, deposit addresses, payment page (SRS 4.1.3, 4.1.6)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: slopay-lib
+    version: 0.1.0
+    repository: file://../slopay-lib

@@ -1,0 +1,10 @@
+# oapi-codegen configuration: types and a strict net/http server from the invoice-service contract.
+package: api
+output: api.gen.go
+generate:
+  models: true
+  std-http-server: true
+  strict-server: true
+  embedded-spec: true
+output-options:
+  skip-prune: true
