@@ -21,8 +21,26 @@ type Config struct {
 	HTTPAddr string
 	// KafkaBrokers are the seed brokers (KAFKA_BROKERS, comma-separated, required).
 	KafkaBrokers []string
+	// ConsumerGroup is the group of invoice.events (KAFKA_CONSUMER_GROUP, default chain-watcher).
+	ConsumerGroup string
 	// Mongo is read by storage.MongoConfigFromEnv("MONGODB").
 	Mongo storage.MongoConfig
+	// Valkey is read by storage.ValkeyConfigFromEnv("VALKEY"). The service works without it: it is a cache of
+	// the tracked addresses in MongoDB.
+	Valkey storage.ValkeyConfig
+	// ValkeyTimeout bounds one Valkey call (VALKEY_TIMEOUT, default 100ms).
+	ValkeyTimeout time.Duration
+
+	// TrackingWindow is the address tracking window after the later of expiresAt and paidAt
+	// (TRACKING_WINDOW, SRS 4.1.4: 24h).
+	TrackingWindow time.Duration
+	// RebuildWindow is how far back invoice.events is read when the projection of tracked addresses is lost,
+	// and how far back the processed blocks are searched for a new address (PROJECTION_REBUILD_WINDOW,
+	// SRS 4.1.7: 26h).
+	RebuildWindow time.Duration
+	// RescanClockSkew is subtracted from the creation time of an invoice when the processed blocks are searched
+	// for its address (RESCAN_CLOCK_SKEW, default 30s): the clocks of the node and of invoice-service differ.
+	RescanClockSkew time.Duration
 
 	// NodeURL is the JSON-RPC endpoint of the EVM node (NODE_URL, http or https, required).
 	NodeURL string
@@ -61,18 +79,29 @@ var DefaultBreaker = breaker.Config{FailureThreshold: 5, OpenTimeout: 15 * time.
 func FromEnv() (Config, error) {
 	var errs []error
 	c := Config{
-		HTTPAddr:     envOr("HTTP_ADDR", ":8080"),
-		KafkaBrokers: splitList(os.Getenv("KAFKA_BROKERS")),
-		NodeURL:      os.Getenv("NODE_URL"),
-		LeaderLease:  os.Getenv("LEADER_LEASE_NAME"),
-		PodName:      os.Getenv("POD_NAME"),
-		PodNamespace: os.Getenv("POD_NAMESPACE"),
+		HTTPAddr:      envOr("HTTP_ADDR", ":8080"),
+		ConsumerGroup: envOr("KAFKA_CONSUMER_GROUP", "chain-watcher"),
+		KafkaBrokers:  splitList(os.Getenv("KAFKA_BROKERS")),
+		NodeURL:       os.Getenv("NODE_URL"),
+		LeaderLease:   os.Getenv("LEADER_LEASE_NAME"),
+		PodName:       os.Getenv("POD_NAME"),
+		PodNamespace:  os.Getenv("POD_NAMESPACE"),
 	}
 	if len(c.KafkaBrokers) == 0 {
 		errs = append(errs, errors.New("KAFKA_BROKERS is required"))
 	}
 	var err error
 	c.Mongo, err = storage.MongoConfigFromEnv("MONGODB")
+	errs = append(errs, err)
+	c.Valkey, err = storage.ValkeyConfigFromEnv("VALKEY")
+	errs = append(errs, err)
+	c.ValkeyTimeout, err = duration("VALKEY_TIMEOUT", 100*time.Millisecond)
+	errs = append(errs, err)
+	c.TrackingWindow, err = duration("TRACKING_WINDOW", 24*time.Hour)
+	errs = append(errs, err)
+	c.RebuildWindow, err = duration("PROJECTION_REBUILD_WINDOW", 26*time.Hour)
+	errs = append(errs, err)
+	c.RescanClockSkew, err = duration("RESCAN_CLOCK_SKEW", 30*time.Second)
 	errs = append(errs, err)
 
 	if u, err := url.Parse(c.NodeURL); c.NodeURL == "" || err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {

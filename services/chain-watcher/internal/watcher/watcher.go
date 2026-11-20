@@ -1,6 +1,9 @@
 // Package watcher is the work of the leader replica of chain-watcher (SRS 4.1.3, 4.1.9): it reads blocks one by
 // one from the cursor, checks the parentHash of every block against the window of processed headers, publishes
-// chain.new_head, and on a mismatch rolls back to the common ancestor and publishes chain.reorg. A reorg deeper
+// the native ETH transfers of the block to tracked addresses and then chain.new_head, and on a mismatch rolls
+// back to the common ancestor and publishes chain.reorg. When an address starts being tracked, the blocks
+// processed since its invoice was created are searched again before the next block, so a transfer made before
+// the address was known is published before the next chain.new_head too. A reorg deeper
 // than the limit stops reading. Node calls go through a Circuit Breaker; any failure pauses reading with an
 // exponential backoff, after which reading resumes from the cursor, so no block is skipped.
 //
@@ -25,6 +28,7 @@ import (
 
 	"github.com/m5tshift/slopay/pkg/breaker"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/store"
 )
 
@@ -35,6 +39,8 @@ type Node interface {
 	ChainID(ctx context.Context) (uint64, error)
 	HeadNumber(ctx context.Context) (uint64, error)
 	HeaderByNumber(ctx context.Context, n uint64) (chain.Header, error)
+	BlockByNumber(ctx context.Context, n uint64) (chain.Block, error)
+	Receipt(ctx context.Context, txHash string) (chain.Receipt, error)
 }
 
 // Store keeps the reading state (store.Store). Save fails with store.ErrConflict when the stored version
@@ -44,10 +50,23 @@ type Store interface {
 	Save(ctx context.Context, st *chain.State) error
 }
 
-// Publisher publishes block events (events.Publisher).
+// Publisher publishes block and transfer events (events.Publisher).
 type Publisher interface {
 	PublishNewHead(ctx context.Context, chainID uint64, h chain.Header) error
 	PublishReorg(ctx context.Context, chainID, fromBlock uint64, orphan string) error
+	PublishTransfer(ctx context.Context, chainID uint64, t chain.Transfer) error
+}
+
+// Addresses are the tracked addresses (tracked.Book). Times are chain times.
+type Addresses interface {
+	// Tracked returns which of addrs are tracked and already searched in the processed blocks.
+	Tracked(ctx context.Context, addrs []string) (map[string]bool, error)
+	// Pending returns the tracked addresses not searched yet in the processed blocks.
+	Pending(ctx context.Context, now time.Time) ([]projection.Pending, error)
+	// Rescanned records that the processed blocks were searched for addrs.
+	Rescanned(ctx context.Context, addrs []string) error
+	// Expire stops tracking the addresses whose window ended before now.
+	Expire(ctx context.Context, now time.Time) error
 }
 
 // Config holds the dependencies and the numbers of SRS 4.1.6 and 4.1.9.
@@ -55,6 +74,7 @@ type Config struct {
 	Node      Node
 	Store     Store
 	Publisher Publisher
+	Addresses Addresses
 	// Breaker protects the node calls.
 	Breaker *breaker.Breaker
 	// ChainID is the expected chain; a node of another chain is not read.
@@ -65,6 +85,12 @@ type Config struct {
 	WindowSize int
 	// MaxReorgDepth is the deepest reorg handled (6); it must be smaller than WindowSize.
 	MaxReorgDepth int
+	// RescanClockSkew is subtracted from the creation time of an invoice when the processed blocks are searched
+	// for its address: the clocks of the node and of invoice-service differ.
+	RescanClockSkew time.Duration
+	// RescanLookback bounds the search of the processed blocks by chain time: the oldest invoice in the
+	// projection is 26 h old.
+	RescanLookback time.Duration
 	// PollInterval is the pause when the cursor has reached the node head.
 	PollInterval time.Duration
 	// BackoffInitial and BackoffMax bound the pause after a failure; it doubles with every failure in a row.
@@ -76,6 +102,8 @@ type Config struct {
 	Tracer trace.Tracer
 	// sleep substitutes waiting in tests.
 	sleep func(ctx context.Context, d time.Duration) error
+	// now substitutes the clock in tests.
+	now func() time.Time
 }
 
 // Results of a node call in slopay_chain_node_requests_total.
@@ -107,28 +135,39 @@ type Watcher struct {
 	cursor  atomic.Int64 // -1 while nothing is processed
 	tooDeep atomic.Bool
 
-	blocks   metric.Int64Counter
-	reorgs   metric.Int64Counter
-	requests metric.Int64Counter
-	duration metric.Float64Histogram
+	recent  map[uint64]chain.Block // processed blocks of the window, for the search of new addresses
+	expired uint64                 // tip at the last expiry, +1; 0 before the first
+
+	blocks    metric.Int64Counter
+	reorgs    metric.Int64Counter
+	transfers metric.Int64Counter
+	delay     metric.Float64Histogram
+	rescanned metric.Int64Counter
+	requests  metric.Int64Counter
+	duration  metric.Float64Histogram
 }
 
 // New validates cfg and registers the metrics.
 func New(cfg Config) (*Watcher, error) {
 	switch {
-	case cfg.Node == nil || cfg.Store == nil || cfg.Publisher == nil || cfg.Breaker == nil:
-		return nil, errors.New("watcher: node, store, publisher and breaker are required")
+	case cfg.Node == nil || cfg.Store == nil || cfg.Publisher == nil || cfg.Addresses == nil || cfg.Breaker == nil:
+		return nil, errors.New("watcher: node, store, publisher, addresses and breaker are required")
 	case cfg.ChainID == 0:
 		return nil, errors.New("watcher: chain id is required")
 	case cfg.MaxReorgDepth < 1 || cfg.WindowSize <= cfg.MaxReorgDepth:
 		return nil, errors.New("watcher: max reorg depth must be >= 1 and smaller than the window size")
 	case cfg.PollInterval <= 0 || cfg.BackoffInitial <= 0 || cfg.BackoffMax < cfg.BackoffInitial:
 		return nil, errors.New("watcher: poll interval and backoff must be positive, backoff max >= initial")
+	case cfg.RescanClockSkew < 0 || cfg.RescanLookback <= 0:
+		return nil, errors.New("watcher: rescan clock skew must be >= 0 and rescan lookback positive")
 	}
 	if cfg.sleep == nil {
 		cfg.sleep = sleepCtx
 	}
-	w := &Watcher{cfg: cfg, log: cfg.Logger, tracer: cfg.Tracer,
+	if cfg.now == nil {
+		cfg.now = time.Now
+	}
+	w := &Watcher{cfg: cfg, log: cfg.Logger, tracer: cfg.Tracer, recent: map[uint64]chain.Block{},
 		chain: attribute.String("chain_id", strconv.FormatUint(cfg.ChainID, 10))}
 	if w.log == nil {
 		w.log = slog.Default()
@@ -155,6 +194,19 @@ func (w *Watcher) registerMetrics(m metric.Meter) error {
 	}
 	if w.reorgs, err = m.Int64Counter("slopay_chain_reorgs",
 		metric.WithDescription("Reorgs handled, by depth in blocks")); err != nil {
+		return err
+	}
+	if w.transfers, err = m.Int64Counter("slopay_chain_transfers_published",
+		metric.WithDescription("Transfers to tracked addresses published to chain.transfers, by mode: live (a new block) or rescan (a processed block searched for a new address)")); err != nil {
+		return err
+	}
+	if w.delay, err = m.Float64Histogram("slopay_chain_transfer_delay", metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.25, 0.5, 1, 1.5, 2, 3, 5, 10, 30, 60, 300),
+		metric.WithDescription("Time from the block timestamp to the publication of a transfer to chain.transfers (NFR-04), by mode")); err != nil {
+		return err
+	}
+	if w.rescanned, err = m.Int64Counter("slopay_chain_rescan_blocks",
+		metric.WithDescription("Processed blocks searched again for newly tracked addresses")); err != nil {
 		return err
 	}
 	if w.requests, err = m.Int64Counter("slopay_chain_node_requests",
@@ -206,6 +258,7 @@ func (w *Watcher) Run(ctx context.Context) {
 		w.tooDeep.Store(false)
 		w.head.Store(-1)
 		w.cursor.Store(-1)
+		w.recent, w.expired = map[uint64]chain.Block{}, 0
 	}()
 	delay := w.cfg.BackoffInitial
 	var (
@@ -233,6 +286,7 @@ func (w *Watcher) Run(ctx context.Context) {
 		case err != nil:
 			if errors.Is(err, store.ErrConflict) {
 				loaded = false // another replica wrote the state: read it again
+				w.recent = map[uint64]chain.Block{}
 			}
 			w.log.WarnContext(ctx, "chain reading paused", "error", err, "retry_in", delay.String())
 			if w.cfg.sleep(ctx, delay) != nil {
@@ -273,9 +327,13 @@ func (w *Watcher) prepare(ctx context.Context) (chain.State, error) {
 	return st, nil
 }
 
-// Step processes the next block, or handles a reorg found at it. It reports whether it made progress;
-// false means the cursor is at the node head. st is changed only after the state was saved.
+// Step searches the processed blocks for new addresses, then processes the next block or handles a reorg found at
+// it. It reports whether it made progress; false means the cursor is at the node head. st is changed only after
+// the state was saved.
 func (w *Watcher) Step(ctx context.Context, st *chain.State) (bool, error) {
+	if err := w.maintain(ctx, st); err != nil {
+		return false, err
+	}
 	var head uint64
 	if err := w.call(ctx, "eth_blockNumber", func(ctx context.Context) (err error) {
 		head, err = w.cfg.Node.HeadNumber(ctx)
@@ -297,17 +355,17 @@ func (w *Watcher) Step(ctx context.Context, st *chain.State) (bool, error) {
 	if head < next {
 		return false, nil
 	}
-	h, err := w.header(ctx, next)
+	b, err := w.block(ctx, next)
 	if errors.Is(err, chain.ErrNotFound) {
 		return false, nil // the head moved back between the calls
 	}
 	if err != nil {
 		return false, err
 	}
-	if started && h.ParentHash != tip.Hash {
+	if started && b.ParentHash != tip.Hash {
 		return w.reorg(ctx, st)
 	}
-	return true, w.process(ctx, st, h)
+	return true, w.process(ctx, st, b)
 }
 
 func (w *Watcher) header(ctx context.Context, n uint64) (chain.Header, error) {
@@ -319,12 +377,30 @@ func (w *Watcher) header(ctx context.Context, n uint64) (chain.Header, error) {
 	return h, err
 }
 
-// process publishes chain.new_head of h and moves the cursor to it.
-func (w *Watcher) process(ctx context.Context, st *chain.State, h chain.Header) (err error) {
+func (w *Watcher) block(ctx context.Context, n uint64) (chain.Block, error) {
+	var b chain.Block
+	err := w.call(ctx, "eth_getBlockByNumber", func(ctx context.Context) (err error) {
+		b, err = w.cfg.Node.BlockByNumber(ctx, n)
+		return err
+	})
+	return b, err
+}
+
+// process publishes the transfers of b to tracked addresses, then chain.new_head of b, and moves the cursor to it.
+func (w *Watcher) process(ctx context.Context, st *chain.State, b chain.Block) (err error) {
+	h := b.Header
 	ctx, span := w.tracer.Start(ctx, "chain-watcher process block", trace.WithAttributes(
 		w.chain, attribute.Int64("block.number", chain.Int64(h.Number)), attribute.String("block.hash", h.Hash)))
 	defer func() { endSpan(span, err) }()
 
+	recipients := b.Recipients()
+	tracked, err := w.cfg.Addresses.Tracked(ctx, recipients)
+	if err != nil {
+		return err
+	}
+	if err := w.publishTransfers(ctx, b, func(tx chain.Tx) bool { return tracked[tx.To] }, modeLive); err != nil {
+		return err
+	}
 	if err := w.cfg.Publisher.PublishNewHead(ctx, w.cfg.ChainID, h); err != nil {
 		return err
 	}
@@ -334,6 +410,7 @@ func (w *Watcher) process(ctx context.Context, st *chain.State, h chain.Header) 
 		return err
 	}
 	*st = next
+	w.remember(b, st)
 	w.cursor.Store(chain.Int64(h.Number))
 	w.blocks.Add(ctx, 1, metric.WithAttributes(w.chain))
 	w.log.DebugContext(ctx, "block processed", "number", h.Number, "hash", h.Hash)
@@ -383,6 +460,11 @@ func (w *Watcher) reorg(ctx context.Context, st *chain.State) (progressed bool, 
 		return false, err
 	}
 	*st = next
+	for n := range w.recent {
+		if n > ancestor {
+			delete(w.recent, n)
+		}
+	}
 	w.cursor.Store(chain.Int64(ancestor))
 	w.reorgs.Add(ctx, 1, metric.WithAttributes(w.chain, attribute.String("depth", strconv.FormatUint(depth, 10))))
 	w.log.WarnContext(ctx, "reorg handled, reading the new branch", "from_block", ancestor+1, "depth", depth,

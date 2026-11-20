@@ -19,6 +19,8 @@ info:
     a `chain.new_head` it waits until its `chain.transfers` consumer group has committed the end
     offsets of the topic, so a block is processed together with all transfers of it and of earlier
     blocks (SRS 4.1.4: deadlines count only after the transfers of the preceding blocks).
+    Transfers found when an address added later is searched in already processed blocks are published
+    before the next block event, so the same wait covers them.
 defaultContentType: application/cloudevents+json
 
 channels:

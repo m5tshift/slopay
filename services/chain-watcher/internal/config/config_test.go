@@ -13,6 +13,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("MONGODB_USERNAME", "chain-watcher")
 	t.Setenv("MONGODB_PASSWORD_FILE", "/run/secrets/mongodb/password")
 	t.Setenv("MONGODB_DATABASE", "chain_watcher")
+	t.Setenv("VALKEY_ADDRS", "valkey.db.svc:6379")
 	t.Setenv("NODE_URL", "http://anvil:8545")
 	t.Setenv("CHAIN_ID", "31337")
 }
@@ -30,6 +31,10 @@ func TestDefaults(t *testing.T) {
 	if c.WindowSize != 64 || c.MaxReorgDepth != 6 || c.NodeTimeout != 5*time.Second || c.PollInterval != time.Second ||
 		c.BackoffInitial != 500*time.Millisecond || c.BackoffMax != 30*time.Second {
 		t.Errorf("defaults: %+v", c)
+	}
+	if c.ConsumerGroup != "chain-watcher" || len(c.Valkey.Addrs) != 1 || c.ValkeyTimeout != 100*time.Millisecond ||
+		c.TrackingWindow != 24*time.Hour || c.RebuildWindow != 26*time.Hour || c.RescanClockSkew != 30*time.Second {
+		t.Errorf("tracking defaults: %+v", c)
 	}
 	b := c.NodeBreaker
 	if b.Dependency != "node" || b.FailureThreshold != 5 || b.OpenTimeout != 15*time.Second || b.HalfOpenMax != 1 {
@@ -53,6 +58,11 @@ func TestOverrides(t *testing.T) {
 	t.Setenv("LEADER_LEASE_NAME", "chain-watcher")
 	t.Setenv("POD_NAME", "chain-watcher-0")
 	t.Setenv("POD_NAMESPACE", "apps")
+	t.Setenv("KAFKA_CONSUMER_GROUP", "chain-watcher-sepolia")
+	t.Setenv("VALKEY_TIMEOUT", "250ms")
+	t.Setenv("TRACKING_WINDOW", "48h")
+	t.Setenv("PROJECTION_REBUILD_WINDOW", "50h")
+	t.Setenv("RESCAN_CLOCK_SKEW", "1m")
 	c, err := FromEnv()
 	if err != nil {
 		t.Fatal(err)
@@ -63,6 +73,10 @@ func TestOverrides(t *testing.T) {
 		c.NodeBreaker.FailureThreshold != 3 || c.LeaderLease != "chain-watcher" || c.PodName != "chain-watcher-0" {
 		t.Errorf("overrides: %+v", c)
 	}
+	if c.ConsumerGroup != "chain-watcher-sepolia" || c.ValkeyTimeout != 250*time.Millisecond ||
+		c.TrackingWindow != 48*time.Hour || c.RebuildWindow != 50*time.Hour || c.RescanClockSkew != time.Minute {
+		t.Errorf("tracking overrides: %+v", c)
+	}
 }
 
 func TestInvalid(t *testing.T) {
@@ -70,22 +84,27 @@ func TestInvalid(t *testing.T) {
 		env  map[string]string
 		want string
 	}{
-		"no brokers":        {map[string]string{"KAFKA_BROKERS": " , "}, "KAFKA_BROKERS"},
-		"no mongodb":        {map[string]string{"MONGODB_URI": ""}, "MONGODB_URI"},
-		"no node":           {map[string]string{"NODE_URL": ""}, "NODE_URL"},
-		"node scheme":       {map[string]string{"NODE_URL": "ws://anvil:8545"}, "NODE_URL"},
-		"no chain":          {map[string]string{"CHAIN_ID": ""}, "CHAIN_ID is required"},
-		"zero chain":        {map[string]string{"CHAIN_ID": "0"}, "CHAIN_ID must"},
-		"bad chain":         {map[string]string{"CHAIN_ID": "anvil"}, "CHAIN_ID must"},
-		"bad start":         {map[string]string{"CHAIN_START_BLOCK": "-1"}, "CHAIN_START_BLOCK"},
-		"bad window":        {map[string]string{"WINDOW_SIZE": "1"}, "WINDOW_SIZE"},
-		"depth zero":        {map[string]string{"REORG_MAX_DEPTH": "0"}, "REORG_MAX_DEPTH must be an integer"},
-		"depth too big":     {map[string]string{"REORG_MAX_DEPTH": "64"}, "smaller than WINDOW_SIZE"},
-		"bad timeout":       {map[string]string{"NODE_TIMEOUT": "0s"}, "NODE_TIMEOUT"},
-		"bad poll":          {map[string]string{"POLL_INTERVAL": "soon"}, "POLL_INTERVAL"},
-		"backoff inverted":  {map[string]string{"BACKOFF_INITIAL": "1m", "BACKOFF_MAX": "1s"}, "BACKOFF_MAX"},
-		"bad breaker":       {map[string]string{"NODE_BREAKER_OPEN_TIMEOUT": "x"}, "NODE_BREAKER_OPEN_TIMEOUT"},
-		"lease without pod": {map[string]string{"LEADER_LEASE_NAME": "chain-watcher"}, "POD_NAME"},
+		"no brokers":         {map[string]string{"KAFKA_BROKERS": " , "}, "KAFKA_BROKERS"},
+		"no mongodb":         {map[string]string{"MONGODB_URI": ""}, "MONGODB_URI"},
+		"no valkey":          {map[string]string{"VALKEY_ADDRS": ""}, "VALKEY_ADDRS"},
+		"bad valkey timeout": {map[string]string{"VALKEY_TIMEOUT": "0s"}, "VALKEY_TIMEOUT"},
+		"bad window time":    {map[string]string{"TRACKING_WINDOW": "day"}, "TRACKING_WINDOW"},
+		"bad rebuild":        {map[string]string{"PROJECTION_REBUILD_WINDOW": "-1h"}, "PROJECTION_REBUILD_WINDOW"},
+		"bad skew":           {map[string]string{"RESCAN_CLOCK_SKEW": "x"}, "RESCAN_CLOCK_SKEW"},
+		"no node":            {map[string]string{"NODE_URL": ""}, "NODE_URL"},
+		"node scheme":        {map[string]string{"NODE_URL": "ws://anvil:8545"}, "NODE_URL"},
+		"no chain":           {map[string]string{"CHAIN_ID": ""}, "CHAIN_ID is required"},
+		"zero chain":         {map[string]string{"CHAIN_ID": "0"}, "CHAIN_ID must"},
+		"bad chain":          {map[string]string{"CHAIN_ID": "anvil"}, "CHAIN_ID must"},
+		"bad start":          {map[string]string{"CHAIN_START_BLOCK": "-1"}, "CHAIN_START_BLOCK"},
+		"bad window":         {map[string]string{"WINDOW_SIZE": "1"}, "WINDOW_SIZE"},
+		"depth zero":         {map[string]string{"REORG_MAX_DEPTH": "0"}, "REORG_MAX_DEPTH must be an integer"},
+		"depth too big":      {map[string]string{"REORG_MAX_DEPTH": "64"}, "smaller than WINDOW_SIZE"},
+		"bad timeout":        {map[string]string{"NODE_TIMEOUT": "0s"}, "NODE_TIMEOUT"},
+		"bad poll":           {map[string]string{"POLL_INTERVAL": "soon"}, "POLL_INTERVAL"},
+		"backoff inverted":   {map[string]string{"BACKOFF_INITIAL": "1m", "BACKOFF_MAX": "1s"}, "BACKOFF_MAX"},
+		"bad breaker":        {map[string]string{"NODE_BREAKER_OPEN_TIMEOUT": "x"}, "NODE_BREAKER_OPEN_TIMEOUT"},
+		"lease without pod":  {map[string]string{"LEADER_LEASE_NAME": "chain-watcher"}, "POD_NAME"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			setRequired(t)

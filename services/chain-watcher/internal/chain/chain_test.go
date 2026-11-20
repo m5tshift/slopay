@@ -3,6 +3,7 @@ package chain
 import (
 	"fmt"
 	"math"
+	"slices"
 	"testing"
 )
 
@@ -104,5 +105,15 @@ func TestInt64Conversions(t *testing.T) {
 	}
 	if Uint64(42) != 42 || Uint64(-1) != 0 {
 		t.Error("Uint64 does not clamp negative values")
+	}
+}
+
+func TestRecipients(t *testing.T) {
+	b := Block{Txs: []Tx{{To: "0xb"}, {To: "0xa"}, {To: "0xb"}, {To: "0xc"}}}
+	if got := b.Recipients(); !slices.Equal(got, []string{"0xb", "0xa", "0xc"}) {
+		t.Fatalf("recipients %v", got)
+	}
+	if got := (Block{}).Recipients(); len(got) != 0 {
+		t.Fatalf("empty block %v", got)
 	}
 }

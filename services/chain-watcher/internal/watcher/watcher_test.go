@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"slices"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/m5tshift/slopay/pkg/breaker"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/store"
 )
 
@@ -33,6 +35,13 @@ type fakeNode struct {
 	notFound  map[uint64]bool         // HeaderByNumber answers not found
 	override  map[uint64]chain.Header // HeaderByNumber answers this header once
 	headCalls int
+
+	txs        map[string][]chain.Tx    // transfers by block hash
+	failed     map[string]bool          // reverted transactions
+	receipts   map[string]chain.Receipt // receipts answered instead of the real ones
+	lost       map[string]bool          // transactions without a receipt
+	blockCalls int                      // BlockByNumber calls
+	hdrCalls   int                      // HeaderByNumber calls
 }
 
 func mkHeader(n uint64, tag, parent string) chain.Header {
@@ -40,7 +49,9 @@ func mkHeader(n uint64, tag, parent string) chain.Header {
 }
 
 func newNode(blocks uint64) *fakeNode {
-	f := &fakeNode{id: chainID, notFound: map[uint64]bool{}, override: map[uint64]chain.Header{}}
+	f := &fakeNode{id: chainID, notFound: map[uint64]bool{}, override: map[uint64]chain.Header{},
+		txs: map[string][]chain.Tx{}, failed: map[string]bool{}, receipts: map[string]chain.Receipt{},
+		lost: map[string]bool{}}
 	f.extend(blocks, "a")
 	return f
 }
@@ -100,6 +111,60 @@ func (f *fakeNode) HeadNumber(context.Context) (uint64, error) {
 func (f *fakeNode) HeaderByNumber(_ context.Context, n uint64) (chain.Header, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.hdrCalls++
+	return f.header(n)
+}
+
+func (f *fakeNode) BlockByNumber(_ context.Context, n uint64) (chain.Block, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.blockCalls++
+	h, err := f.header(n)
+	if err != nil {
+		return chain.Block{}, err
+	}
+	return chain.Block{Header: h, Txs: slices.Clone(f.txs[h.Hash])}, nil
+}
+
+func (f *fakeNode) Receipt(_ context.Context, tx string) (chain.Receipt, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.failure(); err != nil {
+		return chain.Receipt{}, err
+	}
+	if r, ok := f.receipts[tx]; ok {
+		return r, nil
+	}
+	if f.lost[tx] {
+		return chain.Receipt{}, chain.ErrNotFound
+	}
+	for _, h := range f.canonical {
+		for _, t := range f.txs[h.Hash] {
+			if t.Hash == tx {
+				return chain.Receipt{BlockHash: h.Hash, Success: !f.failed[tx]}, nil
+			}
+		}
+	}
+	return chain.Receipt{}, chain.ErrNotFound
+}
+
+// pay adds a transfer to the canonical block n and returns its hash.
+func (f *fakeNode) pay(n uint64, to string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	h := f.canonical[n].Hash
+	tx := chain.Tx{Hash: fmt.Sprintf("tx-%s-%d", h, len(f.txs[h])), From: "0xpayer", To: to, Value: big.NewInt(1000)}
+	f.txs[h] = append(f.txs[h], tx)
+	return tx.Hash
+}
+
+func (f *fakeNode) calls() (blocks, headers int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.blockCalls, f.hdrCalls
+}
+
+func (f *fakeNode) header(n uint64) (chain.Header, error) {
 	if err := f.failure(); err != nil {
 		return chain.Header{}, err
 	}
@@ -170,9 +235,9 @@ func (s *memStore) cursor() (uint64, bool) {
 }
 
 type event struct {
-	kind   string // head or reorg
+	kind   string // head, reorg or transfer
 	number uint64 // block number or fromBlock
-	hash   string // block hash or orphan hash
+	hash   string // block hash, orphan hash or transaction hash
 }
 
 type recPublisher struct {
@@ -204,10 +269,104 @@ func (p *recPublisher) PublishReorg(_ context.Context, _, from uint64, orphan st
 	return nil
 }
 
+func (p *recPublisher) PublishTransfer(_ context.Context, id uint64, t chain.Transfer) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if id != chainID {
+		return fmt.Errorf("chain id %d", id)
+	}
+	if p.err != nil {
+		return p.err
+	}
+	p.events = append(p.events, event{"transfer", t.Block.Number, t.Tx.Hash})
+	return nil
+}
+
 func (p *recPublisher) all() []event {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return slices.Clone(p.events)
+}
+
+// fakeAddresses are the tracked addresses: searched ones in tracked, the others in pending.
+type fakeAddresses struct {
+	mu        sync.Mutex
+	tracked   map[string]bool
+	pending   map[string]time.Time
+	expired   []time.Time // Expire calls
+	queries   [][]string  // Tracked calls
+	rescanned [][]string  // Rescanned calls
+	err       error       // every call fails with it
+}
+
+func newAddresses() *fakeAddresses {
+	return &fakeAddresses{tracked: map[string]bool{}, pending: map[string]time.Time{}}
+}
+
+func (a *fakeAddresses) Tracked(_ context.Context, addrs []string) (map[string]bool, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.err != nil {
+		return nil, a.err
+	}
+	a.queries = append(a.queries, slices.Clone(addrs))
+	out := map[string]bool{}
+	for _, x := range addrs {
+		if a.tracked[x] {
+			out[x] = true
+		}
+	}
+	return out, nil
+}
+
+func (a *fakeAddresses) Pending(context.Context, time.Time) ([]projection.Pending, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.err != nil {
+		return nil, a.err
+	}
+	var out []projection.Pending
+	for x, t := range a.pending {
+		out = append(out, projection.Pending{Address: x, CreatedAt: t})
+	}
+	slices.SortFunc(out, func(a, b projection.Pending) int { return strings.Compare(a.Address, b.Address) })
+	return out, nil
+}
+
+func (a *fakeAddresses) Rescanned(_ context.Context, addrs []string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.err != nil {
+		return a.err
+	}
+	a.rescanned = append(a.rescanned, slices.Clone(addrs))
+	for _, x := range addrs {
+		delete(a.pending, x)
+		a.tracked[x] = true
+	}
+	return nil
+}
+
+func (a *fakeAddresses) Expire(_ context.Context, now time.Time) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.err != nil {
+		return a.err
+	}
+	a.expired = append(a.expired, now)
+	return nil
+}
+
+func (a *fakeAddresses) add(addr string, createdAt time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.pending[addr] = createdAt
+}
+
+func (a *fakeAddresses) track(addr string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.tracked[addr] = true
 }
 
 type clock struct {
@@ -232,6 +391,7 @@ type env struct {
 	node   *fakeNode
 	store  *memStore
 	pub    *recPublisher
+	addrs  *fakeAddresses
 	clk    *clock
 	reader *sdkmetric.ManualReader
 	logs   *syncBuffer
@@ -256,7 +416,7 @@ func (b *syncBuffer) String() string {
 
 func newEnv(t *testing.T, blocks uint64, mod func(*Config)) *env {
 	t.Helper()
-	e := &env{node: newNode(blocks), store: &memStore{}, pub: &recPublisher{},
+	e := &env{node: newNode(blocks), store: &memStore{}, pub: &recPublisher{}, addrs: newAddresses(),
 		clk: &clock{t: time.Unix(1_700_000_000, 0)}, reader: sdkmetric.NewManualReader(), logs: &syncBuffer{}}
 	meter := sdkmetric.NewMeterProvider(sdkmetric.WithReader(e.reader)).Meter("test")
 	br, err := breaker.New(breaker.Config{Dependency: "node", FailureThreshold: 3, OpenTimeout: 10 * time.Second,
@@ -265,8 +425,9 @@ func newEnv(t *testing.T, blocks uint64, mod func(*Config)) *env {
 		t.Fatal(err)
 	}
 	cfg := Config{
-		Node: e.node, Store: e.store, Publisher: e.pub, Breaker: br, ChainID: chainID,
-		WindowSize: 64, MaxReorgDepth: 6, PollInterval: time.Second,
+		Node: e.node, Store: e.store, Publisher: e.pub, Addresses: e.addrs, Breaker: br, ChainID: chainID,
+		WindowSize: 64, MaxReorgDepth: 6, RescanClockSkew: 30 * time.Second, RescanLookback: 26 * time.Hour,
+		PollInterval: time.Second, now: e.clk.now,
 		BackoffInitial: 500 * time.Millisecond, BackoffMax: 4 * time.Second,
 		Logger: slog.New(slog.NewJSONHandler(e.logs, nil)), Meter: meter,
 	}
@@ -358,6 +519,9 @@ func TestNewValidates(t *testing.T) {
 		"no node":          func(c *Config) { c.Node = nil },
 		"no store":         func(c *Config) { c.Store = nil },
 		"no publisher":     func(c *Config) { c.Publisher = nil },
+		"no addresses":     func(c *Config) { c.Addresses = nil },
+		"negative skew":    func(c *Config) { c.RescanClockSkew = -time.Second },
+		"no lookback":      func(c *Config) { c.RescanLookback = 0 },
 		"no breaker":       func(c *Config) { c.Breaker = nil },
 		"no chain":         func(c *Config) { c.ChainID = 0 },
 		"zero depth":       func(c *Config) { c.MaxReorgDepth = 0 },
@@ -674,6 +838,13 @@ func (f *failAfter) HeadNumber(ctx context.Context) (uint64, error) {
 		return 0, err
 	}
 	return f.Node.HeadNumber(ctx)
+}
+
+func (f *failAfter) BlockByNumber(ctx context.Context, n uint64) (chain.Block, error) {
+	if err := f.step(); err != nil {
+		return chain.Block{}, err
+	}
+	return f.Node.BlockByNumber(ctx, n)
 }
 
 func (f *failAfter) HeaderByNumber(ctx context.Context, n uint64) (chain.Header, error) {

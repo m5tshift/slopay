@@ -24,6 +24,8 @@ kafka:
 secrets:
   # Password of the service's MongoDB user: /var/run/secrets/slopay/mongodb/password.
   - name: mongodb
+  # Password of the service's Valkey user: /var/run/secrets/slopay/valkey/password.
+  - name: valkey
 
 mongodb:
   enabled: true
@@ -35,7 +37,19 @@ mongodb:
     secret: mongodb
     key: password
 
+# Cache of the tracked addresses (SRS 4.1.7). Not part of readiness: without it MongoDB answers.
+valkey:
+  enabled: true
+  addrs:
+    - valkey.db.svc:6379
+  username: chain-watcher
+  password:
+    secret: valkey
+    key: password
+
 env:
+  # Reads invoice.events into the projection of tracked addresses.
+  KAFKA_CONSUMER_GROUP: chain-watcher
   # Anvil on the stand (SRS 4.1.3); Sepolia would be another deployment with its own CHAIN_ID.
   NODE_URL: http://anvil.apps.svc:8545
   CHAIN_ID: "31337"
@@ -50,4 +64,10 @@ env:
   # SRS 4.1.6: window of the last 64 headers; 4.1.9: reorgs up to 6 blocks.
   WINDOW_SIZE: "64"
   REORG_MAX_DEPTH: "6"
+  # SRS 4.1.7: an address is tracked 24 h after the invoice; a lost projection is rebuilt from 26 h of
+  # invoice.events. The rescan of processed blocks starts from the invoice time minus the clock skew.
+  TRACKING_WINDOW: 24h
+  PROJECTION_REBUILD_WINDOW: 26h
+  RESCAN_CLOCK_SKEW: 30s
+  VALKEY_TIMEOUT: 100ms
   LOG_LEVEL: info

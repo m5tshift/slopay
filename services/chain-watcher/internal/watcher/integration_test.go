@@ -29,6 +29,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
+	"github.com/valkey-io/valkey-go"
 	"go.opentelemetry.io/otel/attribute"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -38,12 +39,15 @@ import (
 	"github.com/m5tshift/slopay/pkg/storage"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/events"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/node"
+	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/store"
+	"github.com/m5tshift/slopay/services/chain-watcher/internal/tracked"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/watcher"
 )
 
 const (
 	anvilImage   = "ghcr.io/foundry-rs/foundry:v1.10.0"
+	valkeyImage  = "valkey/valkey:8.0"
 	anvilChainID = 31337
 	waitFor      = 60 * time.Second
 )
@@ -55,6 +59,8 @@ var (
 	anvil         testcontainers.Container
 	anvilURL      atomic.Value // string: the current endpoint, it may change after a restart
 	proxyURL      string
+	valkeyC       testcontainers.Container
+	valkeyAddr    atomic.Value // string: host:port, it changes after a restart
 )
 
 func TestMain(m *testing.M) {
@@ -100,6 +106,20 @@ func TestMain(m *testing.M) {
 	if err == nil {
 		err = refreshAnvilURL(ctx)
 	}
+	if err == nil {
+		valkeyC, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+			ContainerRequest: testcontainers.ContainerRequest{
+				Image:        valkeyImage,
+				ExposedPorts: []string{"6379/tcp"},
+				WaitingFor:   wait.ForLog("Ready to accept connections").WithStartupTimeout(waitFor),
+			},
+			Started: true,
+		})
+		ctrs = append(ctrs, valkeyC)
+	}
+	if err == nil {
+		err = refreshValkeyAddr(ctx)
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "containers:", err)
 		return
@@ -120,6 +140,15 @@ func refreshAnvilURL(ctx context.Context) error {
 		return err
 	}
 	anvilURL.Store(ep)
+	return nil
+}
+
+func refreshValkeyAddr(ctx context.Context) error {
+	ep, err := valkeyC.PortEndpoint(ctx, "6379/tcp", "")
+	if err != nil {
+		return err
+	}
+	valkeyAddr.Store(ep)
 	return nil
 }
 
@@ -185,14 +214,19 @@ func revertAndMine(t *testing.T, id string, n uint64) {
 
 // received is a decoded event of the topic.
 type received struct {
-	key        string
-	typ        string
-	id         string
-	Number     uint64 `json:"number"`
-	Hash       string `json:"hash"`
-	ParentHash string `json:"parentHash"`
-	FromBlock  uint64 `json:"fromBlock"`
-	ChainID    uint64 `json:"chainId"`
+	key         string
+	typ         string
+	id          string
+	Number      uint64 `json:"number"`
+	Hash        string `json:"hash"`
+	ParentHash  string `json:"parentHash"`
+	FromBlock   uint64 `json:"fromBlock"`
+	ChainID     uint64 `json:"chainId"`
+	BlockNumber uint64 `json:"blockNumber"`
+	BlockHash   string `json:"blockHash"`
+	TxHash      string `json:"txHash"`
+	To          string `json:"to"`
+	Amount      string `json:"amount"`
 }
 
 // collector reads the topic of a test from the start.
@@ -287,7 +321,11 @@ func replay(t *testing.T, evs []received) (map[uint64]string, []received) {
 		start  = true
 	)
 	for i, e := range evs {
-		if e.key != "31337" || e.ChainID != anvilChainID {
+		key := "31337"
+		if e.typ == events.TypeTransfer {
+			key = e.To
+		}
+		if e.key != key || e.ChainID != anvilChainID {
 			t.Fatalf("event %d: key %q chainId %d", i, e.key, e.ChainID)
 		}
 		switch e.typ {
@@ -300,6 +338,8 @@ func replay(t *testing.T, evs []received) (map[uint64]string, []received) {
 			}
 			start, last = false, e.Number
 			view[last] = e.Hash
+		case events.TypeTransfer:
+			// Checked by the transfer tests.
 		case events.TypeReorg:
 			if start || e.FromBlock > last || view[e.FromBlock-1] == "" {
 				t.Fatalf("event %d: reorg from %d at cursor %d", i, e.FromBlock, last)
@@ -330,11 +370,16 @@ func matchesNode(t *testing.T, view map[uint64]string, from, to uint64) {
 }
 
 type harness struct {
-	topic  string
-	store  *store.Store
-	events *collector
-	reader *sdkmetric.ManualReader
-	start  uint64
+	// topic gets both chain.blocks and chain.transfers events: one partition keeps the order of publication.
+	topic     string
+	invoices  string
+	group     string
+	mongo     *storage.Mongo
+	store     *store.Store
+	addresses *projection.Store
+	events    *collector
+	reader    *sdkmetric.ManualReader
+	start     uint64
 
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -345,8 +390,10 @@ var nonName = regexp.MustCompile(`[^a-z0-9]+`)
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	name := strings.Trim(nonName.ReplaceAllString(strings.ToLower(t.Name()), "_"), "_")
-	h := &harness{topic: "chain.blocks." + name, start: headNumber(t) + 1}
+	h := &harness{topic: "chain.blocks." + name, invoices: "invoice.events." + name, group: "cw-" + name,
+		start: headNumber(t) + 1}
 	createTopic(t, h.topic)
+	createTopic(t, h.invoices)
 
 	ctx, cancel := context.WithTimeout(context.Background(), waitFor)
 	defer cancel()
@@ -360,7 +407,11 @@ func newHarness(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = m.Close(context.Background()) })
-	h.store = store.New(m)
+	h.mongo, h.store = m, store.New(m)
+	h.addresses = projection.New(m)
+	if err := h.addresses.EnsureIndexes(ctx); err != nil {
+		t.Fatal(err)
+	}
 	h.events = collect(t, h.topic)
 	return h
 }
@@ -412,21 +463,61 @@ func (h *harness) run(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+
+	// The tracked addresses as in main: the projection, the cache connected in the background, the consumer.
+	cache := tracked.NewValkey(anvilChainID, time.Second, log)
+	book, err := tracked.NewBook(h.addresses, cache, 200*time.Millisecond, meter, log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invoices, err := kafka.NewConsumer(codec, log, brokers, h.group, []string{h.invoices},
+		kgo.ConsumeResetOffset(kgo.NewOffset().AfterMilli(time.Now().Add(-26*time.Hour).UnixMilli())))
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := projection.Handler(h.addresses, 24*time.Hour, projection.Backoff{Min: 50 * time.Millisecond, Max: time.Second}, log)
+
 	start := h.start
 	w, err := watcher.New(watcher.Config{
-		Node: client, Store: h.store, Publisher: events.NewPublisher(producer, h.topic), Breaker: br,
-		ChainID: anvilChainID, StartBlock: &start, WindowSize: 64, MaxReorgDepth: 6,
+		Node: client, Store: h.store, Publisher: events.NewPublisher(producer, h.topic, h.topic), Addresses: book,
+		Breaker: br, ChainID: anvilChainID, StartBlock: &start, WindowSize: 64, MaxReorgDepth: 6,
+		RescanClockSkew: 30 * time.Second, RescanLookback: 26 * time.Hour,
 		PollInterval: 100 * time.Millisecond, BackoffInitial: 100 * time.Millisecond, BackoffMax: time.Second,
-		Logger: slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		Meter:  meter,
+		Logger: log, Meter: meter,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	h.cancel, h.done = cancel, make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		cache.Connect(ctx, func(ctx context.Context) (valkey.Client, error) {
+			v, err := storage.OpenValkey(ctx, storage.ValkeyConfig{Addrs: []string{valkeyAddr.Load().(string)}})
+			if err != nil {
+				return nil, err
+			}
+			return v.Client(), nil
+		}, 200*time.Millisecond)
+	})
+	wg.Go(func() {
+		rebuild := func(ctx context.Context) error {
+			return projection.Rebuild(ctx, projection.RebuildConfig{Brokers: brokers, Topic: h.invoices,
+				Since: time.Now().Add(-26 * time.Hour), Codec: codec, Handler: handler, Log: log, Idle: 5 * time.Second})
+		}
+		if projection.EnsureBuilt(ctx, h.addresses, rebuild, projection.Backoff{Min: 100 * time.Millisecond, Max: time.Second}, log) != nil {
+			return
+		}
+		if err := invoices.Run(ctx, handler); err != nil && ctx.Err() == nil {
+			t.Errorf("invoice.events consumer: %v", err)
+		}
+	})
 	go func() {
 		defer close(h.done)
 		w.Run(ctx)
+		wg.Wait()
+		invoices.Close()
+		cache.Close()
 		client.Close()
 		producer.Close()
 	}()

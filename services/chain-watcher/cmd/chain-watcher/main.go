@@ -1,5 +1,6 @@
-// Command chain-watcher reads the blocks of an EVM chain and publishes chain.new_head and chain.reorg
-// (SRS 4.1.3, 4.1.6, 4.1.9). Only the leader replica of the Lease reads the chain; the others wait.
+// Command chain-watcher reads the blocks of an EVM chain and publishes chain.new_head, chain.reorg and the native
+// ETH transfers to tracked addresses (SRS 4.1.3, 4.1.6, 4.1.7, 4.1.9). Only the leader replica of the Lease reads
+// the chain; every replica keeps the projection of tracked addresses from invoice.events.
 // Configuration is read from the environment, see services/chain-watcher/AGENTS.md.
 package main
 
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/valkey-io/valkey-go"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -23,14 +25,20 @@ import (
 	"github.com/m5tshift/slopay/pkg/leader"
 	"github.com/m5tshift/slopay/pkg/storage"
 	"github.com/m5tshift/slopay/pkg/telemetry"
+	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/config"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/events"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/node"
+	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/store"
+	"github.com/m5tshift/slopay/services/chain-watcher/internal/tracked"
 	"github.com/m5tshift/slopay/services/chain-watcher/internal/watcher"
 )
 
 const serviceName = "chain-watcher"
+
+// valkeyRetry is the pause between connection attempts while Valkey is unavailable.
+const valkeyRetry = 5 * time.Second
 
 func main() {
 	log := telemetry.NewLogger(os.Stdout, telemetry.ParseLevel(os.Getenv("LOG_LEVEL")))
@@ -70,6 +78,35 @@ func run(log *slog.Logger) error {
 	}
 	defer shutdown(log, "mongodb", mongo.Close)
 
+	// The tracked addresses: the projection in MongoDB and its cache in Valkey, which attaches when it is
+	// reachable; until then the addresses are checked in MongoDB.
+	addresses := projection.New(mongo)
+	if err := addresses.EnsureIndexes(ctx); err != nil {
+		return err
+	}
+	cache := tracked.NewValkey(chain.Int64(cfg.ChainID), cfg.ValkeyTimeout, log)
+	defer cache.Close()
+	openValkey := func(ctx context.Context) (valkey.Client, error) {
+		v, err := storage.OpenValkey(ctx, cfg.Valkey)
+		if err != nil {
+			return nil, err
+		}
+		return v.Client(), nil
+	}
+	book, err := tracked.NewBook(addresses, cache, valkeyRetry, nil, log)
+	if err != nil {
+		return err
+	}
+	invoices, err := kafka.NewConsumer(codec, log, cfg.KafkaBrokers, cfg.ConsumerGroup,
+		[]string{projection.TopicInvoices}, kgo.ClientID(serviceName),
+		// A new group reads only the invoices that can still be tracked.
+		kgo.ConsumeResetOffset(kgo.NewOffset().AfterMilli(time.Now().Add(-cfg.RebuildWindow).UnixMilli())))
+	if err != nil {
+		return err
+	}
+	defer invoices.Close()
+	handler := projection.Handler(addresses, cfg.TrackingWindow, projection.DefaultBackoff, log)
+
 	client, err := node.Dial(ctx, cfg.NodeURL, cfg.NodeTimeout)
 	if err != nil {
 		return err
@@ -80,10 +117,11 @@ func run(log *slog.Logger) error {
 		return err
 	}
 	w, err := watcher.New(watcher.Config{
-		Node: client, Store: store.New(mongo), Publisher: events.NewPublisher(producer, events.TopicBlocks),
-		Breaker: br, ChainID: cfg.ChainID, StartBlock: cfg.StartBlock, WindowSize: cfg.WindowSize,
-		MaxReorgDepth: cfg.MaxReorgDepth, PollInterval: cfg.PollInterval, BackoffInitial: cfg.BackoffInitial,
-		BackoffMax: cfg.BackoffMax, Logger: log,
+		Node: client, Store: store.New(mongo), Addresses: book,
+		Publisher: events.NewPublisher(producer, events.TopicBlocks, events.TopicTransfers),
+		Breaker:   br, ChainID: cfg.ChainID, StartBlock: cfg.StartBlock, WindowSize: cfg.WindowSize,
+		MaxReorgDepth: cfg.MaxReorgDepth, RescanClockSkew: cfg.RescanClockSkew, RescanLookback: cfg.RebuildWindow,
+		PollInterval: cfg.PollInterval, BackoffInitial: cfg.BackoffInitial, BackoffMax: cfg.BackoffMax, Logger: log,
 	})
 	if err != nil {
 		return err
@@ -94,8 +132,8 @@ func run(log *slog.Logger) error {
 	}
 
 	health := telemetry.NewHealth(log, 0)
-	// The node is not a readiness check: its failures are handled by the breaker and the backoff, and taking
-	// the replica out of the Service would not help, since it serves no traffic.
+	// Neither the node nor Valkey is a readiness check: node failures are handled by the breaker and the backoff,
+	// Valkey is a cache, and taking the replica out of the Service would not help, since it serves no traffic.
 	health.AddReadiness("mongodb", mongo.Ready)
 	mux := http.NewServeMux()
 	telemetry.Register(mux, health, tel)
@@ -110,7 +148,23 @@ func run(log *slog.Logger) error {
 
 	log.InfoContext(ctx, "starting", "chain_id", cfg.ChainID, "window_size", cfg.WindowSize,
 		"reorg_max_depth", cfg.MaxReorgDepth, "leader_lease", cfg.LeaderLease)
-	errc := make(chan error, 2)
+	errc := make(chan error, 3)
+	go cache.Connect(ctx, openValkey, valkeyRetry)
+	go func() {
+		// A lost projection is rebuilt from invoice.events of the rebuild window before the group goes on.
+		rebuild := func(ctx context.Context) error {
+			return projection.Rebuild(ctx, projection.RebuildConfig{
+				Brokers: cfg.KafkaBrokers, Topic: projection.TopicInvoices, Since: time.Now().Add(-cfg.RebuildWindow),
+				Codec: codec, Handler: handler, Log: log, Opts: []kgo.Opt{kgo.ClientID(serviceName)},
+			})
+		}
+		if err := projection.EnsureBuilt(ctx, addresses, rebuild, projection.DefaultBackoff, log); err != nil {
+			return
+		}
+		if err := invoices.Run(ctx, handler); err != nil && ctx.Err() == nil {
+			errc <- fmt.Errorf("invoice.events consumer: %w", err)
+		}
+	}()
 	go func() {
 		if err := ld.Run(ctx, w.Run); err != nil {
 			errc <- fmt.Errorf("leader election: %w", err)
