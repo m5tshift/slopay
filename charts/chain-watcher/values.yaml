@@ -1,0 +1,53 @@
+# chain-watcher on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in slopay-gitops.
+image:
+  repository: zot.example.internal/slopay/chain-watcher
+  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  tag: dev
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+# Only the Lease holder reads blocks; the other replicas are a hot standby (SRS 4.1.3).
+leader:
+  enabled: true
+
+kafka:
+  enabled: true
+  brokers:
+    - slopay-kafka-bootstrap.kafka.svc:9092
+
+secrets:
+  # Password of the service's MongoDB user: /var/run/secrets/slopay/mongodb/password.
+  - name: mongodb
+
+mongodb:
+  enabled: true
+  uri: mongodb://mongodb-rs0.db.svc:27017/?replicaSet=rs0
+  username: chain-watcher
+  database: chain_watcher
+  authSource: chain_watcher
+  password:
+    secret: mongodb
+    key: password
+
+env:
+  # Anvil on the stand (SRS 4.1.3); Sepolia would be another deployment with its own CHAIN_ID.
+  NODE_URL: http://anvil.apps.svc:8545
+  CHAIN_ID: "31337"
+  NODE_TIMEOUT: 5s
+  # SRS 4.1.9: backoff to the node; the circuit breaker adds to the mesh outlier detection.
+  NODE_BREAKER_FAILURE_THRESHOLD: "5"
+  NODE_BREAKER_OPEN_TIMEOUT: 15s
+  NODE_BREAKER_HALF_OPEN_MAX: "1"
+  BACKOFF_INITIAL: 500ms
+  BACKOFF_MAX: 30s
+  POLL_INTERVAL: 1s
+  # SRS 4.1.6: window of the last 64 headers; 4.1.9: reorgs up to 6 blocks.
+  WINDOW_SIZE: "64"
+  REORG_MAX_DEPTH: "6"
+  LOG_LEVEL: info
