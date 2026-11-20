@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/slopay/services/invoice-service/internal/jwks"
 )
 
 // maxBodyBytes limits request bodies; a valid creation request is under 300 bytes.
@@ -28,6 +29,8 @@ type Options struct {
 	Service *invoice.Service
 	// JWTIssuer is the iss claim a token must carry; empty accepts any issuer.
 	JWTIssuer string
+	// Keys verifies the JWT signatures (required).
+	Keys KeyResolver
 	// RetryAfter is sent with 503 when rate-service did not suggest a pause.
 	RetryAfter time.Duration
 	Logger     *slog.Logger
@@ -39,6 +42,7 @@ type gate struct {
 	router routers.Router
 	doc    *openapi3.T
 	issuer string
+	keys   KeyResolver
 	now    func() time.Time
 	log    *slog.Logger
 }
@@ -56,6 +60,9 @@ func Register(mux *http.ServeMux, o Options) error {
 	if err != nil {
 		return fmt.Errorf("api: router: %w", err)
 	}
+	if o.Keys == nil {
+		return errors.New("api: Options.Keys is required: the JWT signature is verified by the service")
+	}
 	log := o.Logger
 	if log == nil {
 		log = slog.Default()
@@ -68,7 +75,7 @@ func Register(mux *http.ServeMux, o Options) error {
 	if retry < time.Second {
 		retry = time.Second
 	}
-	g := &gate{router: router, doc: doc, issuer: o.JWTIssuer, now: now, log: log}
+	g := &gate{router: router, doc: doc, issuer: o.JWTIssuer, keys: o.Keys, now: now, log: log}
 	srv := &Server{svc: o.Service, retryAfter: retry, log: log}
 	strict := NewStrictHandlerWithOptions(srv, nil, StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  g.requestError,
@@ -109,9 +116,15 @@ func (g *gate) authenticate(r *http.Request) (uuid.UUID, bool) {
 	if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
 		return uuid.Nil, false
 	}
-	id, err := merchantFromToken(strings.TrimSpace(token), g.issuer, g.now())
+	id, err := merchantFromToken(r.Context(), strings.TrimSpace(token), g.issuer, g.now(), g.keys)
 	if err != nil {
-		g.log.InfoContext(r.Context(), "jwt rejected", "reason", err.Error())
+		// An unreachable JWKS is the operator's problem, not the client's: log it louder. The client still gets
+		// 401, the only auth failure of the contract.
+		level := slog.LevelInfo
+		if errors.Is(err, jwks.ErrUnavailable) {
+			level = slog.LevelWarn
+		}
+		g.log.Log(r.Context(), level, "jwt rejected", "reason", err.Error())
 		return uuid.Nil, false
 	}
 	return id, true

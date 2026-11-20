@@ -13,6 +13,7 @@ func base(t *testing.T) {
 	t.Setenv("POSTGRES_PASSWORD_FILE", "/run/secrets/postgres/password")
 	t.Setenv("VALKEY_ADDRS", "valkey:6379")
 	t.Setenv("RATE_SERVICE_URL", "http://rate-service")
+	t.Setenv("JWKS_URL", "http://merchant-service/.well-known/jwks.json")
 }
 
 func TestDefaults(t *testing.T) {
@@ -28,6 +29,10 @@ func TestDefaults(t *testing.T) {
 	// Numbers of SRS 4.1.3, 4.1.4, 4.1.7.
 	if c.InvoiceTTL != 15*time.Minute || c.RateMaxAge != 60*time.Second || c.StatusCacheTTL != 30*time.Second ||
 		c.RateRetryAfter != 5*time.Second || c.RateServiceTimeout != time.Second || c.ValkeyTimeout != 100*time.Millisecond {
+		t.Errorf("%+v", c)
+	}
+	if c.JWKSURL != "http://merchant-service/.well-known/jwks.json" || c.JWKSTimeout != 2*time.Second ||
+		c.JWKSRefresh != 5*time.Minute || c.JWKSMinInterval != 10*time.Second {
 		t.Errorf("%+v", c)
 	}
 	// Numbers of SRS 3.1 and 4.1.4 on Anvil.
@@ -61,6 +66,9 @@ func TestInvalid(t *testing.T) {
 		"KAFKA_BROKERS":     {"KAFKA_BROKERS", " , "},
 		"RATE_SERVICE_URL":  {"RATE_SERVICE_URL", "rate-service"},
 		"RATE_SERVICE_URL ": {"RATE_SERVICE_URL", ""},
+		"JWKS_URL":          {"JWKS_URL", ""},
+		"JWKS_URL ":         {"JWKS_URL", "merchant-service"},
+		"JWKS_REFRESH":      {"JWKS_REFRESH", "0"},
 		"RATE_MAX_AGE":      {"RATE_MAX_AGE", "61s"},
 		"INVOICE_TTL":       {"INVOICE_TTL", "-1m"},
 		"STATUS_CACHE_TTL":  {"STATUS_CACHE_TTL", "soon"},

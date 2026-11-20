@@ -47,6 +47,16 @@ type Config struct {
 	// JWTIssuer is the iss claim a merchant token must carry (JWT_ISSUER, default slopay-merchant-service).
 	JWTIssuer string
 
+	// JWKSURL is the JWKS of merchant-service the token signatures are verified with (JWKS_URL, required).
+	JWKSURL string
+	// JWKSTimeout bounds one JWKS request (JWKS_TIMEOUT, default 2s).
+	JWKSTimeout time.Duration
+	// JWKSRefresh is the age after which the cached JWKS is reloaded (JWKS_REFRESH, default 5m).
+	JWKSRefresh time.Duration
+	// JWKSMinInterval is the shortest time between two JWKS requests, including the reload on an unknown kid
+	// (JWKS_MIN_INTERVAL, default 10s).
+	JWKSMinInterval time.Duration
+
 	// ChainID is the chain whose chain.blocks and chain.transfers are applied (CHAIN_ID, default 31337: Anvil).
 	ChainID int64
 	// Confirmations is N of SRS 4.1.4 (CONFIRMATIONS, default 7 on Anvil). It must exceed the deepest handled
@@ -75,6 +85,7 @@ func FromEnv() (Config, error) {
 		ConsumerGroup:  envOr("KAFKA_CONSUMER_GROUP", "invoice-service"),
 		RateServiceURL: os.Getenv("RATE_SERVICE_URL"),
 		JWTIssuer:      envOr("JWT_ISSUER", "slopay-merchant-service"),
+		JWKSURL:        os.Getenv("JWKS_URL"),
 	}
 	if len(c.KafkaBrokers) == 0 {
 		errs = append(errs, errors.New("KAFKA_BROKERS is required"))
@@ -82,6 +93,10 @@ func FromEnv() (Config, error) {
 	if u, err := url.Parse(c.RateServiceURL); c.RateServiceURL == "" || err != nil ||
 		(u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		errs = append(errs, errors.New("RATE_SERVICE_URL must be an http(s) URL, e.g. http://rate-service"))
+	}
+	if u, err := url.Parse(c.JWKSURL); c.JWKSURL == "" || err != nil ||
+		(u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		errs = append(errs, errors.New("JWKS_URL must be an http(s) URL, e.g. http://merchant-service/.well-known/jwks.json"))
 	}
 	var err error
 	c.Postgres, err = storage.PostgresConfigFromEnv("POSTGRES")
@@ -103,6 +118,13 @@ func FromEnv() (Config, error) {
 	c.RateRetryAfter, err = duration("RATE_RETRY_AFTER", 5*time.Second)
 	errs = append(errs, err)
 	c.InvoiceTTL, err = duration("INVOICE_TTL", 15*time.Minute)
+	errs = append(errs, err)
+
+	c.JWKSTimeout, err = duration("JWKS_TIMEOUT", 2*time.Second)
+	errs = append(errs, err)
+	c.JWKSRefresh, err = duration("JWKS_REFRESH", 5*time.Minute)
+	errs = append(errs, err)
+	c.JWKSMinInterval, err = duration("JWKS_MIN_INTERVAL", 10*time.Second)
 	errs = append(errs, err)
 
 	c.ChainID, err = positive("CHAIN_ID", 31337, math.MaxInt64)
