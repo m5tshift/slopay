@@ -143,9 +143,9 @@ func (s *Postgres) Create(ctx context.Context, d invoice.Draft, derive invoice.D
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO invoices (id, merchant_id, idempotency_key, request_hash, order_id,
 amount_usd_cents, asset_kind, asset_contract, asset_decimals, rate, rate_quoted_at, amount, address, derivation_index,
-status, sequence, confirmations, received_amount, overpaid, created_at, expires_at, updated_at)
+status, sequence, confirmations, received_amount, overpaid, created_at, expires_at, deadline, updated_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::numeric, $11, $12::numeric, $13, $14, $15, $16, $17, $18::numeric, $19,
-$20, $21, $20)`,
+$20, $21, $21, $20)`,
 			inv.ID, inv.MerchantID, d.IdempotencyKey, d.RequestHash, inv.OrderID, inv.AmountUSDCents, inv.Asset.Kind,
 			contract, inv.Asset.Decimals, inv.Rate, inv.RateQuotedAt, inv.Amount.String(), inv.Address,
 			int64(inv.DerivationIndex), string(inv.Status), inv.Sequence, inv.Confirmations, inv.Received.String(),

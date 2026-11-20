@@ -13,6 +13,12 @@ info:
     Order between `chain.blocks` and `chain.transfers` is not guaranteed. A consumer applies a transfer
     only when its `blockNumber -> blockHash` is in the canonical chain built from `chain.blocks`;
     a transfer that arrives before its block waits for it, a transfer from a reorged block is dropped.
+
+    Publication order: chain-watcher publishes the transfers of a block before the `chain.new_head` of
+    that block, and the next block event only after both. invoice-service relies on it: before handling
+    a `chain.new_head` it waits until its `chain.transfers` consumer group has committed the end
+    offsets of the topic, so a block is processed together with all transfers of it and of earlier
+    blocks (SRS 4.1.4: deadlines count only after the transfers of the preceding blocks).
 defaultContentType: application/cloudevents+json
 
 channels:

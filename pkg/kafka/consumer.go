@@ -118,12 +118,35 @@ func (c *Consumer) process(ctx context.Context, rec *kgo.Record, h Handler) erro
 		return nil
 	}
 	span.SetAttributes(attribute.String("cloudevents.type", ev.Type), attribute.String("cloudevents.id", ev.ID))
+	ctx = WithPosition(ctx, Position{Topic: rec.Topic, Partition: rec.Partition, Offset: rec.Offset})
 	if err := h(ctx, ev); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "handler failed")
 		return fmt.Errorf("kafka: handle %s %s: %w", ev.Type, ev.ID, err)
 	}
 	return nil
+}
+
+// Position is the place of the record being handled in its topic.
+type Position struct {
+	Topic     string
+	Partition int32
+	Offset    int64
+}
+
+type positionKey struct{}
+
+// PositionFrom returns the position of the record a Handler of Consumer is called for. A handler that
+// keeps its own exactly-once state in a database (an ordered single-partition topic) stores the offset
+// in the same transaction and skips records at or below it.
+func PositionFrom(ctx context.Context) (Position, bool) {
+	p, ok := ctx.Value(positionKey{}).(Position)
+	return p, ok
+}
+
+// WithPosition returns ctx carrying p, as Consumer passes it to a Handler (tests of handlers).
+func WithPosition(ctx context.Context, p Position) context.Context {
+	return context.WithValue(ctx, positionKey{}, p)
 }
 
 // Close leaves the group and closes the client.

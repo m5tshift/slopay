@@ -114,14 +114,23 @@ func TestProcessDeliversEventWithRemoteTrace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	rec.Partition, rec.Offset = 2, 41
 	var got Event
 	var sc trace.SpanContext
+	var pos Position
 	err = cons.process(context.Background(), rec, func(ctx context.Context, ev Event) error {
 		got, sc = ev, trace.SpanContextFromContext(ctx)
+		pos, _ = PositionFrom(ctx)
 		return nil
 	})
 	if err != nil || got.Type != "invoice.created" {
 		t.Fatalf("event %+v, err %v", got, err)
+	}
+	if pos != (Position{Topic: "invoice.events", Partition: 2, Offset: 41}) {
+		t.Fatalf("position %+v", pos)
+	}
+	if _, ok := PositionFrom(context.Background()); ok {
+		t.Fatal("position without a record")
 	}
 	// Without an SDK the consumer span is non-recording and passes the remote context through.
 	if sc.TraceID().String() != testTraceID {

@@ -5,8 +5,10 @@ package config
 import (
 	"errors"
 	"fmt"
+	"math"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +46,21 @@ type Config struct {
 
 	// JWTIssuer is the iss claim a merchant token must carry (JWT_ISSUER, default slopay-merchant-service).
 	JWTIssuer string
+
+	// ChainID is the chain whose chain.blocks and chain.transfers are applied (CHAIN_ID, default 31337: Anvil).
+	ChainID int64
+	// Confirmations is N of SRS 4.1.4 (CONFIRMATIONS, default 7 on Anvil). It must exceed the deepest handled
+	// reorg (6, SRS 4.1.9).
+	Confirmations int
+	// RevertWait is the wait for the same txHash after a revert past expiresAt (REVERT_WAIT, SRS 4.1.4: 10m).
+	RevertWait time.Duration
+	// TrackingWindow is the address tracking window (TRACKING_WINDOW, SRS 4.1.4: 24h).
+	TrackingWindow time.Duration
+	// ChainBlocks is how many recent canonical blocks are kept (CHAIN_BLOCKS, default 256, more than N and
+	// the deepest reorg).
+	ChainBlocks uint64
+	// BarrierPoll is the poll interval of the wait for chain.transfers before a block (BARRIER_POLL, default 50ms).
+	BarrierPoll time.Duration
 }
 
 // maxRateAge is the bound of SRS 4.1.3 and NFR-08: a larger RATE_MAX_AGE would break the requirement.
@@ -87,6 +104,27 @@ func FromEnv() (Config, error) {
 	errs = append(errs, err)
 	c.InvoiceTTL, err = duration("INVOICE_TTL", 15*time.Minute)
 	errs = append(errs, err)
+
+	c.ChainID, err = positive("CHAIN_ID", 31337, math.MaxInt64)
+	errs = append(errs, err)
+	n, err := positive("CONFIRMATIONS", 7, math.MaxInt32)
+	errs = append(errs, err)
+	c.Confirmations = int(n)
+	if c.Confirmations < 2 {
+		errs = append(errs, errors.New("CONFIRMATIONS must be at least 2"))
+	}
+	c.RevertWait, err = duration("REVERT_WAIT", 10*time.Minute)
+	errs = append(errs, err)
+	c.TrackingWindow, err = duration("TRACKING_WINDOW", 24*time.Hour)
+	errs = append(errs, err)
+	blocks, err := positive("CHAIN_BLOCKS", 256, 1<<20)
+	errs = append(errs, err)
+	c.ChainBlocks = uint64(blocks)                //nolint:gosec // positive checks 1 <= blocks <= 2^20.
+	if c.ChainBlocks <= uint64(c.Confirmations) { //nolint:gosec // Confirmations >= 1 here or reported above.
+		errs = append(errs, errors.New("CHAIN_BLOCKS must be greater than CONFIRMATIONS"))
+	}
+	c.BarrierPoll, err = duration("BARRIER_POLL", 50*time.Millisecond)
+	errs = append(errs, err)
 	return c, errors.Join(errs...)
 }
 
@@ -105,6 +143,19 @@ func splitList(s string) []string {
 		}
 	}
 	return out
+}
+
+// positive reads a positive integer up to limit.
+func positive(name string, def, limit int64) (int64, error) {
+	v := os.Getenv(name)
+	if v == "" {
+		return def, nil
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || n <= 0 || n > limit {
+		return def, fmt.Errorf("%s must be a positive integer up to %d", name, limit)
+	}
+	return n, nil
 }
 
 func duration(name string, def time.Duration) (time.Duration, error) {
