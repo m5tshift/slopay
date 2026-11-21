@@ -252,7 +252,7 @@ func TestCreateErrors(t *testing.T) {
 	for name, tc := range map[string]struct {
 		asset string
 		field string
-	}{"usdt": {invoice.RequestUSDT, "asset"}, "unknown": {"BTC", "asset"}} {
+	}{"usdt not configured": {invoice.RequestUSDT, "asset"}, "unknown": {"BTC", "asset"}} {
 		t.Run(name, func(t *testing.T) {
 			f := newFixture(t)
 			_, _, err := f.svc.Create(ctx, merchant, "k", invoice.CreateRequest{AmountUSDCents: 100, OrderID: "o", Asset: tc.asset})
@@ -497,5 +497,105 @@ func TestApplyMerchantError(t *testing.T) {
 	}
 	if err := svc.ApplyMerchant(context.Background(), invoice.Merchant{ID: merchant, Version: 1}); err == nil {
 		t.Error("error swallowed")
+	}
+}
+
+const usdtContract = "0x5fbdb2315678afecb367f032d93f642f64180aa3"
+
+func usdtFixture(t *testing.T, price string) *fixture {
+	t.Helper()
+	f := &fixture{store: invoice.NewMemStore(), rates: invoicetest.NewRates(price, t0.Add(-5*time.Second)),
+		cache: invoicetest.NewCache(), now: t0}
+	var err error
+	f.svc, err = invoice.NewService(f.store, f.rates, f.cache, invoice.Config{
+		InvoiceTTL: 15 * time.Minute, RateMaxAge: 60 * time.Second, Now: func() time.Time { return f.now },
+		// Upper case on purpose: the service stores the contract in lower case.
+		USDT: &invoice.Asset{Kind: invoice.KindERC20, Contract: strings.ToUpper(usdtContract[:2]) + usdtContract[2:], Decimals: 6},
+	}, quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.store.UpsertMerchant(context.Background(), invoice.Merchant{ID: merchant, Version: 1, Xpub: invoicetest.Xpub, ToleranceBps: 100}); err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// A USDT invoice is priced at the USDT-USD rate in token base units, rounded up (SRS 4.1.3, FR-10).
+func TestCreateUSDT(t *testing.T) {
+	ctx := context.Background()
+	for name, tc := range map[string]struct {
+		cents  int64
+		price  string
+		amount string
+	}{
+		"par":           {1000, "1", "10000000"},
+		"rounded up":    {1000, "1.0003", "9997001"}, // 10 / 1.0003 = 9.99700089... USDT
+		"below par":     {1, "0.9998", "10003"},      // 0.01 / 0.9998 = 0.010002000...
+		"exact":         {250, "1.25", "2000000"},    // 2.50 / 1.25
+		"one base unit": {1, "1000000", "1"},         // 0.01 / 1000000 = 1e-8 USDT -> 1e-6
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := usdtFixture(t, tc.price)
+			inv, created, err := f.svc.Create(ctx, merchant, "k", invoice.CreateRequest{AmountUSDCents: tc.cents, OrderID: "o", Asset: invoice.RequestUSDT})
+			if err != nil || !created {
+				t.Fatalf("%v %v", created, err)
+			}
+			if inv.Amount.String() != tc.amount {
+				t.Errorf("amount %s, want %s", inv.Amount, tc.amount)
+			}
+			want := invoice.Asset{Kind: invoice.KindERC20, Contract: usdtContract, Decimals: 6}
+			if inv.Asset != want || inv.Rate != tc.price {
+				t.Errorf("asset %+v rate %s", inv.Asset, inv.Rate)
+			}
+			if f.rates.Pair() != "USDT-USD" {
+				t.Errorf("pair %q", f.rates.Pair())
+			}
+			if p := inv.Page(); p.Asset != want || p.Amount != tc.amount {
+				t.Errorf("page %+v", p)
+			}
+		})
+	}
+}
+
+// ETH invoices of a service with USDT configured still use ETH-USD, and the asset is part of the request hash.
+func TestUSDTDoesNotChangeETH(t *testing.T) {
+	ctx := context.Background()
+	f := usdtFixture(t, "3000")
+	inv, _, err := f.svc.Create(ctx, merchant, "k", req(1000, "o"))
+	if err != nil || inv.Asset != invoice.ETH || f.rates.Pair() != "ETH-USD" || inv.Amount.String() != "3333333333333334" {
+		t.Fatalf("%+v %q %v", inv, f.rates.Pair(), err)
+	}
+	_, _, err = f.svc.Create(ctx, merchant, "k", invoice.CreateRequest{AmountUSDCents: 1000, OrderID: "o", Asset: invoice.RequestUSDT})
+	if !errors.Is(err, invoice.ErrKeyReuse) {
+		t.Errorf("%v, want ErrKeyReuse", err)
+	}
+}
+
+func TestUSDTRateErrors(t *testing.T) {
+	f := usdtFixture(t, "1")
+	f.rates.Set(invoice.Quote{Price: "1", QuotedAt: t0.Add(-2 * time.Minute)}, nil)
+	_, _, err := f.svc.Create(context.Background(), merchant, "k", invoice.CreateRequest{AmountUSDCents: 100, OrderID: "o", Asset: invoice.RequestUSDT})
+	var re *invoice.RateError
+	if !errors.As(err, &re) || re.Reason != invoice.ReasonStale {
+		t.Errorf("%v, want a stale rate", err)
+	}
+}
+
+func TestNewServiceUSDTConfig(t *testing.T) {
+	for name, a := range map[string]invoice.Asset{
+		"eth kind":      {Kind: invoice.KindETH, Decimals: 18},
+		"bad address":   {Kind: invoice.KindERC20, Contract: "0x12", Decimals: 6},
+		"no 0x":         {Kind: invoice.KindERC20, Contract: strings.Repeat("a", 40), Decimals: 6},
+		"decimals low":  {Kind: invoice.KindERC20, Contract: usdtContract, Decimals: -1},
+		"decimals high": {Kind: invoice.KindERC20, Contract: usdtContract, Decimals: 78},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := invoice.NewService(invoice.NewMemStore(), nil, nil,
+				invoice.Config{InvoiceTTL: time.Minute, RateMaxAge: time.Minute, USDT: &a}, quiet)
+			if err == nil {
+				t.Error("accepted")
+			}
+		})
 	}
 }

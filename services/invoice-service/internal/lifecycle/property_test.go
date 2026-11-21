@@ -64,7 +64,16 @@ type propInvoice struct {
 	amount  int64
 	bps     int
 	expires time.Time
+	asset   invoice.Asset
 }
+
+// The assets of the property test: an invoice is paid in ETH or in the test USDT, and transfers also come in
+// another token that no invoice asks for. Only a transfer of the invoice asset counts (SRS 4.1.4, FR-10).
+var (
+	propUSDT  = invoice.Asset{Kind: invoice.KindERC20, Contract: "0x5fbdb2315678afecb367f032d93f642f64180aa3", Decimals: 6}
+	propOther = invoice.Asset{Kind: invoice.KindERC20, Contract: "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512", Decimals: 18}
+	propAsset = []invoice.Asset{invoice.ETH, propUSDT, propOther}
+)
 
 // obs is an observed invoice.* event, comparable between the engine and the model.
 type obs struct {
@@ -91,6 +100,7 @@ func TestLifecycleMatchesModel(t *testing.T) {
 				amount:  1000,
 				bps:     rapid.IntRange(0, 500).Draw(rt, "tolerance"),
 				expires: base.Add(time.Duration(rapid.IntRange(5, 90).Draw(rt, "ttl")) * time.Second),
+				asset:   propAsset[rapid.IntRange(0, 1).Draw(rt, "invoice asset")],
 			}
 		}
 		pubs := generateChain(rt, invs, maxDepth)
@@ -98,7 +108,7 @@ func TestLifecycleMatchesModel(t *testing.T) {
 		codecStore := NewMemStore(nil)
 		for _, iv := range invs {
 			codecStore.AddInvoice(Record{Invoice: invoice.Invoice{ID: iv.id, MerchantID: merchant,
-				Amount: big.NewInt(iv.amount), Address: iv.addr, Asset: invoice.ETH, Status: invoice.StatusNew,
+				Amount: big.NewInt(iv.amount), Address: iv.addr, Asset: iv.asset, Status: invoice.StatusNew,
 				Sequence: 1, Received: new(big.Int), ExpiresAt: iv.expires}, ToleranceBps: iv.bps})
 		}
 		e, err := NewEngine(codecStore, nil, EngineConfig{Config: cfg, ChainID: testChain, KeepBlocks: 16,
@@ -176,13 +186,18 @@ func generateChain(rt *rapid.T, invs []propInvoice, depth uint64) []pub {
 				BlockTimestamp: b.ts.Unix(), From: "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", Asset: invoice.ETH}
 			if len(orphaned) > 0 && rapid.IntRange(0, 2).Draw(rt, "include again?") == 0 {
 				o := orphaned[rapid.IntRange(0, len(orphaned)-1).Draw(rt, "orphan")]
-				te.TxHash, te.To, te.Amount = o.TxHash, o.To, o.Amount
+				te.TxHash, te.To, te.Amount, te.Asset, te.LogIndex = o.TxHash, o.To, o.Amount, o.Asset, o.LogIndex
 			} else {
 				txs++
 				te.TxHash = txHash(txs)
 				to := rapid.IntRange(0, len(invs)).Draw(rt, "to")
 				te.To = fmt.Sprintf("0x%040x", to+1) // to == len(invs): an unknown address
 				te.Amount = fmt.Sprint(rapid.IntRange(1, 1200).Draw(rt, "amount"))
+				te.Asset = propAsset[rapid.IntRange(0, len(propAsset)-1).Draw(rt, "asset")]
+				if te.Asset.Kind == invoice.KindERC20 {
+					li := int64(rapid.IntRange(0, 3).Draw(rt, "log index"))
+					te.LogIndex = &li
+				}
 			}
 			// A transaction is included at most once in a chain.
 			if included(append(chain, b), te.TxHash) {
@@ -413,7 +428,7 @@ func (m *model) canonical(iv *mInvoice) []mTransfer {
 			continue
 		}
 		for _, te := range b.transfers {
-			if te.To != iv.addr {
+			if te.To != iv.addr || te.Asset != iv.asset {
 				continue
 			}
 			a, _ := new(big.Int).SetString(te.Amount, 10)

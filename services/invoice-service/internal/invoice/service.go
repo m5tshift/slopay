@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 	"time"
 
@@ -72,6 +73,9 @@ type Config struct {
 	InvoiceTTL time.Duration
 	// RateMaxAge is the oldest rate an invoice is created with (SRS 4.1.3: 60 s).
 	RateMaxAge time.Duration
+	// USDT is the test ERC-20 token of USDT invoices (FR-10): its contract and decimals come from the service
+	// configuration. Nil: USDT invoices are not served and the request is a validation error.
+	USDT *Asset
 	// Now is the clock (default time.Now).
 	Now func() time.Time
 	// Meter receives the metrics (default: the global OTel meter).
@@ -95,6 +99,14 @@ type Service struct {
 func NewService(store Store, rates RateSource, cache StatusCache, cfg Config, log *slog.Logger) (*Service, error) {
 	if cfg.InvoiceTTL <= 0 || cfg.RateMaxAge <= 0 {
 		return nil, errors.New("invoice: InvoiceTTL and RateMaxAge must be positive")
+	}
+	if cfg.USDT != nil {
+		u := *cfg.USDT
+		u.Contract = strings.ToLower(u.Contract)
+		if u.Kind != KindERC20 || !addressRE.MatchString(u.Contract) || u.Decimals < 0 || u.Decimals > 77 {
+			return nil, errors.New("invoice: USDT must be an ERC20 asset with a 20-byte contract address and decimals 0..77")
+		}
+		cfg.USDT = &u
 	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
@@ -125,14 +137,19 @@ func NewService(store Store, rates RateSource, cache StatusCache, cfg Config, lo
 	return s, nil
 }
 
-// pairOf maps the requested asset to the rate-service pair and the invoice asset.
-func pairOf(asset string) (string, Asset, error) {
+var addressRE = regexp.MustCompile(`^0x[0-9a-f]{40}$`)
+
+// pairOf maps the requested asset to the rate-service pair and the invoice asset. The USDT amount is
+// converted at the USDT-USD rate (SRS 4.1.3, FR-10) with the decimals of the configured token.
+func (s *Service) pairOf(asset string) (string, Asset, error) {
 	switch asset {
 	case "", RequestETH:
 		return "ETH-USD", ETH, nil
 	case RequestUSDT:
-		// USDT invoices need the token contract of the stand; they are a separate backlog task.
-		return "", Asset{}, &ValidationError{Field: "asset", Message: "USDT is not supported yet"}
+		if s.cfg.USDT == nil {
+			return "", Asset{}, &ValidationError{Field: "asset", Message: "USDT is not configured"}
+		}
+		return "USDT-USD", *s.cfg.USDT, nil
 	default:
 		return "", Asset{}, &ValidationError{Field: "asset", Message: "unknown asset"}
 	}
@@ -156,7 +173,7 @@ func RequestHash(r CreateRequest) []byte {
 
 // Create creates an invoice or returns the one created earlier with the same idempotency key
 // (created=false). It returns ErrKeyReuse for the key with another request, ErrNoXpub without the merchant
-// projection, *ValidationError for an unsupported asset and *RateError without a usable rate.
+// projection, *ValidationError for an unsupported or unconfigured asset and *RateError without a usable rate.
 func (s *Service) Create(ctx context.Context, merchantID uuid.UUID, key string, r CreateRequest) (Invoice, bool, error) {
 	hash := RequestHash(r)
 	// The PostgreSQL unique index is the source of truth for idempotency, also after the Valkey cache was
@@ -169,7 +186,7 @@ func (s *Service) Create(ctx context.Context, merchantID uuid.UUID, key string, 
 	if _, err := s.store.Merchant(ctx, merchantID); err != nil {
 		return Invoice{}, false, err
 	}
-	pair, asset, err := pairOf(r.Asset)
+	pair, asset, err := s.pairOf(r.Asset)
 	if err != nil {
 		return Invoice{}, false, err
 	}

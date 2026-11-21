@@ -82,7 +82,10 @@ func newEnv(t *testing.T) *env {
 }
 
 // newEnvKeys is newEnv with the given key resolver; the tokens of the env are signed by testKey.
-func newEnvKeys(t *testing.T, keys KeyResolver) *env {
+func newEnvKeys(t *testing.T, keys KeyResolver) *env { return newEnvUSDT(t, keys, nil) }
+
+// newEnvUSDT is newEnvKeys with the test USDT token configured (nil: not configured).
+func newEnvUSDT(t *testing.T, keys KeyResolver, usdt *invoice.Asset) *env {
 	t.Helper()
 	e := &env{
 		mux: http.NewServeMux(), store: invoice.NewMemStore(), rates: invoicetest.NewRates("3694.25", t0.Add(-3*time.Second)),
@@ -90,7 +93,7 @@ func newEnvKeys(t *testing.T, keys KeyResolver) *env {
 	}
 	log := telemetry.NewLogger(e.logs, slog.LevelDebug)
 	svc, err := invoice.NewService(e.store, e.rates, e.cache, invoice.Config{
-		InvoiceTTL: 15 * time.Minute, RateMaxAge: 60 * time.Second, Now: func() time.Time { return t0 },
+		InvoiceTTL: 15 * time.Minute, RateMaxAge: 60 * time.Second, Now: func() time.Time { return t0 }, USDT: usdt,
 	}, log)
 	if err != nil {
 		t.Fatal(err)
@@ -200,6 +203,34 @@ func errorCode(t *testing.T, r resp) Error {
 	return out
 }
 
+// FR-10: a USDT invoice answers with the ERC20 asset and the amount in token base units, and passes the
+// response check against the contract.
+func TestCreateInvoiceUSDT(t *testing.T) {
+	usdt := invoice.Asset{Kind: invoice.KindERC20, Contract: "0x5fbdb2315678afecb367f032d93f642f64180aa3", Decimals: 6}
+	e := newEnvUSDT(t, testKeys, &usdt)
+	e.rates.Set(invoice.Quote{Price: "1.0003", QuotedAt: t0.Add(-time.Second)}, nil)
+	r := e.create(t, "key-usdt", map[string]any{"amountUsdCents": 1000, "orderId": "order-usdt", "asset": "USDT"})
+	if r.status != http.StatusCreated {
+		t.Fatalf("create: %d %s", r.status, r.body)
+	}
+	var inv Invoice
+	r.decode(t, &inv)
+	a, err := inv.Asset.AsAsset1()
+	if err != nil || a.Kind != ERC20 || a.Contract != usdt.Contract || a.Decimals != 6 {
+		t.Errorf("asset %+v %v", a, err)
+	}
+	if inv.Amount != "9997001" || inv.Rate != "1.0003" {
+		t.Errorf("amount %s rate %s", inv.Amount, inv.Rate)
+	}
+	// The payment page shows the same asset and amount.
+	pr := e.do(t, http.MethodGet, "/pay/"+inv.InvoiceId.String(), "", nil, nil)
+	var page PaymentPage
+	pr.decode(t, &page)
+	if pr.status != http.StatusOK || page.Amount != "9997001" {
+		t.Errorf("page %d %s", pr.status, pr.body)
+	}
+}
+
 func TestCreateInvoice(t *testing.T) {
 	e := newEnv(t)
 	body := map[string]any{"amountUsdCents": 1999, "orderId": "order-10042"}
@@ -250,17 +281,17 @@ func TestCreateInvoiceErrors(t *testing.T) {
 		status int
 		field  string
 	}{
-		"no token":          {"", map[string]string{"Idempotency-Key": "k"}, valid, 401, ""},
-		"no key":            {e.token, nil, valid, 400, "Idempotency-Key"},
-		"long key":          {e.token, map[string]string{"Idempotency-Key": strings.Repeat("k", 129)}, valid, 400, "Idempotency-Key"},
-		"zero amount":       {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 0, "orderId": "o"}, 400, "amountUsdCents"},
-		"no order":          {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 1}, 400, "orderId"},
-		"extra field":       {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 1, "orderId": "o", "webhookUrl": "x"}, 400, ""},
-		"unknown asset":     {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 1, "orderId": "o", "asset": "BTC"}, 400, "asset"},
-		"usdt not yet":      {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 1, "orderId": "o", "asset": "USDT"}, 400, "asset"},
-		"not json":          {e.token, map[string]string{"Idempotency-Key": "k"}, "{", 400, "body"},
-		"no body":           {e.token, map[string]string{"Idempotency-Key": "k"}, nil, 400, "body"},
-		"merchant not seen": {token(t, map[string]any{"sub": uuid.NewString(), "iss": issuer, "exp": t0.Add(time.Hour).Unix()}), map[string]string{"Idempotency-Key": "k"}, valid, 409, ""},
+		"no token":            {"", map[string]string{"Idempotency-Key": "k"}, valid, 401, ""},
+		"no key":              {e.token, nil, valid, 400, "Idempotency-Key"},
+		"long key":            {e.token, map[string]string{"Idempotency-Key": strings.Repeat("k", 129)}, valid, 400, "Idempotency-Key"},
+		"zero amount":         {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 0, "orderId": "o"}, 400, "amountUsdCents"},
+		"no order":            {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 1}, 400, "orderId"},
+		"extra field":         {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 1, "orderId": "o", "webhookUrl": "x"}, 400, ""},
+		"unknown asset":       {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 1, "orderId": "o", "asset": "BTC"}, 400, "asset"},
+		"usdt not configured": {e.token, map[string]string{"Idempotency-Key": "k"}, map[string]any{"amountUsdCents": 1, "orderId": "o", "asset": "USDT"}, 400, "asset"},
+		"not json":            {e.token, map[string]string{"Idempotency-Key": "k"}, "{", 400, "body"},
+		"no body":             {e.token, map[string]string{"Idempotency-Key": "k"}, nil, 400, "body"},
+		"merchant not seen":   {token(t, map[string]any{"sub": uuid.NewString(), "iss": issuer, "exp": t0.Add(time.Hour).Unix()}), map[string]string{"Idempotency-Key": "k"}, valid, 409, ""},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

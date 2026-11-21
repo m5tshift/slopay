@@ -47,6 +47,8 @@ FR: FR-01, FR-02, FR-03, FR-04, FR-05, FR-06, FR-08, NFR: NFR-02, NFR-04, NFR-06
 | `RATE_SERVICE_TIMEOUT` | таймаут клиента `rate-service` | 1 с |
 | `RATE_MAX_AGE` | максимальный возраст курса, не больше 60 с | 60 с (4.1.3) |
 | `RATE_RETRY_AFTER` | `Retry-After` ответа `503`, если `rate-service` его не прислал | 5 с |
+| `USDT_CONTRACT` | адрес тестового USDT (ERC-20) на стенде; пусто — `asset: USDT` отклоняется `400` | — |
+| `USDT_DECIMALS` | `decimals` токена | 6 |
 | `INVOICE_TTL` | срок жизни счёта | 15 мин (4.1.4) |
 | `JWT_ISSUER` | ожидаемый `iss` JWT; пусто — не проверяется | `slopay-merchant-service` |
 | `JWKS_URL` | JWKS `merchant-service` для проверки подписи JWT, обязательно | — |
@@ -118,4 +120,7 @@ go generate ./services/invoice-service/...                       # internal/api/
   переводы — `FOR SHARE`, счёт — `FOR UPDATE`.
 - **Допуск** мерчанта читается при каждом пересчёте счёта из проекции мерчантов.
 - **Кэш статуса** обновляется после коммита каждого перехода.
-- **USDT** пока не поддерживается (`400` на `asset: USDT`): курс USDT и адрес контракта — отдельная задача.
+- **USDT** (FR-10): `asset: USDT` берёт курс пары `USDT-USD` у `rate-service`, сумма — в минимальных единицах
+  токена (`USDT_DECIMALS`), округление вверх (`pkg/money`). В счёте — актив `ERC20` с `USDT_CONTRACT` и `decimals`.
+  Автомат учитывает только переводы актива счёта (вид и контракт): перевод ETH на адрес USDT-счёта и перевод
+  другого токена пропускаются (`Engine.Transfer`). Без `USDT_CONTRACT` USDT-счета не создаются (`400`).

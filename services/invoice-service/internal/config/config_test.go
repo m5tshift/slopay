@@ -42,6 +42,24 @@ func TestDefaults(t *testing.T) {
 	}
 }
 
+func TestUSDT(t *testing.T) {
+	base(t)
+	c, err := FromEnv()
+	if err != nil || c.USDTContract != "" || c.USDTDecimals != 6 {
+		t.Errorf("defaults %q %d %v", c.USDTContract, c.USDTDecimals, err)
+	}
+	t.Setenv("USDT_CONTRACT", "0x5FbDB2315678afecb367f032d93F642f64180aa3")
+	t.Setenv("USDT_DECIMALS", "18")
+	c, err = FromEnv()
+	if err != nil || c.USDTContract != "0x5fbdb2315678afecb367f032d93f642f64180aa3" || c.USDTDecimals != 18 {
+		t.Errorf("%q %d %v", c.USDTContract, c.USDTDecimals, err)
+	}
+	t.Setenv("USDT_DECIMALS", "0")
+	if c, err = FromEnv(); err != nil || c.USDTDecimals != 0 {
+		t.Errorf("zero decimals: %d %v", c.USDTDecimals, err)
+	}
+}
+
 func TestOverrides(t *testing.T) {
 	base(t)
 	t.Setenv("INVOICE_TTL", "10m")
@@ -82,6 +100,10 @@ func TestInvalid(t *testing.T) {
 		"CHAIN_BLOCKS":      {"CHAIN_BLOCKS", "7"},
 		"CHAIN_BLOCKS ":     {"CHAIN_BLOCKS", "x"},
 		"BARRIER_POLL":      {"BARRIER_POLL", "0"},
+		"USDT_CONTRACT":     {"USDT_CONTRACT", "0x1234"},
+		"USDT_DECIMALS":     {"USDT_DECIMALS", "-1"},
+		"USDT_DECIMALS ":    {"USDT_DECIMALS", "78"},
+		"USDT_DECIMALS  ":   {"USDT_DECIMALS", "six"},
 	}
 	for name, kv := range cases {
 		t.Run(name, func(t *testing.T) {

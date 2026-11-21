@@ -245,6 +245,33 @@ func TestCreateAndRead(t *testing.T) {
 	}
 }
 
+// TestUSDTInvoice stores a USDT invoice (FR-10): token base units in NUMERIC(78,0) and the asset columns.
+func TestUSDTInvoice(t *testing.T) {
+	ctx := ctxT(t)
+	h, mid := newHarness(t)
+	usdt := invoice.Asset{Kind: invoice.KindERC20, Contract: "0x5fbdb2315678afecb367f032d93f642f64180aa3", Decimals: 6}
+	svc, err := invoice.NewService(h.store, invoicetest.NewRates("1.0003", time.Now()), nil,
+		invoice.Config{InvoiceTTL: 15 * time.Minute, RateMaxAge: time.Minute, USDT: &usdt}, quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inv, created, err := svc.Create(ctx, mid, "usdt-1", invoice.CreateRequest{AmountUSDCents: 1000, OrderID: "o", Asset: invoice.RequestUSDT})
+	if err != nil || !created {
+		t.Fatalf("create: %v %v", created, err)
+	}
+	got, err := svc.Get(ctx, mid, inv.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Asset != usdt || got.Amount.String() != "9997001" || got.Rate != "1.0003" {
+		t.Errorf("stored %+v", got)
+	}
+	again, created, err := svc.Create(ctx, mid, "usdt-1", invoice.CreateRequest{AmountUSDCents: 1000, OrderID: "o", Asset: invoice.RequestUSDT})
+	if err != nil || created || again.ID != inv.ID {
+		t.Errorf("repeat: %v %v", created, err)
+	}
+}
+
 // TestIdempotencyWithoutValkey is NFR-06: the repeat is answered from PostgreSQL after Valkey lost its data.
 func TestIdempotencyWithoutValkey(t *testing.T) {
 	ctx := ctxT(t)

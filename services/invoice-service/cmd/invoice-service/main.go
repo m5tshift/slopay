@@ -102,8 +102,12 @@ func run(log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
+	var usdt *invoice.Asset
+	if cfg.USDTContract != "" {
+		usdt = &invoice.Asset{Kind: invoice.KindERC20, Contract: cfg.USDTContract, Decimals: cfg.USDTDecimals}
+	}
 	svc, err := invoice.NewService(store.New(pg.Pool(), codec), rateClient, statusCache, invoice.Config{
-		InvoiceTTL: cfg.InvoiceTTL, RateMaxAge: cfg.RateMaxAge,
+		InvoiceTTL: cfg.InvoiceTTL, RateMaxAge: cfg.RateMaxAge, USDT: usdt,
 	}, log)
 	if err != nil {
 		return err
