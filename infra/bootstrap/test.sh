@@ -6,6 +6,7 @@ set -euo pipefail
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 bash -n "$dir/bootstrap.sh"
 
+# shellcheck disable=SC2016  # the pattern is a literal sed expression
 version="$(sed -n 's/^ARGOCD_CHART_VERSION="\${ARGOCD_CHART_VERSION:-\(.*\)}"$/\1/p' "$dir/bootstrap.sh")"
 [ -n "$version" ] || { echo "test: chart version not found in bootstrap.sh" >&2; exit 1; }
 
