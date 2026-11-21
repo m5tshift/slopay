@@ -3,9 +3,9 @@
 Минимальный стенд (SRS 6.4): две VM Hyper-V (`talos-cp-1`, `talos-w-1`), Talos со стандартной сетью, ArgoCD
 с App of Apps из `slopay-gitops`, платформа и сервисы до статуса `PAID`. Все команды запускает оператор
 стенда: агент пишет код и читает кластер через свой kubeconfig. Подробности каждого шага — в README
-каталогов `infra/hyperv`, `infra/talos`, `infra/bootstrap`, `infra/stand-secrets`.
+каталогов `infra/terraform/hyperv`, `infra/talos`, `infra/bootstrap`, `infra/stand-secrets`.
 
-Команды выполняются из корня клона `slopay`, если не сказано иное. Шаги 1 и 2 — PowerShell от администратора
+Команды выполняются из корня клона `slopay`, если не сказано иное. Шаг 0 — PowerShell от администратора
 на ПК стенда, остальные — оболочка с `kubectl`, `talosctl`, `helm`, `curl`, `openssl`, `jq`, `cast` (Foundry),
 `envsubst`.
 
@@ -17,7 +17,7 @@
 | Ресурсы VM | `talos-cp-1`: 2 vCPU, 3 ГБ, диск 20 ГБ; `talos-w-1`: 6 vCPU, 14 ГБ, диски 20 и 50 ГБ (SRS 6.4) |
 | Windows | обновления приостановлены, сон и гибернация отключены, WSL2 и Docker Desktop остановлены или ограничены `.wslconfig` |
 | Сеть | два свободных адреса вне диапазона DHCP роутера (`CP_IP`, `W_IP`), шлюз, DNS; рабочая машина в той же подсети |
-| ISO | образ Talos из Image Factory (`metal-amd64`), скачивается вручную; его версия — `TALOS_VERSION` в `infra/talos/env` |
+| ISO | ссылки на ISO Talos из Image Factory (`metal-amd64`) вписываются в `iso_urls`, ISO на ПК скачивает Terraform; версия — `TALOS_VERSION` в `infra/talos/env` |
 | GitHub | один раз выполнены действия из раздела «Однократные действия на GitHub» |
 
 ## Однократные действия на GitHub
@@ -45,20 +45,39 @@
 
 ## Шаги
 
-### 1. Параметры VM и создание VM (`infra/hyperv`)
+### 0. Включение WinRM на ПК стенда (один раз)
+
+PowerShell от администратора на ПК стенда (учётная запись — член группы Administrators, с паролем):
 
 ```powershell
-cd infra\hyperv
-Copy-Item stand.minimal.json.example stand.json    # поправить switchName, netAdapterName, пути, isoPath
-.\New-StandVMs.ps1 -ConfigPath .\stand.json -WhatIf
-.\New-StandVMs.ps1 -ConfigPath .\stand.json
-Start-VM talos-cp-1, talos-w-1
+Enable-PSRemoting -SkipNetworkProfileCheck -Force
+$cert = New-SelfSignedCertificate -DnsName $env:COMPUTERNAME -CertStoreLocation Cert:\LocalMachine\My
+New-Item -Path WSMan:\localhost\Listener -Transport HTTPS -Address * -CertificateThumbPrint $cert.Thumbprint -Force
+New-NetFirewallRule -DisplayName "WinRM HTTPS" -Direction Inbound -Protocol TCP -LocalPort 5986 -Action Allow
+```
+
+Проверка: `winrm enumerate winrm/config/listener` показывает слушатель `Transport = HTTPS`, порт 5986. С рабочей
+машины порт доступен: `nc -vz <адрес ПК> 5986`.
+
+### 1. Создание VM (`infra/terraform/hyperv`)
+
+Ссылки на ISO Talos вписываются в `iso_urls` вручную (до автоматизации слоя Talos, #157).
+
+```sh
+cd infra/terraform/hyperv
+cp minimal.tfvars.example terraform.tfvars    # поправить; добавить winrm_host и winrm_password (файл вне Git)
+terraform init
+terraform plan
+terraform apply
+terraform output vm_macs                      # MAC для резерва адресов в роутере
 ```
 
 Проверка:
 ```powershell
 Get-VM | Format-Table Name, Generation, ProcessorCount, MemoryStartup, DynamicMemoryEnabled, AutomaticStartAction
-.\New-StandVMs.ps1 -ConfigPath .\stand.json     # повторный запуск: без предупреждений и изменений
+```
+```sh
+terraform plan                                # повторный запуск: без изменений
 ```
 Обе VM загрузились с ISO Talos, в консоли виден адрес от DHCP. Эти адреса понадобятся на шаге 3.
 
@@ -87,13 +106,8 @@ talosctl --talosconfig generated/talosconfig -e <CP_IP> -n <CP_IP> bootstrap
 talosctl --talosconfig generated/talosconfig -e <CP_IP> -n <CP_IP> kubeconfig generated/kubeconfig-admin
 ```
 
-Узлы устанавливают Talos на диск и перезагружаются на `CP_IP` и `W_IP`. После установки на `talos-cp-1`
-и `talos-w-1` убрать ISO или выставить загрузку с диска (PowerShell):
-```powershell
-Set-VMFirmware -VMName talos-w-1 -FirstBootDevice (Get-VMHardDiskDrive -VMName talos-w-1 | Select-Object -First 1)
-Get-VMDvdDrive -VMName talos-w-1 | Set-VMDvdDrive -Path $null
-```
-То же для `talos-cp-1`.
+Узлы устанавливают Talos на диск и перезагружаются на `CP_IP` и `W_IP`.
+Порядок загрузки VM — диск, затем DVD: после установки ISO вынимать не нужно.
 
 Проверка:
 ```sh
@@ -196,11 +210,10 @@ KUBECONFIG=<путь вне репозитория>/agent.kubeconfig kubectl -n 
 
 Те же шаги, с отличиями:
 
-1. Удалить VM вместе с дисками (PowerShell):
-   ```powershell
-   .\Remove-StandVMs.ps1 -ConfigPath .\stand.json -RemoveDisks
+1. Удалить VM вместе с дисками:
+   ```sh
+   terraform -chdir=infra/terraform/hyperv destroy
    ```
-   Для одной VM — параметр `-Name talos-w-1`.
 2. Шаги 1 и 3 заново (создание VM, `apply-config`, `bootstrap`). Шаг 2 повторять не нужно: `gen.sh` берёт
    существующий `generated/secrets.yaml`, CA кластера сохраняется, `generated/*.yaml` остаются годными.
    `gen.sh` запускают снова только при смене адресов или версий.

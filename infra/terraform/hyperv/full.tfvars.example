@@ -1,0 +1,31 @@
+# Full stand (SRS 6.1). Copy to terraform.tfvars (kept out of Git) and edit.
+# winrm_host and winrm_password are set only in the untracked *.tfvars file:
+#   winrm_host     = "<name or address of the stand PC>"
+#   winrm_password = "<password of the WinRM account>"
+
+net_adapter_name = "Ethernet"
+
+vms = {
+  "talos-cp-1" = { vcpu = 2, ram_gb = 3, disks = [20], mac = "020000000001" }
+  "talos-w-1"  = { vcpu = 3, ram_gb = 7.5, disks = [20, 50], mac = "020000000002" }
+  "talos-w-2"  = { vcpu = 3, ram_gb = 7.5, disks = [20, 50], mac = "020000000003" }
+  "talos-w-3"  = { vcpu = 3, ram_gb = 7.5, disks = [20, 50], mac = "020000000004" }
+  "lb-1"       = { vcpu = 1, ram_gb = 0.5, disks = [8], mac = "020000000005" }
+  "lb-2"       = { vcpu = 1, ram_gb = 0.5, disks = [8], mac = "020000000006" }
+}
+
+# Per-node Image Factory ISO URLs (node address is baked in via extraKernelArgs, ADR 0008).
+# Until #157 the Talos URLs are entered by hand.
+iso_urls = {
+  "talos-cp-1" = "https://factory.talos.dev/image/<schematic-id-cp-1>/<talos-version>/metal-amd64.iso"
+  "talos-w-1"  = "https://factory.talos.dev/image/<schematic-id-w-1>/<talos-version>/metal-amd64.iso"
+  "talos-w-2"  = "https://factory.talos.dev/image/<schematic-id-w-2>/<talos-version>/metal-amd64.iso"
+  "talos-w-3"  = "https://factory.talos.dev/image/<schematic-id-w-3>/<talos-version>/metal-amd64.iso"
+  "lb-1"       = "https://cdimage.debian.org/cdimage/archive/13.7.0/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso"
+  "lb-2"       = "https://cdimage.debian.org/cdimage/archive/13.7.0/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso"
+}
+
+# Checksums by URL (checked after the download).
+iso_sha256 = {
+  "https://cdimage.debian.org/cdimage/archive/13.7.0/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso" = "A7EF94AC2FB9A7FEC454552ABD629B7CC9D5155C886165A45649F5CE6167E355"
+}

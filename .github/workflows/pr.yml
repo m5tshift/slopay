@@ -144,24 +144,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      PSSCRIPTANALYZER_VERSION: 1.24.0
-      PESTER_VERSION: 5.7.1
       ACTIONLINT_VERSION: 1.7.12
       ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
-      - name: PowerShell modules
-        shell: pwsh
-        run: |
-          Set-PSRepository PSGallery -InstallationPolicy Trusted
-          Install-Module PSScriptAnalyzer -RequiredVersion $env:PSSCRIPTANALYZER_VERSION -Scope CurrentUser
-          Install-Module Pester -RequiredVersion $env:PESTER_VERSION -Scope CurrentUser -SkipPublisherCheck
-      - name: PowerShell lint (PSScriptAnalyzer)
-        run: make psa
-      - name: PowerShell tests (Pester)
-        run: make infra-test
       - name: Talos patches render
         run: make talos-check
       - name: Bootstrap (shellcheck, Argo CD helm template)

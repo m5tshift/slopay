@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check bootstrap-check stand-secrets-check runbook-check ci-check erc20-test precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint talos-check bootstrap-check stand-secrets-check runbook-check ci-check erc20-test precommit
 
 build:
 	go build ./...
@@ -43,24 +43,15 @@ helm-lint:
 
 tf-validate:
 	@if [ ! -d infra/terraform ]; then echo "tf-validate: no infra/terraform/, skipping"; exit 0; fi; \
-	terraform -chdir=infra/terraform init -backend=false -input=false && \
-	terraform -chdir=infra/terraform validate
+	for d in infra/terraform/*/; do \
+		terraform -chdir=$$d init -backend=false -input=false || exit 1; \
+		terraform -chdir=$$d validate || exit 1; \
+		if [ -d $$d/tests ]; then terraform -chdir=$$d test || exit 1; fi; \
+	done
 
 ansible-lint:
 	@if [ ! -d infra/ansible ]; then echo "ansible-lint: no infra/ansible/, skipping"; exit 0; fi; \
 	ansible-lint infra/ansible
-
-# PowerShell scripts in infra/hyperv: PSScriptAnalyzer and Pester, neither needs Hyper-V.
-# Skipped without pwsh; modules: Install-Module PSScriptAnalyzer, Pester (versions pinned in pr.yml).
-psa:
-	@if [ ! -d infra/hyperv ]; then echo "psa: no infra/hyperv/, skipping"; exit 0; fi; \
-	if ! command -v pwsh >/dev/null; then echo "psa: pwsh not installed, skipping"; exit 0; fi; \
-	pwsh -NoProfile -File infra/hyperv/Invoke-Checks.ps1 -Check Lint
-
-infra-test:
-	@if [ ! -d infra/hyperv ]; then echo "infra-test: no infra/hyperv/, skipping"; exit 0; fi; \
-	if ! command -v pwsh >/dev/null; then echo "infra-test: pwsh not installed, skipping"; exit 0; fi; \
-	pwsh -NoProfile -File infra/hyperv/Invoke-Checks.ps1 -Check Test
 
 # infra/talos: gen.sh syntax and patch rendering on the example values; needs neither talosctl nor a cluster.
 talos-check:
