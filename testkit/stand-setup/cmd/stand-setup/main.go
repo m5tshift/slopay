@@ -26,6 +26,9 @@ func main() {
 }
 
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "deploy-usdt" {
+		return runDeployUSDT(args[1:], os.Stdout)
+	}
 	fs := flag.NewFlagSet("stand-setup", flag.ContinueOnError)
 	var (
 		baseURL      = fs.String("base-url", "", "merchant-service base URL, e.g. https://slopay.example.com (required)")
