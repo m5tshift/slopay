@@ -1,0 +1,177 @@
+openapi: 3.0.3
+info:
+  title: payer-sim API
+  version: 1.0.0
+  description: |
+    Test component that plays the buyer (SRS 4.1.3, 8.1, 8.5). For an invoice it reads the payment address and
+    the amount from `GET /pay/{id}` of `invoice-service`, then, by the configured shares (80 % pay, 10 % underpay,
+    10 % do not pay by default), sends an ETH transfer to Anvil from a pre-funded account. Every signed transaction
+    is kept, so after a reorganisation the command `/control/replay` sends the same transactions again
+    (the same `txHash`, SRS 8.5).
+
+    The component lives in the cluster mesh only and has no application-level authentication. The state is kept
+    in memory: a restart forgets the transactions. Only ETH invoices are paid.
+servers:
+  - url: http://payer-sim.apps.svc.cluster.local
+    description: In-cluster service
+
+tags:
+  - name: payments
+  - name: control
+
+paths:
+  /payments:
+    post:
+      tags: [payments]
+      operationId: createPayment
+      summary: Pay an invoice
+      description: |
+        Decides by the configured shares what the payer does with the invoice and, unless it does not pay, signs
+        and sends the transfer. The decision is made once per invoice: a repeated call returns the same payment
+        and sends nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+            example:
+              invoiceId: 0b6ce2b8-6a8e-4c3c-9b1d-5a3c1b2f7f10
+      responses:
+        '200':
+          description: The payment of the invoice.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+              example:
+                invoiceId: 0b6ce2b8-6a8e-4c3c-9b1d-5a3c1b2f7f10
+                outcome: pay
+                txHash: '0x5c504ed432cb51138bcf09aa5e8a410dd4a1e204ef84bfed1be16dfba1b22060'
+                amount: '5412000000000000'
+        '400':
+          $ref: '#/components/responses/Error'
+        '502':
+          description: '`invoice-service` or Anvil failed, or the invoice cannot be paid by the simulator (not an ETH invoice).'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: upstream_failed
+                message: Invoice is not an ETH invoice
+    get:
+      tags: [payments]
+      operationId: listPayments
+      summary: All payments in the order they were made
+      responses:
+        '200':
+          description: Payments.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+
+  /control/replay:
+    post:
+      tags: [control]
+      operationId: replayTransactions
+      summary: Send the stored signed transactions again
+      description: |
+        Sends the kept raw transactions to Anvil in the order they were signed (so per-account nonces stay
+        in order): all of them, or only those of one invoice. A transaction the node already knows is not
+        an error. Used after `anvil_reorg` or snapshot revert (SRS 8.5).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplayRequest'
+            example:
+              invoiceId: 0b6ce2b8-6a8e-4c3c-9b1d-5a3c1b2f7f10
+      responses:
+        '200':
+          description: The result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplayResult'
+              example:
+                sent: 12
+                known: 0
+        '400':
+          $ref: '#/components/responses/Error'
+        '502':
+          description: Anvil refused a transaction.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: upstream_failed
+                message: Send transaction failed
+
+components:
+  responses:
+    Error:
+      description: The request is not valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: invalid_request
+            message: invoiceId must be a UUID
+  schemas:
+    PaymentRequest:
+      type: object
+      required: [invoiceId]
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+    ReplayRequest:
+      type: object
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+          description: Replay only the transaction of this invoice.
+    ReplayResult:
+      type: object
+      required: [sent, known]
+      properties:
+        sent:
+          type: integer
+          description: Transactions accepted by the node.
+        known:
+          type: integer
+          description: Transactions the node already had.
+    Payment:
+      type: object
+      required: [invoiceId, outcome]
+      properties:
+        invoiceId:
+          type: string
+          format: uuid
+        outcome:
+          type: string
+          enum: [pay, underpay, skip]
+        txHash:
+          type: string
+          pattern: '^0x[0-9a-f]{64}$'
+          description: Absent when the payer did not pay.
+        amount:
+          type: string
+          pattern: '^(0|[1-9][0-9]{0,77})$'
+          description: Sent amount in wei. Absent when the payer did not pay.
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
