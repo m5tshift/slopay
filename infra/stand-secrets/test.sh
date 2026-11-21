@@ -41,7 +41,7 @@ case "$verb" in
     esac ;;
   delete) rm -rf "$secret" ;;
   create)
-    case "$ns" in apps | chain | data) ;; *) echo "namespace $ns not found" >&2; exit 1 ;; esac
+    case "$ns" in apps | chain | data | istio-system) ;; *) echo "namespace $ns not found" >&2; exit 1 ;; esac
     [ ! -d "$secret" ] || { echo "AlreadyExists" >&2; exit 1; }
     mkdir -p "$secret"
     echo "${stype:-Opaque}" > "$secret/.type"
@@ -70,7 +70,7 @@ snapshot() { (cd "$STORE" && find . -type f -exec cksum {} + | sort | cksum); }
 val() { cat "$STORE/$1/$2/$3"; }
 
 expected="apps/merchant-service-jwt-signing apps/payer-sim-payer-keys chain/anvil-mnemonic apps/chain-watcher-mongodb
-apps/invoice-service-valkey apps/chain-watcher-valkey apps/rate-service-valkey data/valkey-users
+apps/invoice-service-valkey apps/chain-watcher-valkey apps/rate-service-valkey istio-system/envoy-rls-valkey data/valkey-users
 apps/merchant-service-postgres apps/invoice-service-postgres data/merchant-pg-app-credentials data/invoice-pg-app-credentials
 data/mongodb-users"
 
@@ -98,6 +98,7 @@ for u in invoice-service chain-watcher rate-service; do
   [ -s "$STORE/apps/$u-valkey/password" ] || fail "no password for $u"
   [ "$(val apps "$u-valkey" password)" = "$(val data valkey-users "$u")" ] || fail "valkey-users differs for $u"
 done
+[ "$(val istio-system envoy-rls-valkey password)" = "$(val data valkey-users envoy-rls)" ] || fail "envoy-rls copy differs"
 [ "$(val apps invoice-service-valkey password)" != "$(val apps rate-service-valkey password)" ] \
   || fail "services share a Valkey password"
 
