@@ -1,0 +1,26 @@
+# merchant-mock on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag) are set in slopay-gitops.
+image:
+  repository: zot.example.internal/slopay/merchant-mock
+  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  tag: dev
+resources:
+  requests:
+    cpu: 10m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+# Secrets, faults, journals and deduplication state are kept in memory per replica, so there is one replica.
+replicaCount: 1
+pdb:
+  enabled: false
+
+env:
+  # Webhook checks (SRS 4.1.10): timestamp tolerance and how long the previous secret version is accepted.
+  TIMESTAMP_TOLERANCE: 5m
+  PREVIOUS_SECRET_TTL: 24h
+  # Memory bounds per endpoint: journal entries and remembered event ids.
+  JOURNAL_SIZE: "1000"
+  SEEN_EVENTS: "100000"
+  LOG_LEVEL: info
