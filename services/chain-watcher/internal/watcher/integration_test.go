@@ -385,11 +385,14 @@ type harness struct {
 	done   chan struct{}
 }
 
+var runs atomic.Int64
+
 var nonName = regexp.MustCompile(`[^a-z0-9]+`)
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	name := strings.Trim(nonName.ReplaceAllString(strings.ToLower(t.Name()), "_"), "_")
+	// The run number keeps topics, groups and databases apart when a test runs repeatedly (-count).
+	name := fmt.Sprintf("%s_%d", strings.Trim(nonName.ReplaceAllString(strings.ToLower(t.Name()), "_"), "_"), runs.Add(1))
 	h := &harness{topic: "chain.blocks." + name, invoices: "invoice.events." + name, group: "cw-" + name,
 		start: headNumber(t) + 1}
 	createTopic(t, h.topic)
