@@ -12,7 +12,9 @@ import (
 
 	"github.com/m5tshift/slopay/pkg/breaker"
 	"github.com/m5tshift/slopay/pkg/storage"
+	"github.com/m5tshift/slopay/services/rate-service/internal/limiter"
 	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/slopay/services/rate-service/internal/source"
 )
 
 // Source modes (SRS 4.1.3). There is no automatic switch between them.
@@ -39,6 +41,12 @@ type Config struct {
 	SourceMode string
 	// RateMockURL is the base URL of rate-mock (RATE_MOCK_URL, required in mock mode).
 	RateMockURL string
+	// CoinbaseURL and OKXURL are the base URLs of the exchanges in exchanges mode (COINBASE_URL, OKX_URL).
+	CoinbaseURL string
+	OKXURL      string
+	// Limits are the outgoing limits to the exchanges, a token bucket per source:
+	// SOURCE_LIMIT_<SOURCE>_REQUESTS per SOURCE_LIMIT_<SOURCE>_WINDOW (exchanges mode).
+	Limits map[rate.Source]limiter.Config
 	// SourceTimeout bounds one request to a source (SOURCE_TIMEOUT, default 2s).
 	SourceTimeout time.Duration
 	// Breakers are the Circuit Breakers of the sources: SOURCE_BREAKER_FAILURE_THRESHOLD (3),
@@ -70,6 +78,13 @@ type Config struct {
 // DefaultBreaker are the breaker thresholds of a source without SOURCE_BREAKER_* variables.
 var DefaultBreaker = breaker.Config{FailureThreshold: 3, OpenTimeout: 30 * time.Second, HalfOpenMax: 1}
 
+// DefaultLimits are the published public limits of the exchanges (SRS 4.1.9: the limits are not exceeded):
+// Coinbase Exchange 10 requests per second per IP, OKX ticker 20 requests per 2 seconds.
+var DefaultLimits = map[rate.Source]limiter.Config{
+	rate.Coinbase: {Capacity: 10, Window: time.Second},
+	rate.OKX:      {Capacity: 20, Window: 2 * time.Second},
+}
+
 // FromEnv reads and validates the configuration.
 func FromEnv() (Config, error) {
 	var errs []error
@@ -78,6 +93,8 @@ func FromEnv() (Config, error) {
 		KafkaBrokers: splitList(os.Getenv("KAFKA_BROKERS")),
 		SourceMode:   envOr("RATE_SOURCE_MODE", ModeMock),
 		RateMockURL:  os.Getenv("RATE_MOCK_URL"),
+		CoinbaseURL:  envOr("COINBASE_URL", source.DefaultCoinbaseURL),
+		OKXURL:       envOr("OKX_URL", source.DefaultOKXURL),
 		LeaderLease:  os.Getenv("LEADER_LEASE_NAME"),
 		PodName:      os.Getenv("POD_NAME"),
 		PodNamespace: os.Getenv("POD_NAMESPACE"),
@@ -95,7 +112,12 @@ func FromEnv() (Config, error) {
 			errs = append(errs, errors.New("RATE_MOCK_URL is required in mock mode"))
 		}
 	case ModeExchanges:
-		errs = append(errs, errors.New("RATE_SOURCE_MODE=exchanges is not implemented yet, use mock"))
+		c.Limits = map[rate.Source]limiter.Config{}
+		for src, def := range DefaultLimits {
+			l, err := limit(string(src), def)
+			errs = append(errs, err)
+			c.Limits[src] = l
+		}
 	default:
 		errs = append(errs, fmt.Errorf("RATE_SOURCE_MODE must be %s or %s", ModeMock, ModeExchanges))
 	}
@@ -134,6 +156,21 @@ func FromEnv() (Config, error) {
 	c.FaultInjection, err = boolean("FAULT_INJECTION_ENABLED")
 	errs = append(errs, err)
 	return c, errors.Join(errs...)
+}
+
+// limit reads SOURCE_LIMIT_<SOURCE>_REQUESTS and SOURCE_LIMIT_<SOURCE>_WINDOW on top of def.
+func limit(src string, def limiter.Config) (limiter.Config, error) {
+	prefix := "SOURCE_LIMIT_" + strings.ToUpper(src)
+	n, err1 := integer(prefix+"_REQUESTS", def.Capacity, 1)
+	w, err2 := duration(prefix+"_WINDOW", def.Window)
+	c := limiter.Config{Capacity: n, Window: w}
+	if err := errors.Join(err1, err2); err != nil {
+		return c, err
+	}
+	if err := c.Validate(); err != nil {
+		return c, fmt.Errorf("%s: %w", prefix, err)
+	}
+	return c, nil
 }
 
 func envOr(name, def string) string {

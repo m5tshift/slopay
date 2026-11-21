@@ -60,6 +60,9 @@ func (v *Valkey) get() valkey.Client {
 	return v.client
 }
 
+// Client returns the attached client, nil until the connection succeeds.
+func (v *Valkey) Client() valkey.Client { return v.get() }
+
 // Connect calls open until it succeeds or ctx is done and attaches the client. open retries authentication
 // errors itself (storage.OpenValkey); other errors are retried here every retry.
 func (v *Valkey) Connect(ctx context.Context, open func(context.Context) (valkey.Client, error), retry time.Duration, log *slog.Logger) {

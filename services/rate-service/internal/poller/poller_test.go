@@ -564,3 +564,71 @@ func TestAgeGauge(t *testing.T) {
 		t.Error(err)
 	}
 }
+
+// bucket grants the first n requests of each source and refuses the rest.
+type limit struct {
+	mu    sync.Mutex
+	left  map[string]int
+	asked map[string]int
+}
+
+func (l *limit) Allow(_ context.Context, src string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.asked[src]++
+	if l.left[src] <= 0 {
+		return false
+	}
+	l.left[src]--
+	return true
+}
+
+func TestOutgoingLimitSkipsRequestsWithoutTrippingTheBreaker(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	lim := &limit{left: map[string]int{"coinbase": 100, "okx": 0}, asked: map[string]int{}}
+	e.p.cfg.Limiter = lim
+	for range 5 {
+		e.p.Poll(ctx)
+		e.clk.add(5 * time.Second)
+	}
+	if n := e.f.calls[request{rate.OKX, rate.ETHUSDT}]; n != 0 {
+		t.Fatalf("okx was asked %d times past its limit", n)
+	}
+	if lim.asked["okx"] != 5 || lim.asked["coinbase"] != 10 {
+		t.Fatalf("limiter asked %v", lim.asked)
+	}
+	m := e.metrics(t)
+	if got := requestsWith(m, "okx", "limited"); got != 5 {
+		t.Errorf("limited okx = %d", got)
+	}
+	if got := requestsWith(m, "okx", "error"); got != 0 {
+		t.Errorf("a limited request counted as an error: %d", got)
+	}
+	for _, dp := range m["slopay_circuit_breaker_state"] {
+		if dp.Value != int64(breaker.Closed) {
+			t.Errorf("breaker left closed state: %+v", dp)
+		}
+	}
+	// Coinbase alone still serves the rate.
+	if r, err := e.served(t, rate.ETHUSD); err != nil || len(r.Sources) != 1 || r.Sources[0] != rate.Coinbase {
+		t.Fatalf("%+v %v", r, err)
+	}
+
+	// Tokens come back: OKX joins the aggregation.
+	lim.mu.Lock()
+	lim.left["okx"] = 1
+	lim.mu.Unlock()
+	e.p.Poll(ctx)
+	if r, _ := e.served(t, rate.ETHUSD); len(r.Sources) != 2 {
+		t.Errorf("okx after refill: %+v", r)
+	}
+}
+
+func TestNoLimiterMeansNoLimit(t *testing.T) {
+	e := newEnv(t)
+	e.p.Poll(context.Background())
+	if n := e.f.calls[request{rate.OKX, rate.ETHUSDT}]; n != 1 {
+		t.Fatalf("okx asked %d times", n)
+	}
+}

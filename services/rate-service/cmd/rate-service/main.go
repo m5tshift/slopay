@@ -27,6 +27,7 @@ import (
 	"github.com/m5tshift/slopay/services/rate-service/internal/api"
 	"github.com/m5tshift/slopay/services/rate-service/internal/config"
 	"github.com/m5tshift/slopay/services/rate-service/internal/events"
+	"github.com/m5tshift/slopay/services/rate-service/internal/limiter"
 	"github.com/m5tshift/slopay/services/rate-service/internal/poller"
 	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
 	"github.com/m5tshift/slopay/services/rate-service/internal/source"
@@ -88,7 +89,7 @@ func run(log *slog.Logger) error {
 		return v.Client(), nil
 	}
 
-	fetcher, err := source.NewMock(cfg.RateMockURL, cfg.SourceTimeout)
+	fetcher, lim, err := newSources(cfg, st, log)
 	if err != nil {
 		return err
 	}
@@ -99,7 +100,7 @@ func run(log *slog.Logger) error {
 		}
 	}
 	pl, err := poller.New(poller.Config{
-		Fetcher: fetcher, Breakers: breakers, Publisher: events.NewPublisher(producer), Store: st, Cache: cache,
+		Fetcher: fetcher, Limiter: lim, Breakers: breakers, Publisher: events.NewPublisher(producer), Store: st, Cache: cache,
 		Interval: cfg.PollInterval, USDTMaxAge: cfg.USDTMaxAge, DivergenceMaxBps: cfg.DivergenceMaxBps, Logger: log,
 	})
 	if err != nil {
@@ -160,6 +161,32 @@ func run(log *slog.Logger) error {
 		log.Error("http shutdown", "error", serr)
 	}
 	return err
+}
+
+// newSources builds the quote source of the configured mode. Only the exchanges mode has the outgoing rate
+// limit (SRS 4.1.8): a token bucket in Valkey, in memory of the leader while Valkey is down. The nil
+// *limiter.Limiter must not reach the poller as a non-nil interface, hence the explicit return.
+func newSources(cfg config.Config, st *store.Valkey, log *slog.Logger) (source.Fetcher, poller.Limiter, error) {
+	if cfg.SourceMode == config.ModeMock {
+		f, err := source.NewMock(cfg.RateMockURL, cfg.SourceTimeout)
+		if err != nil {
+			return nil, nil, err
+		}
+		return f, nil, nil
+	}
+	f, err := source.NewExchanges(cfg.CoinbaseURL, cfg.OKXURL, cfg.SourceTimeout)
+	if err != nil {
+		return nil, nil, err
+	}
+	limits := map[string]limiter.Config{}
+	for src, c := range cfg.Limits {
+		limits[string(src)] = c
+	}
+	lim, err := limiter.New(limits, st.Client, cfg.ValkeyTimeout, limiter.WithLogger(log))
+	if err != nil {
+		return nil, nil, err
+	}
+	return f, lim, nil
 }
 
 // newLeader elects the polling replica through the Lease LEADER_LEASE_NAME; without it the replica always

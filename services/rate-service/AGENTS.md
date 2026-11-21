@@ -15,12 +15,14 @@
 
 Синхронные вызовы: источники курса. В режиме `mock` — `rate-mock`
 (`GET /sources/{source}/quotes/{pair}`, [`contracts/openapi/rate-mock.yaml`](../../contracts/openapi/rate-mock.yaml)):
-Coinbase даёт ETH-USD и USDT-USD, OKX — ETH-USDT. Режим `exchanges` (публичные API бирж) — отдельная задача.
+Coinbase даёт ETH-USD и USDT-USD, OKX — ETH-USDT. В режиме `exchanges` — публичные API бирж без ключей:
+Coinbase Exchange `GET /products/{pair}/ticker`, OKX `GET /api/v5/market/ticker?instId=ETH-USDT`.
 
 ## Хранилища
 
 | Хранилище | Что хранит | Схема |
 |---|---|---|
+| Valkey | исходящий лимит к биржам: token bucket на источник, HASH `ratelimit:out:<source>` | поля `tokens`, `ts`; Lua-скрипт на часах Valkey ([`internal/limiter`](internal/limiter/limiter.go)) |
 | Valkey | последний снимок пары: HASH `rate:latest:<pair>` | поля `status` (`ok`/`diverged`), `updatedAt`, `price`, `quotedAt`, `sources` ([`internal/store`](internal/store/store.go)) |
 | память реплики | тот же снимок, восстановленный из `rate.latest` | [`internal/rate`](internal/rate/rate.go) |
 
@@ -36,8 +38,11 @@ Coinbase даёт ETH-USD и USDT-USD, OKX — ETH-USDT. Режим `exchanges` 
 | `KAFKA_BROKERS` | брокеры через запятую, обязательно | — |
 | `VALKEY_ADDRS`, `VALKEY_USERNAME`, `VALKEY_PASSWORD_FILE` | Valkey (`storage.ValkeyConfigFromEnv`) | — |
 | `VALKEY_TIMEOUT` | таймаут операции Valkey | 200 мс |
-| `RATE_SOURCE_MODE` | источник курса: `mock` (`exchanges` пока не реализован) | `mock` |
+| `RATE_SOURCE_MODE` | источник курса: `mock` или `exchanges`; автоматического переключения нет | `mock` |
 | `RATE_MOCK_URL` | адрес `rate-mock`, обязательно в режиме `mock` | — |
+| `COINBASE_URL`, `OKX_URL` | базовые URL бирж в режиме `exchanges` | `https://api.exchange.coinbase.com`, `https://www.okx.com` |
+| `SOURCE_LIMIT_COINBASE_REQUESTS`, `SOURCE_LIMIT_COINBASE_WINDOW` | исходящий лимит к Coinbase: запросов за окно (режим `exchanges`) | 10 за 1 с (публичный лимит биржи) |
+| `SOURCE_LIMIT_OKX_REQUESTS`, `SOURCE_LIMIT_OKX_WINDOW` | то же для OKX | 20 за 2 с (публичный лимит биржи) |
 | `SOURCE_TIMEOUT` | таймаут запроса к источнику | 2 с |
 | `SOURCE_BREAKER_FAILURE_THRESHOLD`, `SOURCE_BREAKER_OPEN_TIMEOUT`, `SOURCE_BREAKER_HALF_OPEN_MAX` | Circuit Breaker, свой на каждый источник | 3, 30 с, 1 (4.1.9) |
 | `POLL_INTERVAL` | период опроса источников лидером | 5 с (4.1.3) |
@@ -75,4 +80,11 @@ go generate ./services/rate-service/...                       # internal/api/api
   состояние CB — `slopay_circuit_breaker_state`.
 - `PUT /test/fault` с `{"enabled": true}` заставляет эту реплику отвечать на `GET /rates/{pair}` `503`
   (`fault_injected`); флаг живёт в памяти реплики. Без `FAULT_INJECTION_ENABLED` путь отвечает `404`.
-- Исходящий лимит запросов к биржам (SRS 4.1.9) не реализован: он нужен режиму `exchanges` и делается вместе с ним.
+- Исходящий лимит к биржам (SRS 4.1.7, 4.1.8) — token bucket на источник, только в режиме `exchanges`: ёмкость —
+  число запросов, один токен возвращается каждые `окно/ёмкость`. Токен берётся до Circuit Breaker; запрос без
+  токена не отправляется, считается `slopay_rate_source_requests_total{result="limited"}` и не открывает CB.
+  Без Valkey (не подключён или ошибка вызова) лидер считает тот же бакет в памяти процесса.
+- Геоблокировки не обходятся: клиент бирж не использует `HTTP(S)_PROXY` окружения, ответ `403`/`451` — обычная
+  ошибка источника для его CB. При блокировке стенд переводят в режим `mock` конфигурацией (SRS, таблица рисков).
+- У Coinbase время котировки — поле `time` тикера, у OKX — `ts` (мс); цена разбирается как десятичная строка,
+  `float` не используется.
