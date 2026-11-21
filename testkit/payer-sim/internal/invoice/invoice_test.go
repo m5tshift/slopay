@@ -21,7 +21,7 @@ func serve(t *testing.T, code int, body string) *Client {
 }
 
 func TestGet(t *testing.T) {
-	c := serve(t, 200, `{"address":"0x71c7656ec7ab88b098defb751b7401b5f6d8976f","amount":"5412000000000000","asset":"ETH"}`)
+	c := serve(t, 200, `{"address":"0x71c7656ec7ab88b098defb751b7401b5f6d8976f","amount":"5412000000000000","asset":{"kind":"ETH","decimals":18}}`)
 	p, err := c.Get(context.Background(), "abc")
 	if err != nil || p.Amount.String() != "5412000000000000" || p.Asset != "ETH" || p.Address[:4] != "0x71" {
 		t.Errorf("%+v %v", p, err)
@@ -34,6 +34,7 @@ func TestGetErrors(t *testing.T) {
 		"bad json":   serve(t, 200, `{`),
 		"bad amount": serve(t, 200, `{"amount":"1.5"}`),
 		"negative":   serve(t, 200, `{"amount":"-1"}`),
+		"asset":      serve(t, 200, `{"amount":"1","asset":"ETH"}`),
 	} {
 		if _, err := c.Get(context.Background(), "abc"); err == nil {
 			t.Errorf("%s: no error", name)
