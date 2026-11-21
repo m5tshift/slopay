@@ -41,7 +41,7 @@
 ## Сборка и тесты
 
 ```sh
-docker build -f testkit/payer-sim/Dockerfile -t slopay/payer-sim .
+docker build -f testkit/payer-sim/Dockerfile -t weigate/payer-sim .
 go test -race ./testkit/payer-sim/...
 go test -race -tags integration ./testkit/payer-sim/...   # Testcontainers Anvil, нужен Docker
 ```

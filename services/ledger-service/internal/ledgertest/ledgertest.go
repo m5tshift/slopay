@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledger"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledger"
 )
 
 // ERC20Contract is the contract of the test ERC-20 token.
@@ -87,7 +87,7 @@ func Event(t TB, codec *kafka.Codec, eventType string, inv Invoice, sequence int
 	case "invoice.paid", "invoice.underpaid", "invoice.late_paid", "invoice.late_transfer":
 		data["transfers"] = transfers
 	}
-	ev, err := kafka.NewEvent("/slopay/invoice-service", eventType, inv.ID.String(), 1, data)
+	ev, err := kafka.NewEvent("/weigate/invoice-service", eventType, inv.ID.String(), 1, data)
 	if err != nil {
 		t.Fatal(err)
 	}

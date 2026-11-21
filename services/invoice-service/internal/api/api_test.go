@@ -22,14 +22,14 @@ import (
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/telemetry"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoicetest"
+	"github.com/m5tshift/weigate/pkg/telemetry"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoicetest"
 )
 
 const contractFile = "../../../../contracts/openapi/invoice-service.yaml"
 
-const issuer = "slopay-merchant-service"
+const issuer = "weigate-merchant-service"
 
 // contract is the OpenAPI document every response is validated against, and the operations seen by tests.
 var contract struct {

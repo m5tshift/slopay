@@ -10,11 +10,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
 )
 
-const tracerName = "github.com/m5tshift/slopay/services/rate-service/internal/events"
+const tracerName = "github.com/m5tshift/weigate/services/rate-service/internal/events"
 
 // Reader keeps the replica cache in step with rate.latest. Every replica reads the whole topic, so it is not
 // a consumer group member: the topic is read from the start without committing offsets, and the compacted

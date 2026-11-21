@@ -7,8 +7,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
 )
 
 var head = chain.Header{

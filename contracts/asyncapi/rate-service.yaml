@@ -1,5 +1,5 @@
 asyncapi: 3.0.0
-id: urn:slopay:rate-service
+id: urn:weigate:rate-service
 info:
   title: rate-service events
   version: 1.0.0
@@ -100,11 +100,11 @@ components:
           payload:
             specversion: '1.0'
             id: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
-            source: /slopay/rate-service
+            source: /weigate/rate-service
             type: rate.tick
             time: '2026-11-15T10:00:00Z'
             subject: 'coinbase:ETH-USD'
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.tick.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/rate.tick.v1.json
             datacontenttype: application/json
             data:
               source: coinbase
@@ -117,11 +117,11 @@ components:
           payload:
             specversion: '1.0'
             id: 2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e
-            source: /slopay/rate-service
+            source: /weigate/rate-service
             type: rate.tick
             time: '2026-11-15T10:00:00Z'
             subject: 'okx:ETH-USDT'
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.tick.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/rate.tick.v1.json
             datacontenttype: application/json
             data:
               source: okx
@@ -143,11 +143,11 @@ components:
           payload:
             specversion: '1.0'
             id: 3c4d5e6f-7a8b-4c9d-8e1f-2a3b4c5d6e7f
-            source: /slopay/rate-service
+            source: /weigate/rate-service
             type: rate.latest
             time: '2026-11-15T10:00:05Z'
             subject: ETH-USD
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.latest.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/rate.latest.v1.json
             datacontenttype: application/json
             data:
               pair: ETH-USD

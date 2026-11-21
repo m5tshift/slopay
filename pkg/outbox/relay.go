@@ -12,10 +12,10 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
-const meterName = "github.com/m5tshift/slopay/pkg/outbox"
+const meterName = "github.com/m5tshift/weigate/pkg/outbox"
 
 // Publisher publishes one event and returns after the brokers acknowledged it. *kafka.Producer implements it.
 type Publisher interface {

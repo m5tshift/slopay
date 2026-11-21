@@ -1,6 +1,6 @@
-# Every option of slopay-lib switched on; rendered by test.sh.
+# Every option of weigate-lib switched on; rendered by test.sh.
 image:
-  repository: zot.example.internal/slopay/example
+  repository: zot.example.internal/weigate/example
   tag: 0123abc
 resources:
   requests:
@@ -51,7 +51,7 @@ secrets:
 kafka:
   enabled: true
   brokers:
-    - slopay-kafka-bootstrap.kafka.svc:9092
+    - weigate-kafka-bootstrap.kafka.svc:9092
 postgres:
   enabled: true
   url: postgres://example@pg-rw.db.svc:5432/example

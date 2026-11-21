@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Renders the example consumer chart on top of slopay-lib and checks the result.
+# Renders the example consumer chart on top of weigate-lib and checks the result.
 # Called by make helm-lint.
 set -euo pipefail
 
 dir=$(cd "$(dirname "$0")" && pwd)
-fail() { echo "slopay-lib test: $*" >&2; exit 1; }
+fail() { echo "weigate-lib test: $*" >&2; exit 1; }
 
 helm dependency update --skip-refresh "$dir" > /dev/null
 helm lint --strict "$dir"
@@ -27,9 +27,9 @@ want="Deployment DestinationRule ExternalSecret ExternalSecret HorizontalPodAuto
 [ "$got" = "$want" ] || fail "all kinds: got '$got', want '$want'"
 grep -q '^  replicas:' <<< "$all" && fail "with HPA the Deployment must not set replicas"
 for s in 'path: /health/live' 'path: /health/ready' 'path: /metrics' \
-	'value: "/var/run/secrets/slopay/postgres/password"' \
-	'value: "/var/run/secrets/slopay/mongodb/password"' \
-	'value: "/var/run/secrets/slopay/valkey/password"' \
+	'value: "/var/run/secrets/weigate/postgres/password"' \
+	'value: "/var/run/secrets/weigate/mongodb/password"' \
+	'value: "/var/run/secrets/weigate/valkey/password"' \
 	'name: OTEL_EXPORTER_OTLP_ENDPOINT' 'name: KAFKA_BROKERS' 'name: LEADER_LEASE_NAME' \
 	'refreshInterval: 1m' 'consecutive5xxErrors: 5' 'timeout: 500ms' 'httpStatus: 503'; do
 	grep -qF "$s" <<< "$all" || fail "all: '$s' not rendered"
@@ -53,4 +53,4 @@ must_fail "set delay.percentage or abort.percentage" \
 	-f "$dir/values-all.yaml" --set istio.virtualService.fault.abort.percentage=0
 must_fail "externalSecret.data is required" --set 'secrets[0].name=x' --set 'secrets[0].externalSecret.enabled=true'
 
-echo "slopay-lib test: ok"
+echo "weigate-lib test: ok"

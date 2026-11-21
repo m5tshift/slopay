@@ -20,8 +20,8 @@ func setRequired(t *testing.T) {
 	}
 	t.Setenv("KAFKA_BROKERS", "k1:9092, k2:9092,")
 	t.Setenv("POSTGRES_URL", "postgres://merchant@pg:5432/merchant")
-	t.Setenv("POSTGRES_PASSWORD_FILE", "/var/run/secrets/slopay/postgres/password")
-	t.Setenv("JWT_SIGNING_KEY_FILE", "/var/run/secrets/slopay/jwt/private.pem")
+	t.Setenv("POSTGRES_PASSWORD_FILE", "/var/run/secrets/weigate/postgres/password")
+	t.Setenv("JWT_SIGNING_KEY_FILE", "/var/run/secrets/weigate/jwt/private.pem")
 }
 
 func TestDefaults(t *testing.T) {
@@ -30,7 +30,7 @@ func TestDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.HTTPAddr != ":8080" || c.LogLevel != "info" || c.JWTIssuer != "slopay-merchant-service" {
+	if c.HTTPAddr != ":8080" || c.LogLevel != "info" || c.JWTIssuer != "weigate-merchant-service" {
 		t.Errorf("defaults: %+v", c)
 	}
 	if len(c.KafkaBrokers) != 2 || c.KafkaBrokers[1] != "k2:9092" {
@@ -70,7 +70,7 @@ func TestOverrides(t *testing.T) {
 func TestOpenBao(t *testing.T) {
 	setRequired(t)
 	t.Setenv("OPENBAO_ADDR", "https://openbao:8200")
-	t.Setenv("OPENBAO_TOKEN_FILE", "/var/run/secrets/slopay/openbao/token")
+	t.Setenv("OPENBAO_TOKEN_FILE", "/var/run/secrets/weigate/openbao/token")
 	t.Setenv("OPENBAO_KV_MOUNT", "kv")
 	c, err := FromEnv()
 	if err != nil || c.OpenBaoAddr != "https://openbao:8200" || c.OpenBaoTokenFile == "" || c.OpenBaoMount != "kv" {

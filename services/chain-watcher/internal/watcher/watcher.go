@@ -26,13 +26,13 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/store"
+	"github.com/m5tshift/weigate/pkg/breaker"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/projection"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/store"
 )
 
-const instrumentation = "github.com/m5tshift/slopay/services/chain-watcher/internal/watcher"
+const instrumentation = "github.com/m5tshift/weigate/services/chain-watcher/internal/watcher"
 
 // Node reads the chain (node.Client).
 type Node interface {
@@ -106,7 +106,7 @@ type Config struct {
 	now func() time.Time
 }
 
-// Results of a node call in slopay_chain_node_requests_total.
+// Results of a node call in weigate_chain_node_requests_total.
 const (
 	resultOK       = "ok"
 	resultError    = "error"
@@ -188,32 +188,32 @@ func (w *Watcher) registerMetrics(m metric.Meter) error {
 		m = otel.Meter(instrumentation)
 	}
 	var err error
-	if w.blocks, err = m.Int64Counter("slopay_chain_blocks_processed",
+	if w.blocks, err = m.Int64Counter("weigate_chain_blocks_processed",
 		metric.WithDescription("Blocks processed and published as chain.new_head")); err != nil {
 		return err
 	}
-	if w.reorgs, err = m.Int64Counter("slopay_chain_reorgs",
+	if w.reorgs, err = m.Int64Counter("weigate_chain_reorgs",
 		metric.WithDescription("Reorgs handled, by depth in blocks")); err != nil {
 		return err
 	}
-	if w.transfers, err = m.Int64Counter("slopay_chain_transfers_published",
+	if w.transfers, err = m.Int64Counter("weigate_chain_transfers_published",
 		metric.WithDescription("Transfers to tracked addresses published to chain.transfers, by mode: live (a new block) or rescan (a processed block searched for a new address)")); err != nil {
 		return err
 	}
-	if w.delay, err = m.Float64Histogram("slopay_chain_transfer_delay", metric.WithUnit("s"),
+	if w.delay, err = m.Float64Histogram("weigate_chain_transfer_delay", metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.25, 0.5, 1, 1.5, 2, 3, 5, 10, 30, 60, 300),
 		metric.WithDescription("Time from the block timestamp to the publication of a transfer to chain.transfers (NFR-04), by mode")); err != nil {
 		return err
 	}
-	if w.rescanned, err = m.Int64Counter("slopay_chain_rescan_blocks",
+	if w.rescanned, err = m.Int64Counter("weigate_chain_rescan_blocks",
 		metric.WithDescription("Processed blocks searched again for newly tracked addresses")); err != nil {
 		return err
 	}
-	if w.requests, err = m.Int64Counter("slopay_chain_node_requests",
+	if w.requests, err = m.Int64Counter("weigate_chain_node_requests",
 		metric.WithDescription("Node calls by method and result: ok, error, rejected (breaker open)")); err != nil {
 		return err
 	}
-	if w.duration, err = m.Float64Histogram("slopay_chain_node_request_duration", metric.WithUnit("s"),
+	if w.duration, err = m.Float64Histogram("weigate_chain_node_request_duration", metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10),
 		metric.WithDescription("Node call duration")); err != nil {
 		return err
@@ -231,15 +231,15 @@ func (w *Watcher) registerMetrics(m metric.Meter) error {
 	known := func(a *atomic.Int64) func() (int64, bool) {
 		return func() (int64, bool) { v := a.Load(); return v, v >= 0 }
 	}
-	if err = gauge("slopay_chain_head_block", "Head block number of the node; reported by the leader",
+	if err = gauge("weigate_chain_head_block", "Head block number of the node; reported by the leader",
 		known(&w.head)); err != nil {
 		return err
 	}
-	if err = gauge("slopay_chain_cursor_block", "Last processed block number; reported by the leader",
+	if err = gauge("weigate_chain_cursor_block", "Last processed block number; reported by the leader",
 		known(&w.cursor)); err != nil {
 		return err
 	}
-	return gauge("slopay_chain_reorg_too_deep",
+	return gauge("weigate_chain_reorg_too_deep",
 		"1 while reading is stopped by a reorg deeper than the limit (alert ChainReorgTooDeep); reported by the leader",
 		func() (int64, bool) {
 			if w.tooDeep.Load() {

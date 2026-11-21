@@ -1,8 +1,8 @@
-# rate-service on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag, addresses,
-# ExternalSecret references) are set in slopay-gitops.
+# rate-service on weigate-lib (charts/weigate-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in weigate-gitops.
 image:
-  repository: zot.example.internal/slopay/rate-service
-  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  repository: zot.example.internal/weigate/rate-service
+  # CI sets the short commit SHA in weigate-gitops; this placeholder only lets the chart render.
   tag: dev
 resources:
   requests:
@@ -19,10 +19,10 @@ leader:
 kafka:
   enabled: true
   brokers:
-    - slopay-kafka-bootstrap.kafka.svc:9092
+    - weigate-kafka-bootstrap.kafka.svc:9092
 
 secrets:
-  # Password of the service's Valkey user: /var/run/secrets/slopay/valkey/password.
+  # Password of the service's Valkey user: /var/run/secrets/weigate/valkey/password.
   - name: valkey
 
 valkey:
@@ -35,7 +35,7 @@ valkey:
     key: password
 
 # Calls invoice-service -> rate-service (SRS 4.1.9): 500 ms timeout, one retry, outlier detection.
-# Off by default: the minimal stand has no Istio CRDs; slopay-gitops enables them.
+# Off by default: the minimal stand has no Istio CRDs; weigate-gitops enables them.
 istio:
   destinationRule:
     enabled: false
@@ -63,6 +63,6 @@ env:
   SOURCE_BREAKER_FAILURE_THRESHOLD: "3"
   SOURCE_BREAKER_OPEN_TIMEOUT: 30s
   SOURCE_BREAKER_HALF_OPEN_MAX: "1"
-  # PUT /test/fault for the trial 8.2a; slopay-gitops enables it on the stand.
+  # PUT /test/fault for the trial 8.2a; weigate-gitops enables it on the stand.
   FAULT_INJECTION_ENABLED: "false"
   LOG_LEVEL: info

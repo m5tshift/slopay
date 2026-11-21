@@ -28,12 +28,12 @@ import (
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/hdwallet"
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/telemetry"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/jwt"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/merchant"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/xpubtest"
+	"github.com/m5tshift/weigate/pkg/hdwallet"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/telemetry"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/jwt"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/merchant"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/xpubtest"
 )
 
 const contractFile = "../../../../contracts/openapi/merchant-service.yaml"
@@ -113,7 +113,7 @@ func newEnv(t *testing.T) *env {
 	}, log)
 	e.svc = svc
 	err = Register(e.mux, Options{
-		Service: svc, Issuer: jwt.NewIssuer(signer, "slopay-merchant-service", 15*time.Minute),
+		Service: svc, Issuer: jwt.NewIssuer(signer, "weigate-merchant-service", 15*time.Minute),
 		Signer: signer, JWKSMaxAge: 5 * time.Minute, Logger: log,
 	})
 	if err != nil {
@@ -300,11 +300,11 @@ func TestAuthRequired(t *testing.T) {
 	reg := e.register(t)
 	tok := e.token(t, reg.ApiKey.Key)
 	// A JWT for a merchant that does not exist, signed by the same key.
-	ghost, err := jwt.NewIssuer(e.signer, "slopay-merchant-service", 15*time.Minute).Issue(context.Background(), uuid.NewString())
+	ghost, err := jwt.NewIssuer(e.signer, "weigate-merchant-service", 15*time.Minute).Issue(context.Background(), uuid.NewString())
 	if err != nil {
 		t.Fatal(err)
 	}
-	notUUID, err := jwt.NewIssuer(e.signer, "slopay-merchant-service", 15*time.Minute).Issue(context.Background(), "someone")
+	notUUID, err := jwt.NewIssuer(e.signer, "weigate-merchant-service", 15*time.Minute).Issue(context.Background(), "someone")
 	if err != nil {
 		t.Fatal(err)
 	}

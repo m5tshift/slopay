@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/merchant.updated.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/merchant.updated.v1.json",
   "title": "merchant.updated",
   "description": "Full current state of a merchant (event-carried state transfer, SRS 4.1.2). Published on registration and on every change of the xpub, the webhook URL, the tolerance or the webhook secret version. The topic is compacted by merchantId: the last event is the state, a consumer keeps the projection and ignores an event whose version is lower than the one it holds. The webhook secret is never published, only its version; webhook-service reads the secret from OpenBao.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "merchant.updated" },
-    "source": { "const": "/slopay/merchant-service" },
+    "source": { "const": "/weigate/merchant-service" },
     "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/merchant.updated.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/merchant.updated.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

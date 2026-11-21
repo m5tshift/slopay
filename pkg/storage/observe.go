@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const instrumentationName = "github.com/m5tshift/slopay/pkg/storage"
+const instrumentationName = "github.com/m5tshift/weigate/pkg/storage"
 
 var (
 	metricsOnce  sync.Once

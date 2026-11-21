@@ -1,8 +1,8 @@
-# invoice-service on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag, addresses,
-# ExternalSecret references) are set in slopay-gitops.
+# invoice-service on weigate-lib (charts/weigate-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in weigate-gitops.
 image:
-  repository: zot.example.internal/slopay/invoice-service
-  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  repository: zot.example.internal/weigate/invoice-service
+  # CI sets the short commit SHA in weigate-gitops; this placeholder only lets the chart render.
   tag: dev
 resources:
   requests:
@@ -15,12 +15,12 @@ resources:
 kafka:
   enabled: true
   brokers:
-    - slopay-kafka-bootstrap.kafka.svc:9092
+    - weigate-kafka-bootstrap.kafka.svc:9092
 
 secrets:
-  # Password of the service's PostgreSQL user: /var/run/secrets/slopay/postgres/password.
+  # Password of the service's PostgreSQL user: /var/run/secrets/weigate/postgres/password.
   - name: postgres
-  # Password of the service's Valkey user: /var/run/secrets/slopay/valkey/password.
+  # Password of the service's Valkey user: /var/run/secrets/weigate/valkey/password.
   - name: valkey
 
 postgres:
@@ -55,7 +55,7 @@ env:
   STATUS_CACHE_TTL: 30s
   VALKEY_TIMEOUT: 100ms
   # iss of the merchant-service JWT (SRS 4.1.10).
-  JWT_ISSUER: slopay-merchant-service
+  JWT_ISSUER: weigate-merchant-service
   # The service verifies the JWT signature itself against this JWKS (also behind the Istio gateway).
   # The set is cached; an unknown kid reloads it at most once per JWKS_MIN_INTERVAL.
   JWKS_URL: http://merchant-service.apps.svc:8080/.well-known/jwks.json

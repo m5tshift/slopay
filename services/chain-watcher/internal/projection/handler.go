@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 // Topic and event types of invoice-service (contracts/asyncapi/invoice-service.yaml).

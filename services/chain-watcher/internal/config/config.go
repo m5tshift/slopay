@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
-	"github.com/m5tshift/slopay/pkg/storage"
+	"github.com/m5tshift/weigate/pkg/breaker"
+	"github.com/m5tshift/weigate/pkg/storage"
 )
 
 // Config is the service configuration.

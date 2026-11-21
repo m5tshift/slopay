@@ -8,7 +8,7 @@ info:
     One instance serves many endpoints: the endpoint name is the last segment of the webhook URL, so the URL of
     a virtual merchant in its settings is `http://merchant-mock.apps.svc.cluster.local/webhook/<endpoint>`.
 
-    **Verification** (`POST /webhook/{endpoint}`): the secret is chosen by `X-SLOPay-Secret-Version`; the current
+    **Verification** (`POST /webhook/{endpoint}`): the secret is chosen by `X-Weigate-Secret-Version`; the current
     version and the previous one are accepted, the previous one for 24 h after the rotation. The timestamp must
     be within 5 minutes of the clock of the component, the signature is `v1=` + hex HMAC-SHA256 of
     `<timestamp>.<raw body>` and is compared in constant time. A valid webhook is acknowledged with `200` even if
@@ -41,17 +41,17 @@ paths:
         duplicate, order. `404` for an endpoint that no command has created.
       parameters:
         - $ref: '#/components/parameters/Endpoint'
-        - name: X-SLOPay-Timestamp
+        - name: X-Weigate-Timestamp
           in: header
           required: true
           schema:
             type: string
-        - name: X-SLOPay-Signature
+        - name: X-Weigate-Signature
           in: header
           required: true
           schema:
             type: string
-        - name: X-SLOPay-Secret-Version
+        - name: X-Weigate-Secret-Version
           in: header
           required: true
           schema:

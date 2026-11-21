@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_transfer.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.late_transfer.v1.json",
   "title": "invoice.late_transfer",
   "description": "A transfer with N confirmations to the address of an invoice in a final status (PAID, LATE_PAID, UNDERPAID after expiresAt) within the tracking window. The status does not change.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "invoice.late_transfer" },
-    "source": { "const": "/slopay/invoice-service" },
+    "source": { "const": "/weigate/invoice-service" },
     "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_transfer.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.late_transfer.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

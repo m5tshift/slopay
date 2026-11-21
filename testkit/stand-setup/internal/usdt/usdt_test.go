@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/usdt"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/usdt"
 )
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))

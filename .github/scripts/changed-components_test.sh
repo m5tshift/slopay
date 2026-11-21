@@ -38,7 +38,7 @@ put contracts/asyncapi/a-service.yaml
 put contracts/schemas.go
 put contracts/schemas/invoice.json
 put charts/a-service/Chart.yaml
-put charts/slopay-lib/Chart.yaml
+put charts/weigate-lib/Chart.yaml
 put docs/SRS.md
 git add -A
 git commit -qm init
@@ -78,7 +78,7 @@ check "OpenAPI contract without generated code" '[]' contracts/openapi/b-service
 check "AsyncAPI contract" '[]' contracts/asyncapi/a-service.yaml
 check "event schema" '["a-service","b-service"]' contracts/schemas/invoice.json
 check "schemas package" '["a-service","b-service"]' contracts/schemas.go
-check "charts" '[]' charts/a-service/Chart.yaml charts/slopay-lib/Chart.yaml
+check "charts" '[]' charts/a-service/Chart.yaml charts/weigate-lib/Chart.yaml
 check "docs" '[]' docs/SRS.md
 
 git mv -k services/b-service/main.go services/a-service/moved.go

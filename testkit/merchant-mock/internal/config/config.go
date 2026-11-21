@@ -15,7 +15,7 @@ type Config struct {
 	HTTPAddr string
 	// LogLevel is debug, info, warn or error (LOG_LEVEL, default info).
 	LogLevel string
-	// TimestampTolerance is the largest accepted difference between X-SLOPay-Timestamp and the clock
+	// TimestampTolerance is the largest accepted difference between X-Weigate-Timestamp and the clock
 	// (TIMESTAMP_TOLERANCE, default 5m, SRS 4.1.10 and contracts/openapi/webhook.yaml).
 	TimestampTolerance time.Duration
 	// PreviousSecretTTL is how long the previous secret version stays valid after a rotation

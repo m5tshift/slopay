@@ -10,7 +10,7 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	"github.com/m5tshift/slopay/contracts"
+	"github.com/m5tshift/weigate/contracts"
 )
 
 // ErrInvalidEvent marks an event that does not satisfy its schema or is not valid JSON.

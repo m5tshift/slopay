@@ -51,9 +51,9 @@ Coinbase Exchange `GET /products/{pair}/ticker`, OKX `GET /api/v5/market/ticker?
 | `DIVERGENCE_MAX_BPS` | допустимое расхождение источников, б. п. | 100 (4.1.3) |
 | `RETRY_AFTER` | `Retry-After` в ответе `503` | 5 с |
 | `FAULT_INJECTION_ENABLED` | включает `/test/fault` | `false`, на стенде для 8.2а — `true` |
-| `LEADER_LEASE_NAME`, `POD_NAME`, `POD_NAMESPACE` | выбор лидера через Lease; без имени Lease реплика всегда лидер | задаёт slopay-lib |
+| `LEADER_LEASE_NAME`, `POD_NAME`, `POD_NAMESPACE` | выбор лидера через Lease; без имени Lease реплика всегда лидер | задаёт weigate-lib |
 
-Секреты читаются из файлов: `/var/run/secrets/slopay/valkey/password`.
+Секреты читаются из файлов: `/var/run/secrets/weigate/valkey/password`.
 
 ## Команды
 
@@ -75,14 +75,14 @@ go generate ./services/rate-service/...                       # internal/api/api
 - При большем расхождении в Valkey пишется отметка `diverged`, и все реплики отвечают `503` с `reason: diverged`
   до следующей согласованной агрегации. В `rate.latest` публикуется только достоверный курс.
 - Курс старше `RATE_MAX_AGE` — `503` с `reason: stale`; курса нет — `503` с `reason: unavailable`.
-- Метрики: `slopay_rate_age_seconds{pair}` во всех репликах; у лидера `slopay_rate_diverged{pair}`,
-  `slopay_rate_divergence_bps{pair}` (алерт `RateDivergence`) и `slopay_rate_source_requests_total`;
-  состояние CB — `slopay_circuit_breaker_state`.
+- Метрики: `weigate_rate_age_seconds{pair}` во всех репликах; у лидера `weigate_rate_diverged{pair}`,
+  `weigate_rate_divergence_bps{pair}` (алерт `RateDivergence`) и `weigate_rate_source_requests_total`;
+  состояние CB — `weigate_circuit_breaker_state`.
 - `PUT /test/fault` с `{"enabled": true}` заставляет эту реплику отвечать на `GET /rates/{pair}` `503`
   (`fault_injected`); флаг живёт в памяти реплики. Без `FAULT_INJECTION_ENABLED` путь отвечает `404`.
 - Исходящий лимит к биржам (SRS 4.1.7, 4.1.8) — token bucket на источник, только в режиме `exchanges`: ёмкость —
   число запросов, один токен возвращается каждые `окно/ёмкость`. Токен берётся до Circuit Breaker; запрос без
-  токена не отправляется, считается `slopay_rate_source_requests_total{result="limited"}` и не открывает CB.
+  токена не отправляется, считается `weigate_rate_source_requests_total{result="limited"}` и не открывает CB.
   Без Valkey (не подключён или ошибка вызова) лидер считает тот же бакет в памяти процесса.
 - Геоблокировки не обходятся: клиент бирж не использует `HTTP(S)_PROXY` окружения, ответ `403`/`451` — обычная
   ошибка источника для его CB. При блокировке стенд переводят в режим `mock` конфигурацией (SRS, таблица рисков).

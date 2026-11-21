@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
 )
 
 // Xpub is the master public key of BIP-32 test vector 1 (also the example of the merchant-service contract).

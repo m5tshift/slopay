@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/storage"
+	"github.com/m5tshift/weigate/pkg/storage"
 )
 
 // Config is the service configuration.
@@ -50,7 +50,7 @@ type Config struct {
 	// InvoiceTTL is the lifetime of an invoice (INVOICE_TTL, SRS 4.1.4: 15m).
 	InvoiceTTL time.Duration
 
-	// JWTIssuer is the iss claim a merchant token must carry (JWT_ISSUER, default slopay-merchant-service).
+	// JWTIssuer is the iss claim a merchant token must carry (JWT_ISSUER, default weigate-merchant-service).
 	JWTIssuer string
 
 	// JWKSURL is the JWKS of merchant-service the token signatures are verified with (JWKS_URL, required).
@@ -90,7 +90,7 @@ func FromEnv() (Config, error) {
 		KafkaBrokers:   splitList(os.Getenv("KAFKA_BROKERS")),
 		ConsumerGroup:  envOr("KAFKA_CONSUMER_GROUP", "invoice-service"),
 		RateServiceURL: os.Getenv("RATE_SERVICE_URL"),
-		JWTIssuer:      envOr("JWT_ISSUER", "slopay-merchant-service"),
+		JWTIssuer:      envOr("JWT_ISSUER", "weigate-merchant-service"),
 		JWKSURL:        os.Getenv("JWKS_URL"),
 	}
 	if len(c.KafkaBrokers) == 0 {

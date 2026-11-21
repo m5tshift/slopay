@@ -20,10 +20,10 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/lifecycle"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/projection"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/lifecycle"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/projection"
 )
 
 // lcConfig uses N = 3 to keep the scenarios short; the rules do not depend on N.
@@ -120,7 +120,7 @@ func chainEvent(t *testing.T, typ string, data any) kafka.Event {
 	if te, ok := data.(lifecycle.TransferEvent); ok {
 		subject = te.To
 	}
-	ev, err := kafka.NewEvent("/slopay/chain-watcher", typ, subject, 1, data)
+	ev, err := kafka.NewEvent("/weigate/chain-watcher", typ, subject, 1, data)
 	if err != nil {
 		t.Fatal(err)
 	}

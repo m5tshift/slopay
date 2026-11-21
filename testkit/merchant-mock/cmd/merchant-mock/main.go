@@ -14,10 +14,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/telemetry"
-	"github.com/m5tshift/slopay/testkit/merchant-mock/internal/api"
-	"github.com/m5tshift/slopay/testkit/merchant-mock/internal/config"
-	"github.com/m5tshift/slopay/testkit/merchant-mock/internal/receiver"
+	"github.com/m5tshift/weigate/pkg/telemetry"
+	"github.com/m5tshift/weigate/testkit/merchant-mock/internal/api"
+	"github.com/m5tshift/weigate/testkit/merchant-mock/internal/config"
+	"github.com/m5tshift/weigate/testkit/merchant-mock/internal/receiver"
 )
 
 const serviceName = "merchant-mock"

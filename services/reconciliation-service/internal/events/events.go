@@ -7,13 +7,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/recon"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/recon"
 )
 
 // Event source, types and topic of the contract.
 const (
-	EventSource   = "/slopay/reconciliation-service"
+	EventSource   = "/weigate/reconciliation-service"
 	TypeMismatch  = "reconciliation.mismatch"
 	TypeCompleted = "reconciliation.completed"
 	Topic         = "reconciliation.events"

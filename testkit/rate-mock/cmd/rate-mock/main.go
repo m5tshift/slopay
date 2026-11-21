@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/telemetry"
-	"github.com/m5tshift/slopay/testkit/rate-mock/internal/api"
-	"github.com/m5tshift/slopay/testkit/rate-mock/internal/config"
-	"github.com/m5tshift/slopay/testkit/rate-mock/internal/market"
+	"github.com/m5tshift/weigate/pkg/telemetry"
+	"github.com/m5tshift/weigate/testkit/rate-mock/internal/api"
+	"github.com/m5tshift/weigate/testkit/rate-mock/internal/config"
+	"github.com/m5tshift/weigate/testkit/rate-mock/internal/market"
 )
 
 const serviceName = "rate-mock"

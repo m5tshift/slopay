@@ -1,5 +1,5 @@
 asyncapi: 3.0.0
-id: urn:slopay:chain-watcher
+id: urn:weigate:chain-watcher
 info:
   title: chain-watcher events
   version: 1.0.0
@@ -115,11 +115,11 @@ components:
           payload:
             specversion: '1.0'
             id: '31337:0xb2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5b2c3d4e5'
-            source: /slopay/chain-watcher
+            source: /weigate/chain-watcher
             type: chain.new_head
             time: '2026-11-15T10:02:12Z'
             subject: '31337'
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.new_head.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/chain.new_head.v1.json
             datacontenttype: application/json
             data:
               chainId: 31337
@@ -142,11 +142,11 @@ components:
           payload:
             specversion: '1.0'
             id: 3a1f0e2d-5c4b-4a39-8e7f-6d5c4b3a2f10
-            source: /slopay/chain-watcher
+            source: /weigate/chain-watcher
             type: chain.reorg
             time: '2026-11-15T10:02:24Z'
             subject: '31337'
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.reorg.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/chain.reorg.v1.json
             datacontenttype: application/json
             data:
               chainId: 31337
@@ -166,11 +166,11 @@ components:
           payload:
             specversion: '1.0'
             id: '0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4:0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7:'
-            source: /slopay/chain-watcher
+            source: /weigate/chain-watcher
             type: chain.transfer
             time: '2026-11-15T10:02:01Z'
             subject: '0x8ba1f109551bd432803012645ac136ddd64dba72'
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.transfer.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/chain.transfer.v1.json
             datacontenttype: application/json
             data:
               chainId: 31337
@@ -189,11 +189,11 @@ components:
           payload:
             specversion: '1.0'
             id: '0xc3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6:0xf6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9:0'
-            source: /slopay/chain-watcher
+            source: /weigate/chain-watcher
             type: chain.transfer
             time: '2026-11-15T10:03:01Z'
             subject: '0x2546bcd3c84621e976d8185a91a922ae77ecec30'
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.transfer.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/chain.transfer.v1.json
             datacontenttype: application/json
             data:
               chainId: 31337

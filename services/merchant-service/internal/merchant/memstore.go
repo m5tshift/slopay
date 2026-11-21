@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 // MemStore is an in-memory Store for tests. It follows the contract of the PostgreSQL store, and keeps

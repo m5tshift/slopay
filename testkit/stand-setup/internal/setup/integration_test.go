@@ -13,10 +13,10 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/m5tshift/slopay/pkg/hdwallet"
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/client"
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/setup"
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/wallet"
+	"github.com/m5tshift/weigate/pkg/hdwallet"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/client"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/setup"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/wallet"
 )
 
 // The test runs against a real merchant-service container. The service is not

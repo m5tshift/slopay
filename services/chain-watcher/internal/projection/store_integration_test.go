@@ -14,8 +14,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 
-	"github.com/m5tshift/slopay/pkg/storage"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
+	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/projection"
 )
 
 func openMongo(t *testing.T) *storage.Mongo {

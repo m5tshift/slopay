@@ -56,9 +56,9 @@
 | `TRACKING_WINDOW` | окно отслеживания адреса после `expiresAt` или `paidAt` | 24 ч (4.1.4) |
 | `PROJECTION_TTL` | срок хранения счёта в проекции, больше `ADDRESS_LOOKBACK` | 8 сут |
 | `REPORT_TTL` | срок хранения отчёта | 30 сут |
-| `LEADER_LEASE_NAME`, `POD_NAME`, `POD_NAMESPACE` | выбор лидера через Lease; без имени Lease реплика всегда лидер | задаёт slopay-lib |
+| `LEADER_LEASE_NAME`, `POD_NAME`, `POD_NAMESPACE` | выбор лидера через Lease; без имени Lease реплика всегда лидер | задаёт weigate-lib |
 
-Секреты читаются из файлов: `/var/run/secrets/slopay/mongodb/password`.
+Секреты читаются из файлов: `/var/run/secrets/weigate/mongodb/password`.
 
 ## Команды
 
@@ -90,7 +90,7 @@ go test -race -tags integration ./services/reconciliation-service/...   # Testco
 - Проекция: `invoice.reverted` убирает перевод, повторное применение события даёт тот же документ; события счёта идут по порядку из его партиции.
   При пустой группе потребителя топик читается с `now − ADDRESS_LOOKBACK`, поэтому хранение
   `invoice.events` должно быть не меньше `ADDRESS_LOOKBACK`.
-- Метрики: `slopay_reconciliation_runs{result}` (`ok`, `mismatch`, `postponed`, `failed`),
-  `slopay_reconciliation_run_duration`, `slopay_reconciliation_node_requests{method,result}`; у лидера —
-  `slopay_reconciliation_mismatches` (алерт `ReconciliationMismatch` при > 0), `slopay_reconciliation_after_window`,
-  `slopay_reconciliation_addresses_checked`, `slopay_reconciliation_block`, `slopay_reconciliation_last_run_timestamp`.
+- Метрики: `weigate_reconciliation_runs{result}` (`ok`, `mismatch`, `postponed`, `failed`),
+  `weigate_reconciliation_run_duration`, `weigate_reconciliation_node_requests{method,result}`; у лидера —
+  `weigate_reconciliation_mismatches` (алерт `ReconciliationMismatch` при > 0), `weigate_reconciliation_after_window`,
+  `weigate_reconciliation_addresses_checked`, `weigate_reconciliation_block`, `weigate_reconciliation_last_run_timestamp`.

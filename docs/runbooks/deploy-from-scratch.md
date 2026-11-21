@@ -1,11 +1,11 @@
 # Runbook: развёртывание минимального стенда с нуля
 
 Минимальный стенд (SRS 6.4): две VM Hyper-V (`talos-cp-1`, `talos-w-1`), Talos со стандартной сетью, ArgoCD
-с App of Apps из `slopay-gitops`, платформа и сервисы до статуса `PAID`. Все команды запускает оператор
+с App of Apps из `weigate-gitops`, платформа и сервисы до статуса `PAID`. Все команды запускает оператор
 стенда: агент пишет код и читает кластер через свой kubeconfig. Подробности каждого шага — в README
 каталогов `infra/terraform/hyperv`, `infra/terraform/talos`, `infra/talos`, `infra/bootstrap`, `infra/stand-secrets`.
 
-Команды выполняются из корня клона `slopay`, если не сказано иное. Шаг 0 — PowerShell от администратора
+Команды выполняются из корня клона `weigate`, если не сказано иное. Шаг 0 — PowerShell от администратора
 на ПК стенда, остальные — оболочка с `terraform`, `kubectl`, `helm`, `curl`, `openssl`, `jq`, `cast` (Foundry);
 `talosctl` нужен только для диагностики.
 
@@ -22,24 +22,24 @@
 
 ## Однократные действия на GitHub
 
-Нужны, чтобы CI собирал образы и обновлял теги в `slopay-gitops`, а кластер мог их скачать. Повторять при
+Нужны, чтобы CI собирал образы и обновлял теги в `weigate-gitops`, а кластер мог их скачать. Повторять при
 пересборке кластера не нужно.
 
-1. Deploy key для `slopay-gitops` (`.github/workflows/build.yml`, job `gitops`):
+1. Deploy key для `weigate-gitops` (`.github/workflows/build.yml`, job `gitops`):
    ```sh
-   ssh-keygen -t ed25519 -N '' -C slopay-gitops-deploy -f <каталог вне репозитория>/gitops_deploy_key
+   ssh-keygen -t ed25519 -N '' -C weigate-gitops-deploy -f <каталог вне репозитория>/gitops_deploy_key
    ```
-   Публичную часть (`.pub`) добавить в `slopay-gitops`: Settings, Deploy keys, с правом записи (Allow write access).
-   Правило ветки `main` в `slopay-gitops` должно пропускать deploy key без PR.
-2. Приватную часть сохранить секретом репозитория `slopay` с именем `GITOPS_DEPLOY_KEY`: Settings, Secrets and
+   Публичную часть (`.pub`) добавить в `weigate-gitops`: Settings, Deploy keys, с правом записи (Allow write access).
+   Правило ветки `main` в `weigate-gitops` должно пропускать deploy key без PR.
+2. Приватную часть сохранить секретом репозитория `weigate` с именем `GITOPS_DEPLOY_KEY`: Settings, Secrets and
    variables, Actions. Файл ключа удалить или оставить вне репозитория (шаблоны `*deploy_key*` в `.gitignore`).
-3. Образы публикуются в `ghcr.io/m5tshift/slopay/<component>`. Пакет, созданный первой сборкой, приватный:
+3. Образы публикуются в `ghcr.io/m5tshift/weigate/<component>`. Пакет, созданный первой сборкой, приватный:
    после первой сборки сделать каждый пакет публичным (профиль или организация, Packages, пакет,
    Package settings, Change visibility, Public). У кластера нет `imagePullSecrets`.
 4. Первая сборка: Actions, workflow `build`, Run workflow (пересобирает все компоненты) либо любой push в `main`.
-   Job `gitops` пишет тег `<7 знаков SHA>` в `services/<component>/values.yaml` репозитория `slopay-gitops`.
+   Job `gitops` пишет тег `<7 знаков SHA>` в `services/<component>/values.yaml` репозитория `weigate-gitops`.
 
-Проверка: все job workflow `build` зелёные; в `slopay-gitops` есть коммит `chore(gitops): … image <тег>`;
+Проверка: все job workflow `build` зелёные; в `weigate-gitops` есть коммит `chore(gitops): … image <тег>`;
 в списке пакетов девять: `chain-watcher`, `invoice-service`, `merchant-service`, `ledger-service`,
 `reconciliation-service`, `rate-service`, `payer-sim`, `rate-mock`, `merchant-mock`, все Public.
 
@@ -128,7 +128,7 @@ infra/bootstrap/bootstrap.sh
 ```
 
 Скрипт идемпотентен. Он создаёт неймспейсы `argocd`, `local-path-storage`, `kafka`, `data`, `chain`, `apps`,
-ставит ArgoCD, применяет `apps/root.yaml` из `main` репозитория `slopay-gitops` и RBAC агента. ArgoCD сразу
+ставит ArgoCD, применяет `apps/root.yaml` из `main` репозитория `weigate-gitops` и RBAC агента. ArgoCD сразу
 начинает синхронизацию по волнам (раздел «Проверка»).
 
 Проверка:
@@ -158,7 +158,7 @@ kubectl -n data get secrets
 
 ### 6. Ожидание синхронизации ArgoCD
 
-Порядок задаёт `argocd.argoproj.io/sync-wave` в `slopay-gitops`; следующая волна ждёт здоровья предыдущей
+Порядок задаёт `argocd.argoproj.io/sync-wave` в `weigate-gitops`; следующая волна ждёт здоровья предыдущей
 (Lua health-check Application из `argocd-values.yaml`):
 
 | Волна | Application |
@@ -174,7 +174,7 @@ kubectl -n data get secrets
 kubectl -n argocd get applications -w
 ```
 Первая синхронизация образов и операторов занимает заметное время; зависший Application ArgoCD повторяет сам
-(`retry` в `syncPolicy`). Руками в кластере ничего не правят, ресурсы меняются только PR в `slopay-gitops`.
+(`retry` в `syncPolicy`). Руками в кластере ничего не правят, ресурсы меняются только PR в `weigate-gitops`.
 
 ### 7. Kubeconfig для агента
 
@@ -198,7 +198,7 @@ KUBECONFIG=<путь вне репозитория>/agent.kubeconfig kubectl -n 
    ```sh
    kubectl -n apps get pods
    ```
-3. `/health/ready` через port-forward (порт сервиса 8080, `slopay-lib`; Service называется как компонент):
+3. `/health/ready` через port-forward (порт сервиса 8080, `weigate-lib`; Service называется как компонент):
    ```sh
    kubectl -n apps port-forward svc/merchant-service 8080:8080 &
    curl -fsS localhost:8080/health/ready
@@ -226,7 +226,7 @@ KUBECONFIG=<путь вне репозитория>/agent.kubeconfig kubectl -n 
    ```
 3. Шаги 4–7 заново: новый кластер пуст, скрипт стенда создаёт все секреты заново, kubeconfig агента выдаётся
    новый (токен привязан к старому кластеру).
-4. Действия на GitHub не повторяются. Теги образов в `slopay-gitops` уже указывают на собранные образы.
+4. Действия на GitHub не повторяются. Теги образов в `weigate-gitops` уже указывают на собранные образы.
 
 Состояние Anvil, баз и Kafka лежит на `/var/mnt/data` воркера и пропадает вместе с его диском.
 
@@ -235,7 +235,7 @@ KUBECONFIG=<путь вне репозитория>/agent.kubeconfig kubectl -n 
 | Симптом | Причина | Что делать |
 |---|---|---|
 | `CreateContainerConfigError` у подов в `apps`, `chain`, `data` | не запущен `stand-secrets.sh` или нет нужного секрета (`kubectl -n apps describe pod <под>`: `secret "…" not found`) | запустить `infra/stand-secrets/stand-secrets.sh` (шаг 5); поды поднимутся при следующей попытке, зависший под можно удалить |
-| `ImagePullBackOff` у сервисов или testkit | образ с тегом из `slopay-gitops` ещё не собран (первая сборка не прошла) или пакет GHCR приватный | выполнить первую сборку и сделать пакеты публичными (раздел «Однократные действия на GitHub»); `kubectl -n apps describe pod <под>` показывает `not found` или `unauthorized` |
+| `ImagePullBackOff` у сервисов или testkit | образ с тегом из `weigate-gitops` ещё не собран (первая сборка не прошла) или пакет GHCR приватный | выполнить первую сборку и сделать пакеты публичными (раздел «Однократные действия на GitHub»); `kubectl -n apps describe pod <под>` показывает `not found` или `unauthorized` |
 | Job `gitops` workflow `build` падает на checkout или push | нет секрета `GITOPS_DEPLOY_KEY`, у ключа нет права записи, правило `main` не пропускает deploy key | шаги 1 и 2 раздела про GitHub |
 | Application `OutOfSync` или `Degraded` на волне 2 | секреты `data` созданы после кластеров CNPG и Percona | выполнить шаг 5; если кластер уже создан с другим паролем, пароль меняют в самой БД |
 | Application ждёт `Progressing` на волне 0 | local-path-provisioner не получил привилегированный неймспейс | проверить, что `bootstrap.sh` отработал (метка `privileged` у `local-path-storage`) |

@@ -1,7 +1,7 @@
-# rate-mock on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag) are set in slopay-gitops.
+# rate-mock on weigate-lib (charts/weigate-lib/README.md). The stand values (image tag) are set in weigate-gitops.
 image:
-  repository: zot.example.internal/slopay/rate-mock
-  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  repository: zot.example.internal/weigate/rate-mock
+  # CI sets the short commit SHA in weigate-gitops; this placeholder only lets the chart render.
   tag: dev
 resources:
   requests:

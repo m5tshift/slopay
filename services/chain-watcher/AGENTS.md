@@ -57,9 +57,9 @@
 | `RESCAN_CLOCK_SKEW` | запас к времени счёта при повторном просмотре блоков | 30 с |
 | `VALKEY_ADDRS`, `VALKEY_USERNAME`, `VALKEY_PASSWORD_FILE` | Valkey (`storage.ValkeyConfigFromEnv`), адреса обязательны | — |
 | `VALKEY_TIMEOUT` | таймаут запроса к Valkey; дольше — проверка в MongoDB | 100 мс |
-| `LEADER_LEASE_NAME`, `POD_NAME`, `POD_NAMESPACE` | выбор лидера через Lease; без имени Lease реплика всегда лидер | задаёт slopay-lib |
+| `LEADER_LEASE_NAME`, `POD_NAME`, `POD_NAMESPACE` | выбор лидера через Lease; без имени Lease реплика всегда лидер | задаёт weigate-lib |
 
-Секреты читаются из файлов: `/var/run/secrets/slopay/mongodb/password`, `/var/run/secrets/slopay/valkey/password`.
+Секреты читаются из файлов: `/var/run/secrets/weigate/mongodb/password`, `/var/run/secrets/weigate/valkey/password`.
 
 ## Команды
 
@@ -80,7 +80,7 @@ go test -race -tags integration ./services/chain-watcher/...   # Testcontainers:
   в окне не глубже `REORG_MAX_DEPTH`, публикует `chain.reorg` с `fromBlock` = предок + 1, отбрасывает
   заголовки после предка и читает новую ветку с `fromBlock`.
 - Реорганизация глубже `REORG_MAX_DEPTH` или ниже начала окна останавливает чтение до потери лидерства или
-  рестарта: `slopay_chain_reorg_too_deep` = 1 (алерт `ChainReorgTooDeep`), в лог — ошибка с
+  рестарта: `weigate_chain_reorg_too_deep` = 1 (алерт `ChainReorgTooDeep`), в лог — ошибка с
   `alert=ChainReorgTooDeep`. Состояние в MongoDB не меняется.
 - Переводы блока публикуются в `chain.transfers` до `chain.new_head` этого блока. Получатели блока сверяются
   с кэшем в Valkey; перевод публикуется, если квитанция есть, `status` = 1 и она из того же блока.
@@ -99,11 +99,11 @@ go test -race -tags integration ./services/chain-watcher/...   # Testcontainers:
 - Внутренние переводы ETH из контрактов не видны: ищутся только транзакции с `value` > 0.
 - Ошибка ноды, Kafka или MongoDB приостанавливает чтение с backoff; блок, который не удалось опубликовать или
   сохранить, читается заново.
-- Метрики: у лидера `slopay_chain_head_block`, `slopay_chain_cursor_block`, `slopay_chain_reorg_too_deep`
-  (атрибут `chain_id`); `slopay_chain_blocks_processed`, `slopay_chain_reorgs{depth}`,
-  `slopay_chain_node_requests{method,result}` (`ok`, `error`, `rejected` при открытом CB),
-  `slopay_chain_node_request_duration`, `slopay_chain_transfers_published{mode}` (`live`, `rescan`),
-  `slopay_chain_transfer_delay` (от времени блока до публикации перевода, NFR-04 p95 ≤ 3 с),
-  `slopay_chain_rescan_blocks`, `slopay_chain_address_lookups{source}` (`cache`, `mongodb`); состояние CB — `slopay_circuit_breaker_state`.
+- Метрики: у лидера `weigate_chain_head_block`, `weigate_chain_cursor_block`, `weigate_chain_reorg_too_deep`
+  (атрибут `chain_id`); `weigate_chain_blocks_processed`, `weigate_chain_reorgs{depth}`,
+  `weigate_chain_node_requests{method,result}` (`ok`, `error`, `rejected` при открытом CB),
+  `weigate_chain_node_request_duration`, `weigate_chain_transfers_published{mode}` (`live`, `rescan`),
+  `weigate_chain_transfer_delay` (от времени блока до публикации перевода, NFR-04 p95 ≤ 3 с),
+  `weigate_chain_rescan_blocks`, `weigate_chain_address_lookups{source}` (`cache`, `mongodb`); состояние CB — `weigate_circuit_breaker_state`.
 - Интеграционные тесты делают реорганизацию через `evm_snapshot` и `evm_revert` и останавливают контейнер
   Anvil; Anvil запущен с `--state`, поэтому после рестарта цепочка и хэши блоков те же.

@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
 )
 
 // MemStore is an in-memory Store for tests with the rules of the PostgreSQL store: a mutex is the chain lock

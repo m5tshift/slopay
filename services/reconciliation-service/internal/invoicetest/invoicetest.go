@@ -5,11 +5,11 @@ package invoicetest
 import (
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 // Source is the source of invoice-service events.
-const Source = "/slopay/invoice-service"
+const Source = "/weigate/invoice-service"
 
 // ETH is the asset of native ETH invoices.
 var ETH = map[string]any{"kind": "ETH", "decimals": 18}

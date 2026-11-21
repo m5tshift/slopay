@@ -19,7 +19,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/usdt"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/usdt"
 )
 
 const anvilImage = "ghcr.io/foundry-rs/foundry:v1.10.0"

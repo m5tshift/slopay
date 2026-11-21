@@ -1,18 +1,18 @@
-{{- define "slopay-lib.hpa" -}}
+{{- define "weigate-lib.hpa" -}}
 {{- with .v.hpa }}
 {{- if .enabled }}
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "slopay-lib.fullname" $ }}
+  name: {{ include "weigate-lib.fullname" $ }}
   labels:
-    {{- include "slopay-lib.labels" $ | nindent 4 }}
+    {{- include "weigate-lib.labels" $ | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "slopay-lib.fullname" $ }}
+    name: {{ include "weigate-lib.fullname" $ }}
   minReplicas: {{ .minReplicas }}
   maxReplicas: {{ .maxReplicas }}
   metrics:

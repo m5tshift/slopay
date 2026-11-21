@@ -1,4 +1,4 @@
-module github.com/m5tshift/slopay
+module github.com/m5tshift/weigate
 
 go 1.27.4
 

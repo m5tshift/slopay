@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/m5tshift/slopay/pkg/hdwallet"
+	"github.com/m5tshift/weigate/pkg/hdwallet"
 )
 
 // Standard Hardhat/Anvil test mnemonic and its known account-level xpub and

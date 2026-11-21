@@ -100,7 +100,7 @@ func TestNewFileSignerErrors(t *testing.T) {
 
 func TestIssueVerify(t *testing.T) {
 	s, _ := newSigner(t)
-	iss := NewIssuer(s, "slopay", 15*time.Minute)
+	iss := NewIssuer(s, "weigate", 15*time.Minute)
 	tok, err := iss.Issue(ctx, "merchant-1")
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestIssueVerify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Subject != "merchant-1" || c.Issuer != "slopay" || c.ExpiresAt-c.IssuedAt != 900 || c.ID == "" {
+	if c.Subject != "merchant-1" || c.Issuer != "weigate" || c.ExpiresAt-c.IssuedAt != 900 || c.ID == "" {
 		t.Errorf("claims = %+v", c)
 	}
 	var hdr header
@@ -129,7 +129,7 @@ func encode(v any) string {
 
 func TestVerifyRejects(t *testing.T) {
 	s, _ := newSigner(t)
-	iss := NewIssuer(s, "slopay", 15*time.Minute)
+	iss := NewIssuer(s, "weigate", 15*time.Minute)
 	good, err := iss.Issue(ctx, "m")
 	if err != nil {
 		t.Fatal(err)
@@ -148,10 +148,10 @@ func TestVerifyRejects(t *testing.T) {
 		return input + "." + base64.RawURLEncoding.EncodeToString(sig)
 	}
 	now := time.Now().Unix()
-	valid := Claims{Issuer: "slopay", Subject: "m", IssuedAt: now, ExpiresAt: now + 60}
+	valid := Claims{Issuer: "weigate", Subject: "m", IssuedAt: now, ExpiresAt: now + 60}
 
 	other, _ := newSigner(t)
-	foreign, _ := NewIssuer(other, "slopay", time.Minute).Issue(ctx, "m")
+	foreign, _ := NewIssuer(other, "weigate", time.Minute).Issue(ctx, "m")
 
 	for name, tok := range map[string]string{
 		"empty":           "",
@@ -161,12 +161,12 @@ func TestVerifyRejects(t *testing.T) {
 		"alg HS256":       encode(header{Alg: "HS256", Kid: kid}) + "." + parts[1] + "." + parts[2],
 		"unknown kid":     sign(header{Alg: Alg, Kid: "other"}, valid),
 		"short signature": parts[0] + "." + parts[1] + "." + base64.RawURLEncoding.EncodeToString([]byte("short")),
-		"bad signature":   parts[0] + "." + encode(Claims{Issuer: "slopay", Subject: "x", ExpiresAt: now + 60}) + "." + parts[2],
+		"bad signature":   parts[0] + "." + encode(Claims{Issuer: "weigate", Subject: "x", ExpiresAt: now + 60}) + "." + parts[2],
 		"foreign key":     foreign,
 		"bad claims":      signRaw(t, s, kid, "notjson"),
 		"wrong issuer":    sign(header{Alg: Alg, Kid: kid}, Claims{Issuer: "evil", Subject: "m", ExpiresAt: now + 60}),
-		"no subject":      sign(header{Alg: Alg, Kid: kid}, Claims{Issuer: "slopay", ExpiresAt: now + 60}),
-		"expired":         sign(header{Alg: Alg, Kid: kid}, Claims{Issuer: "slopay", Subject: "m", ExpiresAt: now - 1}),
+		"no subject":      sign(header{Alg: Alg, Kid: kid}, Claims{Issuer: "weigate", ExpiresAt: now + 60}),
+		"expired":         sign(header{Alg: Alg, Kid: kid}, Claims{Issuer: "weigate", Subject: "m", ExpiresAt: now - 1}),
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := iss.Verify(ctx, tok)
@@ -193,7 +193,7 @@ func signRaw(t *testing.T, s *FileSigner, kid, payload string) string {
 
 func TestExpiryUsesClock(t *testing.T) {
 	s, _ := newSigner(t)
-	iss := NewIssuer(s, "slopay", 15*time.Minute)
+	iss := NewIssuer(s, "weigate", 15*time.Minute)
 	start := time.Now()
 	iss.now = func() time.Time { return start }
 	tok, err := iss.Issue(ctx, "m")
@@ -214,7 +214,7 @@ func TestRotationKeepsPreviousKey(t *testing.T) {
 	s, path := newSigner(t)
 	now := time.Now()
 	s.now = func() time.Time { return now }
-	iss := NewIssuer(s, "slopay", 15*time.Minute)
+	iss := NewIssuer(s, "weigate", 15*time.Minute)
 	old, err := iss.Issue(ctx, "m")
 	if err != nil {
 		t.Fatal(err)

@@ -1,17 +1,17 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.transfer.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/chain.transfer.v1.json",
   "title": "chain.transfer",
   "description": "Transfer to a tracked address: native ETH (logIndex null) or an ERC-20 Transfer log. Idempotency key: blockHash + txHash + logIndex; after a reorg the same txHash arrives again from another block. The ID is deterministic for the key: <blockHash>:<txHash>:<logIndex or empty>.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "chain.transfer" },
-    "source": { "const": "/slopay/chain-watcher" },
+    "source": { "const": "/weigate/chain-watcher" },
     "subject": {
       "description": "Recipient address (data.to).",
       "allOf": [{ "$ref": "defs.v1.json#/definitions/address" }]
     },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.transfer.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/chain.transfer.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

@@ -8,8 +8,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/projection"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/projection"
 )
 
 // Topics and event types of chain-watcher (contracts/asyncapi/chain-watcher.yaml).

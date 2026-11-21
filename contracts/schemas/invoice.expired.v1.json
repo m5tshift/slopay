@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.expired.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.expired.v1.json",
   "title": "invoice.expired",
   "description": "A NEW invoice expired: a block with timestamp > expiresAt was processed (including the wait after a reorg).",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "invoice.expired" },
-    "source": { "const": "/slopay/invoice-service" },
+    "source": { "const": "/weigate/invoice-service" },
     "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.expired.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.expired.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

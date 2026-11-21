@@ -25,14 +25,14 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/outbox"
-	"github.com/m5tshift/slopay/pkg/storage"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/cache"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoicetest"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/projection"
-	"github.com/m5tshift/slopay/services/invoice-service/migrations"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/outbox"
+	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/cache"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoicetest"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/projection"
+	"github.com/m5tshift/weigate/services/invoice-service/migrations"
 )
 
 var (
@@ -529,7 +529,7 @@ func TestOutboxReachesKafka(t *testing.T) {
 
 func merchantEvent(t *testing.T, id uuid.UUID, version int64, xpub string, tol int) kafka.Event {
 	t.Helper()
-	ev, err := kafka.NewEvent("/slopay/merchant-service", invoice.EventMerchantUpd, id.String(), 1, map[string]any{
+	ev, err := kafka.NewEvent("/weigate/merchant-service", invoice.EventMerchantUpd, id.String(), 1, map[string]any{
 		"merchantId": id, "version": version, "xpub": xpub, "webhookUrl": nil, "toleranceBps": tol, "webhookSecretVersion": 1,
 	})
 	if err != nil {

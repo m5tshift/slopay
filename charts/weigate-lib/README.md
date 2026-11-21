@@ -1,6 +1,6 @@
-# slopay-lib
+# weigate-lib
 
-Library chart компонентов SLOPay (SRS CI-5.3). Чарт сервиса, тестового компонента или `holmes-bridge`
+Library chart компонентов Weigate (SRS CI-5.3). Чарт сервиса, тестового компонента или `holmes-bridge`
 подключает библиотеку зависимостью и рендерит все ресурсы одним шаблоном. Образов и чартов Bitnami нет.
 
 ## Подключение
@@ -13,15 +13,15 @@ name: invoice-service
 type: application
 version: 0.1.0
 dependencies:
-  - name: slopay-lib
+  - name: weigate-lib
     version: 0.1.0
-    repository: file://../slopay-lib
+    repository: file://../weigate-lib
 ```
 
 `charts/<component>/templates/all.yaml`:
 
 ```yaml
-{{ include "slopay-lib.all" . }}
+{{ include "weigate-lib.all" . }}
 ```
 
 Рабочий пример — [`example/`](example/): `values.yaml` — минимальный компонент, `values-all.yaml` — все опции.
@@ -82,7 +82,7 @@ secretStore:            # хранилище по умолчанию для Exte
   kind: ClusterSecretStore
   name: openbao
 secrets:
-  - name: postgres      # логическое имя: каталог /var/run/secrets/slopay/postgres
+  - name: postgres      # логическое имя: каталог /var/run/secrets/weigate/postgres
     externalSecret:
       enabled: true     # иначе Secret должен уже существовать
       refreshInterval: 1m
@@ -94,7 +94,7 @@ secrets:
 postgres:
   enabled: true
   url: postgres://invoice-service@pg-rw.db.svc:5432/invoice
-  password: {secret: postgres, key: password}   # -> POSTGRES_PASSWORD_FILE=/var/run/secrets/slopay/postgres/password
+  password: {secret: postgres, key: password}   # -> POSTGRES_PASSWORD_FILE=/var/run/secrets/weigate/postgres/password
 ```
 
 Секрет монтируется каталогом, без `subPath`: kubelet обновляет файл после ротации пароля, и сервис

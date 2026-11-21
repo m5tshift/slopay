@@ -23,8 +23,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/m5tshift/slopay/testkit/payer-sim/internal/invoice"
-	"github.com/m5tshift/slopay/testkit/payer-sim/internal/payer"
+	"github.com/m5tshift/weigate/testkit/payer-sim/internal/invoice"
+	"github.com/m5tshift/weigate/testkit/payer-sim/internal/payer"
 )
 
 const anvilImage = "ghcr.io/foundry-rs/foundry:v1.10.0"

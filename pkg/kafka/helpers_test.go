@@ -7,7 +7,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const testSource = "/slopay/invoice-service"
+const testSource = "/weigate/invoice-service"
 
 // createdData is the data of the invoice.created example of contracts/asyncapi/invoice-service.yaml.
 func createdData() map[string]any {

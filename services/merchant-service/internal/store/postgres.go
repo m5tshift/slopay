@@ -12,9 +12,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/outbox"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/merchant"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/outbox"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/merchant"
 )
 
 // Postgres is a merchant.Store on a pgx pool.

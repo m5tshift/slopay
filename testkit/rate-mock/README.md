@@ -40,7 +40,7 @@
 ## Сборка и тесты
 
 ```sh
-docker build -f testkit/rate-mock/Dockerfile -t slopay/rate-mock .
+docker build -f testkit/rate-mock/Dockerfile -t weigate/rate-mock .
 go test -race ./testkit/rate-mock/...
 ```
 

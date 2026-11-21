@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/recon"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/recon"
 )
 
 // balanceOfSelector is the selector of balanceOf(address).

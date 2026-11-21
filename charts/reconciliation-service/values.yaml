@@ -1,8 +1,8 @@
-# reconciliation-service on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag, addresses,
-# ExternalSecret references) are set in slopay-gitops.
+# reconciliation-service on weigate-lib (charts/weigate-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in weigate-gitops.
 image:
-  repository: zot.example.internal/slopay/reconciliation-service
-  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  repository: zot.example.internal/weigate/reconciliation-service
+  # CI sets the short commit SHA in weigate-gitops; this placeholder only lets the chart render.
   tag: dev
 resources:
   requests:
@@ -19,10 +19,10 @@ leader:
 kafka:
   enabled: true
   brokers:
-    - slopay-kafka-bootstrap.kafka.svc:9092
+    - weigate-kafka-bootstrap.kafka.svc:9092
 
 secrets:
-  # Password of the service's MongoDB user: /var/run/secrets/slopay/mongodb/password.
+  # Password of the service's MongoDB user: /var/run/secrets/weigate/mongodb/password.
   - name: mongodb
 
 # Reports and the projection of invoice.events (SRS 4.1.8).

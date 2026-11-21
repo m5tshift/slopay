@@ -12,10 +12,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/hdwallet"
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/telemetry"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/xpubtest"
+	"github.com/m5tshift/weigate/pkg/hdwallet"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/telemetry"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/xpubtest"
 )
 
 var ctx = context.Background()
@@ -189,18 +189,18 @@ func TestSetWebhook(t *testing.T) {
 	f := newFixture(t)
 	m, _ := f.register(t)
 	tol := 250
-	got, err := f.svc.SetWebhook(ctx, m.ID, "https://merchant.example.com/hooks/slopay", &tol)
+	got, err := f.svc.SetWebhook(ctx, m.ID, "https://merchant.example.com/hooks/weigate", &tol)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.WebhookURL == nil || *got.WebhookURL != "https://merchant.example.com/hooks/slopay" || got.ToleranceBps != 250 || got.Version != 2 {
+	if got.WebhookURL == nil || *got.WebhookURL != "https://merchant.example.com/hooks/weigate" || got.ToleranceBps != 250 || got.Version != 2 {
 		t.Errorf("merchant = %+v", got)
 	}
 	if len(f.store.Events) != 0 {
 		t.Error("published without xpub")
 	}
 	// Omitted tolerance is the default.
-	got, err = f.svc.SetWebhook(ctx, m.ID, "https://merchant.example.com/hooks/slopay", nil)
+	got, err = f.svc.SetWebhook(ctx, m.ID, "https://merchant.example.com/hooks/weigate", nil)
 	if err != nil || got.ToleranceBps != 100 || got.Version != 3 {
 		t.Errorf("default tolerance: %+v, %v", got, err)
 	}

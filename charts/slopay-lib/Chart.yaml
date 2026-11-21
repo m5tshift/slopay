@@ -1,5 +1,0 @@
-apiVersion: v2
-name: slopay-lib
-description: Library chart for SLOPay components (SRS CI-5.3)
-type: library
-version: 0.1.0

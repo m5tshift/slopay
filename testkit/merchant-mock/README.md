@@ -15,7 +15,7 @@
 | Исход (`outcome`) | Ответ | Когда |
 |---|---|---|
 | `injected_error` | статус команды (`500`) | на endpoint включена ошибка; подпись не проверяется |
-| `malformed` | `400` | нет или неверны заголовки `X-SLOPay-*`; тело не событие счёта |
+| `malformed` | `400` | нет или неверны заголовки `X-Weigate-*`; тело не событие счёта |
 | `unknown_secret_version` | `401` | версии нет среди текущей и предыдущей, либо предыдущая старше `PREVIOUS_SECRET_TTL` |
 | `invalid_timestamp` | `401` | метка отличается от часов компонента больше чем на `TIMESTAMP_TOLERANCE` |
 | `invalid_signature` | `401` | `v1=hex(HMAC-SHA256(секрет, "<метка>.<сырое тело>"))` не совпала (сравнение за постоянное время) |
@@ -60,7 +60,7 @@ Endpoint создаётся первой командой `secret` или `fault
 ## Сборка и тесты
 
 ```sh
-docker build -f testkit/merchant-mock/Dockerfile -t slopay/merchant-mock .
+docker build -f testkit/merchant-mock/Dockerfile -t weigate/merchant-mock .
 go test -race ./testkit/merchant-mock/...
 ```
 

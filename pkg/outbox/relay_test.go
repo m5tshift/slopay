@@ -12,7 +12,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 type fakeStore struct {

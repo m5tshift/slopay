@@ -35,7 +35,7 @@ func TestEncodeRejects(t *testing.T) {
 		"unknown schema":    func(e *Event) { e.DataSchema = SchemaURL("no.such", 1) },
 		"empty schema":      func(e *Event) { e.DataSchema = "" },
 		"wrong type":        func(e *Event) { e.Type = "invoice.paid" },
-		"wrong source":      func(e *Event) { e.Source = "/slopay/other-service" },
+		"wrong source":      func(e *Event) { e.Source = "/weigate/other-service" },
 		"bad spec version":  func(e *Event) { e.SpecVersion = "0.3" },
 		"missing id":        func(e *Event) { e.ID = "" },
 		"bad data field":    func(e *Event) { e.Data = json.RawMessage(`{"invoiceId":"x"}`) },

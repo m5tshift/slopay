@@ -17,11 +17,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/m5tshift/slopay/pkg/hdwallet"
-	"github.com/m5tshift/slopay/pkg/money"
+	"github.com/m5tshift/weigate/pkg/hdwallet"
+	"github.com/m5tshift/weigate/pkg/money"
 )
 
-const meterName = "github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+const meterName = "github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
 
 // Store keeps invoices and the merchant projection. Implementations: store.Postgres and MemStore.
 type Store interface {
@@ -120,17 +120,17 @@ func NewService(store Store, rates RateSource, cache StatusCache, cfg Config, lo
 	}
 	s := &Service{store: store, rates: rates, cache: cache, cfg: cfg, log: log}
 	var err error
-	if s.rateAge, err = m.Float64Histogram("slopay_invoice_rate_age_seconds",
+	if s.rateAge, err = m.Float64Histogram("weigate_invoice_rate_age_seconds",
 		metric.WithDescription("Age of the rate fixed in a new invoice (SRS 4.1.3: at most 60 s)"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(1, 2, 5, 10, 15, 20, 30, 45, 60)); err != nil {
 		return nil, err
 	}
-	if s.created, err = m.Int64Counter("slopay_invoices_created",
+	if s.created, err = m.Int64Counter("weigate_invoices_created",
 		metric.WithDescription("Invoices created, by asset kind")); err != nil {
 		return nil, err
 	}
-	if s.cacheOp, err = m.Int64Counter("slopay_invoice_status_cache",
+	if s.cacheOp, err = m.Int64Counter("weigate_invoice_status_cache",
 		metric.WithDescription("Status cache lookups, by result: hit or miss")); err != nil {
 		return nil, err
 	}

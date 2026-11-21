@@ -1,4 +1,4 @@
-// Package contracts holds the HTTP and Kafka contracts of SLOPay. The tests lint the AsyncAPI documents,
+// Package contracts holds the HTTP and Kafka contracts of Weigate. The tests lint the AsyncAPI documents,
 // check the topics against SRS 4.1.5 and validate every event example against its JSON Schema.
 package contracts
 
@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	schemaBaseURL = "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/"
+	schemaBaseURL = "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/"
 	asyncAPIID    = "http://asyncapi.com/definitions/3.0.0/asyncapi.json"
 	// replicas is the replication factor of every topic (SRS 4.1.5: RF = 3).
 	replicas = 3
@@ -693,7 +693,7 @@ func TestSchemasRejectInvalidEvents(t *testing.T) {
 		{"missing subject", "invoice.paid", "eth-two-transfers", "subject", removed{}},
 		{"missing id", "chain.transfer", "eth", "id", removed{}},
 		{"missing source", "invoice.paid", "eth-two-transfers", "source", removed{}},
-		{"wrong source", "invoice.paid", "eth-two-transfers", "source", "/slopay/ledger-service"},
+		{"wrong source", "invoice.paid", "eth-two-transfers", "source", "/weigate/ledger-service"},
 		{"time not RFC 3339", "invoice.created", "eth", "time", "15.11.2026 10:00"},
 		{"wrong specversion", "chain.reorg", "depth-2", "specversion", "0.3"},
 		{"merchant with a webhook secret", "merchant.updated", "registered", "data.webhookSecret", "s3cret"},

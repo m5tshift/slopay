@@ -31,16 +31,16 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/storage"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/events"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/invoicetest"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/ledger"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/node"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/projection"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/recon"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/report"
+	"github.com/m5tshift/weigate/pkg/breaker"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/events"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/invoicetest"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/ledger"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/node"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/projection"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/recon"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/report"
 )
 
 const (
@@ -426,8 +426,8 @@ func TestReconciliation(t *testing.T) {
 	done := make(chan struct{})
 	go func() { rec.Schedule(sctx); close(done) }()
 	var last *recon.Report
-	eventually(t, "a published report and slopay_reconciliation_mismatches = 2", func() bool {
-		v, ok := gauge(t, reader, "slopay_reconciliation_mismatches")
+	eventually(t, "a published report and weigate_reconciliation_mismatches = 2", func() bool {
+		v, ok := gauge(t, reader, "weigate_reconciliation_mismatches")
 		r, err := reports.Latest(ctx)
 		if err != nil || r == nil || !r.Published || !ok || v != 2 {
 			return false
@@ -437,7 +437,7 @@ func TestReconciliation(t *testing.T) {
 	})
 	stop()
 	<-done
-	if _, ok := gauge(t, reader, "slopay_reconciliation_mismatches"); ok {
+	if _, ok := gauge(t, reader, "weigate_reconciliation_mismatches"); ok {
 		t.Error("the gauge is reported after the leadership ended")
 	}
 	if last.Mismatches != 2 || last.AfterWindow != 1 || last.AddressesChecked != 4 || last.ChainID != anvilChainID {

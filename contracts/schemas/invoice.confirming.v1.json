@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.confirming.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.confirming.v1.json",
   "title": "invoice.confirming",
   "description": "The latest accounted transfer has 2..N-1 confirmations, or an additional payment returned an UNDERPAID invoice before expiresAt.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "invoice.confirming" },
-    "source": { "const": "/slopay/invoice-service" },
+    "source": { "const": "/weigate/invoice-service" },
     "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.confirming.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.confirming.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

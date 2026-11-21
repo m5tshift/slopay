@@ -1,18 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.new_head.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/chain.new_head.v1.json",
   "title": "chain.new_head",
   "description": "chain-watcher processed a new canonical block. Consumers build the canonical chain (number -> hash) and chain time from these events. The ID is deterministic for the block: <chainId>:<hash>.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "chain.new_head" },
-    "source": { "const": "/slopay/chain-watcher" },
+    "source": { "const": "/weigate/chain-watcher" },
     "subject": {
       "description": "chainId as a decimal string.",
       "type": "string",
       "pattern": "^[1-9][0-9]*$"
     },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/chain.new_head.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/chain.new_head.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

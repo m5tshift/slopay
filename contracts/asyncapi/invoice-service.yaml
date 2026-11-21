@@ -1,5 +1,5 @@
 asyncapi: 3.0.0
-id: urn:slopay:invoice-service
+id: urn:weigate:invoice-service
 info:
   title: invoice-service events
   version: 1.0.0
@@ -107,11 +107,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d01
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.created
             time: '2026-11-15T10:00:00Z'
             subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.created.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.created.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
@@ -131,11 +131,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d02
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.created
             time: '2026-11-15T10:00:00Z'
             subject: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.created.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.created.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
@@ -164,11 +164,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d03
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.detected
             time: '2026-11-15T10:02:01Z'
             subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.detected.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.detected.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
@@ -195,11 +195,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d04
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.confirming
             time: '2026-11-15T10:02:13Z'
             subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.confirming.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.confirming.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
@@ -226,11 +226,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d05
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.paid
             time: '2026-11-15T10:03:13Z'
             subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.paid.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.paid.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
@@ -272,11 +272,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d06
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.underpaid
             time: '2026-11-15T10:04:01Z'
             subject: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.underpaid.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.underpaid.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
@@ -310,11 +310,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d07
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.expired
             time: '2026-11-15T10:15:13Z'
             subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.expired.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.expired.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
@@ -339,11 +339,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d08
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.late_paid
             time: '2026-11-15T11:00:01Z'
             subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_paid.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.late_paid.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
@@ -377,11 +377,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d09
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.reverted
             time: '2026-11-15T10:02:25Z'
             subject: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.reverted.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.reverted.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 5d7c1a52-3b1e-4f0a-9a43-2f6f0c9b8e11
@@ -416,11 +416,11 @@ components:
           payload:
             specversion: '1.0'
             id: 9f3b2c1d-8e7a-4b6c-9d5e-1f2a3b4c5d10
-            source: /slopay/invoice-service
+            source: /weigate/invoice-service
             type: invoice.late_transfer
             time: '2026-11-15T10:30:01Z'
             subject: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_transfer.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.late_transfer.v1.json
             datacontenttype: application/json
             data:
               invoiceId: 6e8d2b63-4c2f-4a1b-8b54-3a7a1d0c9f22

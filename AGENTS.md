@@ -1,4 +1,4 @@
-# AGENTS.md — SLOPay
+# AGENTS.md — Weigate
 
 Шлюз криптоплатежей: мерчант выставляет счёт в USD, покупатель платит в ETH, мерчант получает подписанный
 вебхук после N подтверждений. Только тестовые сети (Anvil, опционально Sepolia).
@@ -28,8 +28,8 @@ testkit/
   locust/                профили нагрузки на Python; запускается с рабочей машины, образа нет
 tools/holmes-bridge/     приёмник вебхуков Alertmanager для HolmesGPT (Go, SRS 4.5.5)
 charts/
-  slopay-lib/            library chart
-  <component>/           чарт сервиса, тестового компонента или holmes-bridge поверх slopay-lib
+  weigate-lib/            library chart
+  <component>/           чарт сервиса, тестового компонента или holmes-bridge поверх weigate-lib
 infra/
   talos/                 патчи машинной конфигурации Talos; подставляет infra/terraform/talos
   bootstrap/             скрипт минимального стенда: неймспейсы, ArgoCD, root Application (до Terraform, #53)
@@ -37,7 +37,7 @@ infra/
   terraform/             слои Terraform с отдельными state (SRS INF-2.1, ADR 0008)
     hyperv/              VM, vSwitch, VHDX Hyper-V (провайдер taliesins/hyperv)
     talos/               schematic, ISO, установка и конфигурация Talos (провайдер siderolabs/talos)
-  ansible/roles/strimzi/ генерация оператора и CR Kafka в slopay-gitops (SRS INF-2.3)
+  ansible/roles/strimzi/ генерация оператора и CR Kafka в weigate-gitops (SRS INF-2.3)
   ansible/roles/lb/      HAProxy + Keepalived на VM lb-1, lb-2 (SRS 4.1.8)
   karpenter-kwok/        сборка Karpenter с провайдером KWOK (SRS INF-1.2)
 tests/acceptance/        приёмочные испытания (SRS раздел 8)
@@ -47,13 +47,13 @@ tests/e2e/               сквозной тест среза на Testcontainer
 .github/workflows/       CI
 ```
 
-Манифесты и values для кластера живут в отдельном репозитории `slopay-gitops`, его правила — в его `AGENTS.md`.
+Манифесты и values для кластера живут в отдельном репозитории `weigate-gitops`, его правила — в его `AGENTS.md`.
 
 ## Стек
 
 | Область | Выбор |
 |---|---|
-| Язык | Go, один модуль `github.com/m5tshift/slopay` на весь репозиторий, версия — в `go.mod` |
+| Язык | Go, один модуль `github.com/m5tshift/weigate` на весь репозиторий, версия — в `go.mod` |
 | HTTP | `net/http` (маршрутизация стандартной библиотеки), код из OpenAPI 3.0.3 — `oapi-codegen` |
 | Kafka | `franz-go` |
 | EVM | `go-ethereum` |
@@ -103,7 +103,7 @@ make precommit          # gitleaks и базовые проверки; один 
   что в `go.mod`, затем финальный образ distroless static, пользователь `nonroot`. Shell и пакетного
   менеджера в финальном образе нет.
 - Базовые образы закреплены по digest и скачиваются через Zot.
-- Имя образа — `slopay/<component>`, тег — короткий SHA коммита.
+- Имя образа — `weigate/<component>`, тег — короткий SHA коммита.
 - Образа нет у `testkit/locust/`, `testkit/stand-setup/` и `testkit/erc20/`: они запускаются с рабочей машины.
 
 ```dockerfile
@@ -128,15 +128,15 @@ CI пересобирает только то, что изменилось:
 | `pkg/**`, `go.mod`, `go.sum`, `.dockerignore`, `.github/workflows/build.yml` | все компоненты на Go |
 | `contracts/openapi/**` | компоненты, у которых код сгенерирован из изменённого контракта |
 | `contracts/schemas.go`, `contracts/schemas/**` | компоненты, чей `Dockerfile` копирует схемы событий |
-| `charts/<component>/**`, `charts/slopay-lib/**` | чарт компонента или все чарты |
+| `charts/<component>/**`, `charts/weigate-lib/**` | чарт компонента или все чарты |
 
 Чарты публикуются в Zot как OCI-артефакты (SRS CI-5.3). Новая версия чарта выходит, когда в PR меняется
-`version` в `Chart.yaml`. После сборки CI обновляет в `slopay-gitops` тег образа, а при выходе новой версии
+`version` в `Chart.yaml`. После сборки CI обновляет в `weigate-gitops` тег образа, а при выходе новой версии
 чарта — и её.
 
 На минимальном стенде (SRS 6.4) образы собирает `.github/workflows/build.yml` на раннерах GitHub и публикует
-в GHCR (`ghcr.io/m5tshift/slopay/<component>`, пакеты публичные). Затем он пушит новый тег в `main`
-репозитория `slopay-gitops` deploy key из секрета репозитория `GITOPS_DEPLOY_KEY`. Список компонентов
+в GHCR (`ghcr.io/m5tshift/weigate/<component>`, пакеты публичные). Затем он пушит новый тег в `main`
+репозитория `weigate-gitops` deploy key из секрета репозитория `GITOPS_DEPLOY_KEY`. Список компонентов
 определяет `.github/scripts/changed-components.sh`, ручной запуск workflow пересобирает всё. Сборка
 на self-hosted раннерах, Zot, OCI-чарты и ключ из OpenBao — #75, #76.
 
@@ -204,11 +204,11 @@ SSH-ключи (в том числе deploy key), вывод `bao operator init`
 - Перед коммитом проверяй `git diff --staged`; gitleaks в pre-commit и CI.
 - Workflow GitHub Actions: явные минимальные `permissions:`, сторонние actions закреплены по SHA коммита,
   `pull_request_target` не используется.
-- На self-hosted раннерах идут только сборка BuildKit (rootless), push в Zot и обновление `slopay-gitops`,
+- На self-hosted раннерах идут только сборка BuildKit (rootless), push в Zot и обновление `weigate-gitops`,
   и только для push в `main`. Проверки PR — только на раннерах GitHub.
 - Self-hosted раннеры эфемерные, работают в неймспейсе `ci` без прав на кластер, сеть ограничена GitHub,
   Zot, `proxy.golang.org` и `sum.golang.org`.
-- `slopay-gitops` обновляется deploy key из OpenBao с правом записи только в этот репозиторий,
+- `weigate-gitops` обновляется deploy key из OpenBao с правом записи только в этот репозиторий,
   а не через `GITHUB_TOKEN`.
 
 ## Кластер

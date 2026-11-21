@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/m5tshift/slopay/pkg/hdwallet"
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/client"
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/wallet"
+	"github.com/m5tshift/weigate/pkg/hdwallet"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/client"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/wallet"
 )
 
 const mnemonic = "test test test test test test test test test test test junk"

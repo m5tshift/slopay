@@ -30,7 +30,7 @@ info:
     Invoice state changes are published to `invoice.events` from the transactional outbox (see
     `../asyncapi/invoice-service.yaml`).
 servers:
-  - url: https://slopay.example.com
+  - url: https://weigate.example.com
     description: Stand gateway (the real host is set by the gateway route)
 
 tags:

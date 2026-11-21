@@ -19,7 +19,7 @@ import (
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/legacy"
 
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
 )
 
 const contractFile = "../../../../contracts/openapi/rate-service.yaml"

@@ -27,7 +27,7 @@ variable "winrm_insecure" {
 
 variable "switch_name" {
   type    = string
-  default = "slopay-external"
+  default = "weigate-external"
 }
 
 variable "net_adapter_name" {

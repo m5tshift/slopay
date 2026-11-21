@@ -1,9 +1,0 @@
-apiVersion: v2
-name: slopay-example
-description: Example consumer of slopay-lib, used by make helm-lint
-type: application
-version: 0.1.0
-dependencies:
-  - name: slopay-lib
-    version: 0.1.0
-    repository: file://..

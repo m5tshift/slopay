@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/services/rate-service/internal/config"
-	"github.com/m5tshift/slopay/services/rate-service/internal/source"
-	"github.com/m5tshift/slopay/services/rate-service/internal/store"
+	"github.com/m5tshift/weigate/services/rate-service/internal/config"
+	"github.com/m5tshift/weigate/services/rate-service/internal/source"
+	"github.com/m5tshift/weigate/services/rate-service/internal/store"
 )
 
 func TestNewSourcesMock(t *testing.T) {

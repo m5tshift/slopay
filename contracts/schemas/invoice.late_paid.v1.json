@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_paid.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.late_paid.v1.json",
   "title": "invoice.late_paid",
   "description": "A transfer to the address of an EXPIRED invoice reached N confirmations within the tracking window. received is the actual sum.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "invoice.late_paid" },
-    "source": { "const": "/slopay/invoice-service" },
+    "source": { "const": "/weigate/invoice-service" },
     "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.late_paid.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.late_paid.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

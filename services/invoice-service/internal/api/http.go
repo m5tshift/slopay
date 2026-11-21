@@ -17,8 +17,8 @@ import (
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/jwks"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/jwks"
 )
 
 // maxBodyBytes limits request bodies; a valid creation request is under 300 bytes.

@@ -1,15 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.receipt_posted.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/ledger.receipt_posted.v1.json",
   "title": "ledger.receipt_posted",
   "description": "Double-entry posting of a transfer that reached N confirmations (SRS 4.1.3): debit the invoice address, credit the merchant received account. One posting per transfer, also for invoice.late_transfer. The event ID repeats the idempotency key: receipt:<blockHash>:<txHash>:<logIndex or empty>. There are no reversing postings.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "ledger.receipt_posted" },
     "id": { "pattern": "^receipt:0x[0-9a-f]{64}:0x[0-9a-f]{64}:[0-9]*$" },
-    "source": { "const": "/slopay/ledger-service" },
+    "source": { "const": "/weigate/ledger-service" },
     "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.receipt_posted.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/ledger.receipt_posted.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

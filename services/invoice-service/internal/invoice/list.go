@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 // Filter selects invoices of a merchant. The order is createdAt descending, ties by id descending.
@@ -100,7 +100,7 @@ func (f Filter) Matches(inv Invoice) bool {
 
 // Event source, type and topic of invoice.created (contracts/asyncapi/invoice-service.yaml).
 const (
-	EventSource      = "/slopay/invoice-service"
+	EventSource      = "/weigate/invoice-service"
 	EventCreated     = "invoice.created"
 	TopicInvoices    = "invoice.events"
 	TopicMerchants   = "merchant.events"

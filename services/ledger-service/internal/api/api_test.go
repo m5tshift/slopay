@@ -21,10 +21,10 @@ import (
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/telemetry"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledger"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledgertest"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/telemetry"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledger"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledgertest"
 )
 
 const contractFile = "../../../../contracts/openapi/ledger-service.yaml"

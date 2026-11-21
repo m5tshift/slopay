@@ -1,4 +1,4 @@
-// Package money implements SLOPay amount arithmetic (SRS 4.1.3, 4.1.4).
+// Package money implements Weigate amount arithmetic (SRS 4.1.3, 4.1.4).
 //
 // USD is int64 cents, asset amounts are *big.Int in minimal units, rates are
 // exact rationals. There is no floating point anywhere.

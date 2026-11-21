@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/invoicetest"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/invoicetest"
 )
 
 const (

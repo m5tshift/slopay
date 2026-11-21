@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 // Backoff of a failed write (PostgreSQL unavailable): the pause starts at Min and doubles up to Max.

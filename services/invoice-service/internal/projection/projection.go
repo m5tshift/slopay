@@ -11,8 +11,8 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
 )
 
 // Applier applies a merchant.updated (invoice.Service implements it).

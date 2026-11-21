@@ -1,9 +1,9 @@
 {{/*
-Default values of a SLOPay component. The consumer's values are merged on top of them
-(slopay-lib.values). Optional features are off: a minimal stand has no Istio, External
+Default values of a Weigate component. The consumer's values are merged on top of them
+(weigate-lib.values). Optional features are off: a minimal stand has no Istio, External
 Secrets Operator or ServiceMonitor CRDs.
 */}}
-{{- define "slopay-lib.defaults" -}}
+{{- define "weigate-lib.defaults" -}}
 nameOverride: ""
 image:
   repository: ""
@@ -124,8 +124,8 @@ istio:
         httpStatus: 503
 {{- end -}}
 
-{{/* Defaults merged with the consumer's values, as YAML. Use: $v := include "slopay-lib.values" . | fromYaml */}}
-{{- define "slopay-lib.values" -}}
-{{- $defaults := include "slopay-lib.defaults" . | fromYaml -}}
+{{/* Defaults merged with the consumer's values, as YAML. Use: $v := include "weigate-lib.values" . | fromYaml */}}
+{{- define "weigate-lib.values" -}}
+{{- $defaults := include "weigate-lib.defaults" . | fromYaml -}}
 {{- toYaml (mergeOverwrite $defaults (deepCopy .Values)) -}}
 {{- end -}}

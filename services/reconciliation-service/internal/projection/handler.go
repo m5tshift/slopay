@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/recon"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/recon"
 )
 
 // Topic and event types of invoice-service (contracts/asyncapi/invoice-service.yaml).

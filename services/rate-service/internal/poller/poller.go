@@ -15,12 +15,12 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
-	"github.com/m5tshift/slopay/services/rate-service/internal/source"
+	"github.com/m5tshift/weigate/pkg/breaker"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/services/rate-service/internal/source"
 )
 
-const meterName = "github.com/m5tshift/slopay/services/rate-service/internal/poller"
+const meterName = "github.com/m5tshift/weigate/services/rate-service/internal/poller"
 
 // Publisher publishes ticks and latest rates (events.Publisher).
 type Publisher interface {
@@ -69,7 +69,7 @@ type request struct {
 
 var requests = []request{{rate.Coinbase, rate.ETHUSD}, {rate.Coinbase, rate.USDTUSD}, {rate.OKX, rate.ETHUSDT}}
 
-// Results of a source request in slopay_rate_source_requests_total.
+// Results of a source request in weigate_rate_source_requests_total.
 const (
 	resultOK       = "ok"
 	resultError    = "error"
@@ -113,12 +113,12 @@ func New(cfg Config) (*Poller, error) {
 		m = otel.Meter(meterName)
 	}
 	var err error
-	if p.requests, err = m.Int64Counter("slopay_rate_source_requests",
+	if p.requests, err = m.Int64Counter("weigate_rate_source_requests",
 		metric.WithDescription("Quote requests to the rate sources by result: ok, error, rejected (breaker open), limited (outgoing rate limit)")); err != nil {
 		return nil, err
 	}
 	pairAttr := metric.WithAttributes(attribute.String("pair", string(rate.ETHUSD)))
-	if _, err = m.Int64ObservableGauge("slopay_rate_diverged",
+	if _, err = m.Int64ObservableGauge("weigate_rate_diverged",
 		metric.WithDescription("1 while the sources diverge beyond the limit and the rate is unreliable; reported by the leader"),
 		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
 			if d, ok := p.divergedState(); ok {
@@ -132,7 +132,7 @@ func New(cfg Config) (*Poller, error) {
 		})); err != nil {
 		return nil, err
 	}
-	if _, err = m.Int64ObservableGauge("slopay_rate_divergence_bps",
+	if _, err = m.Int64ObservableGauge("weigate_rate_divergence_bps",
 		metric.WithDescription("Divergence of the last two compared quotes, basis points; reported by the leader"),
 		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
 			if bps, ok := p.divergence(); ok {
@@ -310,13 +310,13 @@ func (p *Poller) fetch(ctx context.Context, rq request) (rate.Quote, bool) {
 	return q, true
 }
 
-// RegisterAgeGauge registers slopay_rate_age_seconds{pair}: the age of the latest rate in the cache of this
+// RegisterAgeGauge registers weigate_rate_age_seconds{pair}: the age of the latest rate in the cache of this
 // replica (NFR-08, alert RateStale). Every replica reports it.
 func RegisterAgeGauge(m metric.Meter, cache *rate.Cache, now func() time.Time) error {
 	if m == nil {
 		m = otel.Meter(meterName)
 	}
-	_, err := m.Float64ObservableGauge("slopay_rate_age_seconds",
+	_, err := m.Float64ObservableGauge("weigate_rate_age_seconds",
 		metric.WithDescription("Age of the latest rate of the pair in this replica, seconds from quotedAt"),
 		metric.WithFloat64Callback(func(_ context.Context, o metric.Float64Observer) error {
 			for _, pair := range rate.Served {

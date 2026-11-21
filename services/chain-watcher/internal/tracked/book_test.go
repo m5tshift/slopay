@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/projection"
 )
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))

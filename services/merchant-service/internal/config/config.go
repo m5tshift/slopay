@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/storage"
+	"github.com/m5tshift/weigate/pkg/storage"
 )
 
 // Config is the service configuration.
@@ -26,7 +26,7 @@ type Config struct {
 
 	// JWTKeyFile is the mounted ECDSA P-256 private key in PEM (JWT_SIGNING_KEY_FILE, required).
 	JWTKeyFile string
-	// JWTIssuer is the iss claim checked by the gateway (JWT_ISSUER, default slopay-merchant-service).
+	// JWTIssuer is the iss claim checked by the gateway (JWT_ISSUER, default weigate-merchant-service).
 	JWTIssuer string
 	// JWTTTL is the token lifetime (JWT_TTL, SRS 4.1.10: 15m).
 	JWTTTL time.Duration
@@ -64,7 +64,7 @@ func FromEnv() (Config, error) {
 		LogLevel:     envOr("LOG_LEVEL", "info"),
 		KafkaBrokers: splitList(os.Getenv("KAFKA_BROKERS")),
 		JWTKeyFile:   os.Getenv("JWT_SIGNING_KEY_FILE"),
-		JWTIssuer:    envOr("JWT_ISSUER", "slopay-merchant-service"),
+		JWTIssuer:    envOr("JWT_ISSUER", "weigate-merchant-service"),
 
 		OpenBaoAddr:      os.Getenv("OPENBAO_ADDR"),
 		OpenBaoTokenFile: os.Getenv("OPENBAO_TOKEN_FILE"),

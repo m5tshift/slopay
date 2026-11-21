@@ -20,7 +20,7 @@
   умолчанию через `gateway`. Тот же адрес задан в параметре ядра `ip=` schematic узла.
 - Диск данных (только воркер): `UserVolumeConfig` с именем `data` на диске, который не системный
   (`!system_disk`, минимум 40 ГБ — второй диск 50 ГБ). Talos монтирует том в `/var/mnt/data`.
-  local-path-provisioner пишет в `/var/mnt/data/local-path` (путь задаётся в его настройках в `slopay-gitops`).
+  local-path-provisioner пишет в `/var/mnt/data/local-path` (путь задаётся в его настройках в `weigate-gitops`).
 - Control plane: рабочие поды на нём не планируются (параметр `allowSchedulingOnControlPlanes` не меняется).
 
 ## Секреты

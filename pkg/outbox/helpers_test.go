@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 // invoiceID returns a valid invoice UUID for n (the schemas require UUIDs).
@@ -13,7 +13,7 @@ func invoiceID(n int) string { return fmt.Sprintf("5d7c1a52-3b1e-4f0a-9a43-2f6f0
 // event builds a valid invoice.created for the invoice (the Kafka key) whose amountUsdCents carries seq.
 func event(t *testing.T, invoice string, seq int) kafka.Event {
 	t.Helper()
-	ev, err := kafka.NewEvent("/slopay/invoice-service", "invoice.created", invoice, 1, map[string]any{
+	ev, err := kafka.NewEvent("/weigate/invoice-service", "invoice.created", invoice, 1, map[string]any{
 		"invoiceId":      invoice,
 		"merchantId":     "0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b",
 		"sequence":       1, // invoice.created is always sequence 1

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/recon"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/recon"
 )
 
 const (

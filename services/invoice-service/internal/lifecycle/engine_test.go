@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoicetest"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/projection"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoicetest"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/projection"
 )
 
 const testChain = 31337
@@ -379,7 +379,7 @@ func (w *waiter) Wait(context.Context) error {
 
 func blockEvent(t *testing.T, typ string, data any) kafka.Event {
 	t.Helper()
-	ev, err := kafka.NewEvent("/slopay/chain-watcher", typ, "31337", 1, data)
+	ev, err := kafka.NewEvent("/weigate/chain-watcher", typ, "31337", 1, data)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -11,9 +11,9 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/telemetry"
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/telemetry"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
 )
 
 var t0 = time.Date(2026, 11, 28, 12, 0, 0, 0, time.UTC)

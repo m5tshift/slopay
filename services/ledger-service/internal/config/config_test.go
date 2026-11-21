@@ -17,7 +17,7 @@ func setRequired(t *testing.T) {
 	}
 	t.Setenv("KAFKA_BROKERS", "k1:9092, k2:9092,")
 	t.Setenv("POSTGRES_URL", "postgres://ledger-service@pg:5432/ledger")
-	t.Setenv("POSTGRES_PASSWORD_FILE", "/var/run/secrets/slopay/postgres/password")
+	t.Setenv("POSTGRES_PASSWORD_FILE", "/var/run/secrets/weigate/postgres/password")
 }
 
 func TestDefaults(t *testing.T) {

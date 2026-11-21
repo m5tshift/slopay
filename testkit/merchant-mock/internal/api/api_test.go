@@ -16,7 +16,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers/legacy"
 
-	"github.com/m5tshift/slopay/testkit/merchant-mock/internal/receiver"
+	"github.com/m5tshift/weigate/testkit/merchant-mock/internal/receiver"
 )
 
 const contractFile = "../../../../contracts/openapi/merchant-mock.yaml"
@@ -83,8 +83,8 @@ func event(id string, seq int) string {
 func signed(key string, version int, body string) map[string]string {
 	ts := strconv.FormatInt(now.Unix(), 10)
 	return map[string]string{
-		"X-SLOPay-Timestamp": ts, "X-SLOPay-Signature": receiver.Sign([]byte(key), ts, []byte(body)),
-		"X-SLOPay-Secret-Version": strconv.Itoa(version),
+		"X-Weigate-Timestamp": ts, "X-Weigate-Signature": receiver.Sign([]byte(key), ts, []byte(body)),
+		"X-Weigate-Secret-Version": strconv.Itoa(version),
 	}
 }
 

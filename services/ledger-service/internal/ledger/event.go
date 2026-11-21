@@ -9,14 +9,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 // Topics and the CloudEvents source of the service (contracts/asyncapi/ledger-service.yaml).
 const (
 	TopicInvoices = "invoice.events"
 	TopicLedger   = "ledger.events"
-	Source        = "/slopay/ledger-service"
+	Source        = "/weigate/ledger-service"
 
 	TypeReceiptPosted = "ledger.receipt_posted"
 	TypeFeeAccrued    = "ledger.fee_accrued"

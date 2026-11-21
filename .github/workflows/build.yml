@@ -1,5 +1,5 @@
 # Image build after merge (SRS CI-5.2) on the minimal stand (SRS 6.4): GitHub-hosted runners, images in GHCR,
-# the tag in slopay-gitops updated with a deploy key. ARC, Zot and OCI charts come later (#75, #76).
+# the tag in weigate-gitops updated with a deploy key. ARC, Zot and OCI charts come later (#75, #76).
 # Only components affected by the push are rebuilt (AGENTS.md, "Сборка образов"); a manual run rebuilds all.
 name: build
 
@@ -91,8 +91,8 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
 
-  # Pushes straight to main of slopay-gitops: the ruleset lets deploy keys bypass the PR rule,
-  # and image.tag is changed only here (slopay-gitops AGENTS.md). Runs when every build succeeded.
+  # Pushes straight to main of weigate-gitops: the ruleset lets deploy keys bypass the PR rule,
+  # and image.tag is changed only here (weigate-gitops AGENTS.md). Runs when every build succeeded.
   gitops:
     name: gitops
     needs: [detect, build]
@@ -109,7 +109,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          repository: ${{ github.repository_owner }}/slopay-gitops
+          repository: ${{ github.repository_owner }}/weigate-gitops
           ref: main
           path: .gitops
           ssh-key: ${{ secrets.GITOPS_DEPLOY_KEY }}
@@ -127,12 +127,12 @@ jobs:
             git -C .gitops reset -q --hard origin/main
             updated="$(.github/scripts/bump-gitops-tags.sh .gitops . "$TAG" "${components[@]}" | paste -sd, -)"
             if [ -z "$updated" ]; then
-              echo "slopay-gitops is up to date"
+              echo "weigate-gitops is up to date"
               exit 0
             fi
             git -C .gitops commit -qam "chore(gitops): ${updated} image ${TAG}"
             if git -C .gitops push -q origin HEAD:main; then
-              echo "slopay-gitops: ${updated} -> ${TAG}"
+              echo "weigate-gitops: ${updated} -> ${TAG}"
               exit 0
             fi
             echo "push failed (attempt $attempt), retrying"

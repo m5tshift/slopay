@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
 )
 
 // Fetcher returns the latest quote of a pair from a source.
@@ -33,7 +33,7 @@ var ErrBadQuote = errors.New("source: bad quote")
 // maxBodyBytes limits a quote body; a valid one is about 100 bytes.
 const maxBodyBytes = 16 << 10
 
-const tracerName = "github.com/m5tshift/slopay/services/rate-service/internal/source"
+const tracerName = "github.com/m5tshift/weigate/services/rate-service/internal/source"
 
 // Mock reads quotes from rate-mock: GET {base}/sources/{source}/quotes/{pair}.
 type Mock struct {

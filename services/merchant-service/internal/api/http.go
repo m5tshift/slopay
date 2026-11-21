@@ -17,8 +17,8 @@ import (
 	"github.com/getkin/kin-openapi/routers/legacy"
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/services/merchant-service/internal/jwt"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/merchant"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/jwt"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/merchant"
 )
 
 // maxBodyBytes limits request bodies; the largest valid body (webhook settings) is about 2 KiB.

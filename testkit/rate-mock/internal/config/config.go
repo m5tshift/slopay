@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m5tshift/slopay/testkit/rate-mock/internal/market"
+	"github.com/m5tshift/weigate/testkit/rate-mock/internal/market"
 )
 
 // maxBandBps keeps the three walks of the normal mode (coinbase ETH-USD, okx ETH-USDT, coinbase USDT-USD) within

@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
 )
 
 // maxBody bounds the answer read from rate-service.
@@ -123,7 +123,7 @@ func retryAfter(v string) time.Duration {
 type tracing struct{ next http.RoundTripper }
 
 func (t tracing) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx, span := otel.Tracer("github.com/m5tshift/slopay/services/invoice-service/internal/rates").Start(
+	ctx, span := otel.Tracer("github.com/m5tshift/weigate/services/invoice-service/internal/rates").Start(
 		req.Context(), "GET /rates/{pair}", trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String("http.request.method", req.Method), attribute.String("server.address", req.URL.Host)))
 	defer span.End()

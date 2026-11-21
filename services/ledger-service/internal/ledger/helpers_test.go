@@ -12,9 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledger"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledgertest"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledger"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledgertest"
 )
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))

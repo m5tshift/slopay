@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoicetest"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoicetest"
 )
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -33,7 +33,7 @@ func (a *applier) ApplyMerchant(_ context.Context, m invoice.Merchant) error {
 
 func merchantEvent(t *testing.T, id uuid.UUID, version int) kafka.Event {
 	t.Helper()
-	ev, err := kafka.NewEvent("/slopay/merchant-service", "merchant.updated", id.String(), 1, map[string]any{
+	ev, err := kafka.NewEvent("/weigate/merchant-service", "merchant.updated", id.String(), 1, map[string]any{
 		"merchantId": id, "version": version, "xpub": invoicetest.Xpub, "webhookUrl": "https://shop.example/hook",
 		"toleranceBps": 100, "webhookSecretVersion": 1,
 	})

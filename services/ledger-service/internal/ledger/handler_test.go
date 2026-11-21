@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledger"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledgertest"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledger"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledgertest"
 )
 
 var fast = ledger.Backoff{Min: time.Millisecond, Max: 2 * time.Millisecond}

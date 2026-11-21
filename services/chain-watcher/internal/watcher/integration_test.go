@@ -34,15 +34,15 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/storage"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/events"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/node"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/store"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/tracked"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/watcher"
+	"github.com/m5tshift/weigate/pkg/breaker"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/events"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/node"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/projection"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/store"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/tracked"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/watcher"
 )
 
 const (
@@ -609,7 +609,7 @@ func TestReorg(t *testing.T) {
 				t.Fatalf("reorg id %s, want %s", reorgs[0].id, want)
 			}
 			matchesNode(t, view, h.start, base+depth+1)
-			if got := h.metric(t, "slopay_chain_reorgs", attribute.String("depth", fmt.Sprint(depth))); got != 1 {
+			if got := h.metric(t, "weigate_chain_reorgs", attribute.String("depth", fmt.Sprint(depth))); got != 1 {
 				t.Fatalf("reorgs{depth=%d} = %d", depth, got)
 			}
 			if got := h.storedCursor(t); got != base+depth+1 {
@@ -631,8 +631,8 @@ func TestReorgTooDeep(t *testing.T) {
 	h.events.waitHead(t, base+7)
 	revertAndMine(t, id, 8)
 
-	eventually(t, "slopay_chain_reorg_too_deep = 1", func() bool {
-		return h.metric(t, "slopay_chain_reorg_too_deep") == 1
+	eventually(t, "weigate_chain_reorg_too_deep = 1", func() bool {
+		return h.metric(t, "weigate_chain_reorg_too_deep") == 1
 	})
 	time.Sleep(500 * time.Millisecond)
 	_, reorgs := replay(t, h.events.all(t))
@@ -679,8 +679,8 @@ func TestNodeOutageCatchUp(t *testing.T) {
 		t.Fatal(err)
 	}
 	eventually(t, "failed node calls", func() bool {
-		return h.metric(t, "slopay_chain_node_requests", attribute.String("result", "error")) >= 3 &&
-			h.metric(t, "slopay_chain_node_requests", attribute.String("result", "rejected")) >= 1
+		return h.metric(t, "weigate_chain_node_requests", attribute.String("result", "error")) >= 3 &&
+			h.metric(t, "weigate_chain_node_requests", attribute.String("result", "rejected")) >= 1
 	})
 	if err := anvil.Start(ctx); err != nil {
 		t.Fatal(err)

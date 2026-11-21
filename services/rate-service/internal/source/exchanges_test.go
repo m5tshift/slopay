@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
 )
 
 // Recorded answers of the public APIs (values are rounded test data).

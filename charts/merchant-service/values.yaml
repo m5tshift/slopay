@@ -1,8 +1,8 @@
-# merchant-service on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag, addresses,
-# ExternalSecret references) are set in slopay-gitops.
+# merchant-service on weigate-lib (charts/weigate-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in weigate-gitops.
 image:
-  repository: zot.example.internal/slopay/merchant-service
-  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  repository: zot.example.internal/weigate/merchant-service
+  # CI sets the short commit SHA in weigate-gitops; this placeholder only lets the chart render.
   tag: dev
 resources:
   requests:
@@ -15,13 +15,13 @@ resources:
 kafka:
   enabled: true
   brokers:
-    - slopay-kafka-bootstrap.kafka.svc:9092
+    - weigate-kafka-bootstrap.kafka.svc:9092
 
 secrets:
-  # Password of the service's PostgreSQL user: /var/run/secrets/slopay/postgres/password.
+  # Password of the service's PostgreSQL user: /var/run/secrets/weigate/postgres/password.
   - name: postgres
   # ECDSA P-256 private key in PEM (PKCS#8 or SEC1) that signs the JWTs:
-  # /var/run/secrets/slopay/jwt-signing/private.pem. The service re-reads the file after rotation.
+  # /var/run/secrets/weigate/jwt-signing/private.pem. The service re-reads the file after rotation.
   - name: jwt-signing
 
 postgres:
@@ -32,8 +32,8 @@ postgres:
     key: password
 
 env:
-  JWT_SIGNING_KEY_FILE: /var/run/secrets/slopay/jwt-signing/private.pem
-  JWT_ISSUER: slopay-merchant-service
+  JWT_SIGNING_KEY_FILE: /var/run/secrets/weigate/jwt-signing/private.pem
+  JWT_ISSUER: weigate-merchant-service
   # SRS 4.1.10: JWT lifetime, rotation grace period, at most two active API keys.
   JWT_TTL: 15m
   JWKS_MAX_AGE: 5m
