@@ -5,13 +5,15 @@
 `dns`, `install_disk`, `install_image`). Установку, bootstrap и выдачу kubeconfig ведёт Terraform; `talosctl`
 нужен только для диагностики.
 
-Сеть остаётся по умолчанию: flannel и kube-proxy. Cilium без kube-proxy и зеркало Zot — отдельная задача
-(полный стенд), в эти патчи не входят.
+Минимальный стенд остаётся на flannel и kube-proxy. Для полного стенда (`full_stand = true`) добавляется
+`patches/full-stand.yaml.tmpl`: без CNI и kube-proxy (Cilium ставится позже) и зеркало Zot (NodePort, `zot_endpoint`)
+в `registries.mirrors` для `docker.io`, `ghcr.io`, `quay.io`, `registry.k8s.io`.
 
 | Файл | Назначение |
 |---|---|
 | `patches/controlplane.yaml.tmpl` | control plane: hostname, статический адрес, диск и образ установки |
 | `patches/worker.yaml.tmpl` | воркер: то же |
+| `patches/full-stand.yaml.tmpl` | полный стенд, все узлы: без flannel и kube-proxy, зеркало Zot |
 | `patches/worker-data-volume.yaml.tmpl` | `UserVolumeConfig` `data` на втором диске воркера |
 
 ## Что настраивают патчи

@@ -10,7 +10,7 @@
 | `cluster.tf` | секреты кластера, машинные конфигурации из патчей `infra/talos/patches`, применение, bootstrap |
 | `files.tf` | `kubeconfig-admin` и `talosconfig` в `config_dir` (вне репозитория, права 0600) |
 | `outputs.tf` | `iso_urls` (вход `infra/terraform/hyperv`), `installer_images`, `cluster_endpoint`, пути файлов |
-| `minimal.tfvars.example` | параметры минимального стенда |
+| `minimal.tfvars.example`, `full.tfvars.example` | параметры минимального и полного стенда |
 
 ## Как это работает
 
@@ -35,5 +35,5 @@
 ## Переменные
 
 `talos_version`, `kubernetes_version`, `nodes` (роль и адрес по имени VM), `prefixlen`, `gateway`, `dns`,
-`install_disk` (по умолчанию `/dev/sda`), `config_dir`, `cluster_name` (по умолчанию `weigate`), `apply_mode`.
+`install_disk` (по умолчанию `/dev/sda`), `full_stand`, `zot_endpoint`, `registry_mirror_hosts`, `config_dir`, `cluster_name` (по умолчанию `weigate`), `apply_mode`.
 Реальные значения — в `terraform.tfvars` (в Git не попадает).

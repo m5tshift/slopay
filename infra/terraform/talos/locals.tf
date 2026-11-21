@@ -24,6 +24,10 @@ locals {
         install_disk  = var.install_disk
         install_image = data.talos_image_factory_urls.node[name].urls.installer
       })],
+      var.full_stand ? [templatefile("${path.module}/../../talos/patches/full-stand.yaml.tmpl", {
+        mirror_hosts = var.registry_mirror_hosts
+        zot_endpoint = var.zot_endpoint
+      })] : [],
       n.role == "worker" ? [file("${path.module}/../../talos/patches/worker-data-volume.yaml.tmpl")] : [],
     )
   }

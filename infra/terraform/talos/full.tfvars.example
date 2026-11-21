@@ -1,0 +1,23 @@
+# Full stand (SRS 6.1). Copy to terraform.tfvars (kept out of Git) and edit.
+# VM names match infra/terraform/hyperv/full.tfvars.example.
+
+cluster_name       = "weigate"
+talos_version      = "v1.x.y"
+kubernetes_version = "1.x.y"
+
+nodes = {
+  "talos-cp-1" = { role = "controlplane", ip = "192.0.2.11" }
+  "talos-w-1"  = { role = "worker", ip = "192.0.2.12" }
+  "talos-w-2"  = { role = "worker", ip = "192.0.2.13" }
+  "talos-w-3"  = { role = "worker", ip = "192.0.2.14" }
+}
+prefixlen    = 24
+gateway      = "192.0.2.1"
+dns          = "192.0.2.1"
+install_disk = "/dev/sda"
+
+full_stand = true
+# Zot NodePort on the address of talos-w-1.
+zot_endpoint = "http://192.0.2.12:30500"
+
+config_dir = "~/.weigate"
