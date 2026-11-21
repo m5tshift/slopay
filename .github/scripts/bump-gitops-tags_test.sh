@@ -73,8 +73,20 @@ values d 8edacb2
 "$script" "$gitops" "$slopay" 1234567 d > /dev/null
 expect "numeric-looking tag quoted" '!!str' "$(yq '.image.tag | tag' "$gitops/services/d/values.yaml")"
 
-# Errors: missing component, no image.tag, bad tag.
-if "$script" "$gitops" "$slopay" "$new" missing 2>/dev/null; then bad "missing component accepted"; else ok "missing component"; fi
+# A component that is not deployed (no values file) is skipped; the others are still updated.
+values f 8edacb2
+rc=0
+out="$("$script" "$gitops" "$slopay" "$new" missing f 2>"$tmp/err")" || rc=$?
+expect "undeployed component: exit code" 0 "$rc"
+expect "undeployed component: deployed one updated" f "$out"
+expect "undeployed component: tag set" "$new" "$(yq '.image.tag' "$gitops/services/f/values.yaml")"
+expect "undeployed component: message" "bump-gitops-tags: missing is not deployed on the stand; skipping" "$(cat "$tmp/err")"
+rc=0
+out="$("$script" "$gitops" "$slopay" "$new" missing 2>/dev/null)" || rc=$?
+expect "only undeployed components: exit code" 0 "$rc"
+expect "only undeployed components: nothing printed" "" "$out"
+
+# Errors: no image.tag, bad tag.
 mkdir -p "$gitops/services/e"
 echo "replicaCount: 1" > "$gitops/services/e/values.yaml"
 if "$script" "$gitops" "$slopay" "$new" e 2>/dev/null; then bad "file without image.tag accepted"; else ok "no image.tag"; fi
