@@ -242,8 +242,11 @@ func TestRestartWithValkeyStopped(t *testing.T) {
 		h.events.waitTransfer(t, tx)
 		return h.metric(t, "slopay_chain_address_lookups", attribute.String("source", "cache")) > before
 	})
+	// A transfer is published before the chain.new_head of its block: wait for the head before comparing.
+	head := headNumber(t)
+	h.events.waitHead(t, head)
 	view, _ := replay(t, h.events.all(t))
-	matchesNode(t, view, h.start, headNumber(t))
+	matchesNode(t, view, h.start, head)
 }
 
 // TestProjectionRebuiltAfterLoss drops the projection: the next start reads invoice.events of the last 26 h again,
