@@ -7,4 +7,4 @@ Event-driven microservices on Kubernetes: Kafka, PostgreSQL, MongoDB, ClickHouse
 - Requirements specification (in Russian): [docs/SRS.md](docs/SRS.md)
 - GitOps repository: [weigate-gitops](https://github.com/m5tshift/weigate-gitops)
 
-> Test networks only (local Anvil, optionally Sepolia). No mainnet, no real funds.
+> Test network only (local Anvil). No mainnet, no real funds.
