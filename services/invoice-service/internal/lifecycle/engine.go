@@ -61,7 +61,8 @@ type Tx interface {
 	DropBlocks(ctx context.Context, from uint64) error
 	// PruneBlocks deletes the blocks below the number.
 	PruneBlocks(ctx context.Context, below uint64) error
-	// InvoiceByAddress returns the id and the asset of the invoice with the payment address.
+	// InvoiceByAddress returns the id and the asset of the invoice with the payment address and locks the
+	// invoice until the end of the transaction, before any of its transfers is written.
 	InvoiceByAddress(ctx context.Context, address string) (uuid.UUID, invoice.Asset, bool, error)
 	// AddTransfer stores a transfer of the invoice; false if its key is stored already.
 	AddTransfer(ctx context.Context, id uuid.UUID, t Transfer) (bool, error)
