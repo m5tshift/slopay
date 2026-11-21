@@ -2,7 +2,7 @@ Set-StrictMode -Version Latest
 
 # Pure helpers: no Hyper-V cmdlets except Get-StandVmState, so the rest is testable anywhere.
 
-function ConvertTo-StandBytes {
+function ConvertTo-StandByte {
     [CmdletBinding()]
     [OutputType([long])]
     param([Parameter(Mandatory)][double]$GB)
@@ -77,7 +77,7 @@ function Read-StandConfig {
         [pscustomobject]@{
             Name       = [string]$vm.name
             Vcpu       = [int]$vm.vcpu
-            RamBytes   = ConvertTo-StandBytes -GB ([double]$vm.ramGB)
+            RamBytes   = ConvertTo-StandByte -GB ([double]$vm.ramGB)
             DiskSizeGB = @($vm.disks | ForEach-Object { [long]$_ })
             Iso        = $iso
         }
@@ -151,4 +151,4 @@ function Get-StandVmState {
     }
 }
 
-Export-ModuleMember -Function ConvertTo-StandBytes, Test-StandConfig, Read-StandConfig, Get-StandVmDiff, Get-StandVmState
+Export-ModuleMember -Function ConvertTo-StandByte, Test-StandConfig, Read-StandConfig, Get-StandVmDiff, Get-StandVmState

@@ -2,7 +2,7 @@ BeforeAll {
     Import-Module (Join-Path $PSScriptRoot 'StandVM.psm1') -Force
     $script:ExampleDir = $PSScriptRoot
 
-    function New-Actual {
+    function Get-TestActual {
         param($Vcpu = 2, $RamBytes = 3GB, $DiskSizeGB = @(20), $Generation = 2, $SecureBoot = $false, $DynamicMemory = $false, $AutoStart = $true)
         [pscustomobject]@{
             Generation = $Generation; Vcpu = $Vcpu; RamBytes = [long]$RamBytes; DynamicMemory = $DynamicMemory
@@ -70,30 +70,30 @@ Describe 'Get-StandVmDiff' {
         $script:Want = [pscustomobject]@{ Name = 'w'; Vcpu = 6; RamBytes = [long]14GB; DiskSizeGB = @(20, 50) }
     }
     It 'is empty for a matching VM (idempotent)' {
-        $a = New-Actual -Vcpu 6 -RamBytes 14GB -DiskSizeGB @(20, 50)
+        $a = Get-TestActual -Vcpu 6 -RamBytes 14GB -DiskSizeGB @(20, 50)
         @(Get-StandVmDiff -Desired $script:Want -Actual $a).Count | Should -Be 0
     }
     It 'reports fixable vCPU and RAM differences' {
-        $a = New-Actual -Vcpu 3 -RamBytes 7GB -DiskSizeGB @(20, 50)
+        $a = Get-TestActual -Vcpu 3 -RamBytes 7GB -DiskSizeGB @(20, 50)
         $d = @(Get-StandVmDiff -Desired $script:Want -Actual $a)
         $d.Property | Should -Be @('Vcpu', 'RamBytes')
         $d.Fixable | Should -Not -Contain $false
     }
     It 'reports a missing data disk as fixable' {
-        $a = New-Actual -Vcpu 6 -RamBytes 14GB -DiskSizeGB @(20)
+        $a = Get-TestActual -Vcpu 6 -RamBytes 14GB -DiskSizeGB @(20)
         $d = @(Get-StandVmDiff -Desired $script:Want -Actual $a)
         $d.Count | Should -Be 1
         $d[0].Property | Should -Be 'Disk[1]'
         $d[0].Fixable | Should -BeTrue
     }
     It 'reports a size mismatch and generation 1 as not fixable' {
-        $a = New-Actual -Vcpu 6 -RamBytes 14GB -DiskSizeGB @(20, 40) -Generation 1
+        $a = Get-TestActual -Vcpu 6 -RamBytes 14GB -DiskSizeGB @(20, 40) -Generation 1
         $d = @(Get-StandVmDiff -Desired $script:Want -Actual $a)
         $d.Property | Should -Be @('Generation', 'Disk[1]')
         $d.Fixable | Should -Not -Contain $true
     }
     It 'reports dynamic memory, Secure Boot and missing autostart' {
-        $a = New-Actual -Vcpu 6 -RamBytes 14GB -DiskSizeGB @(20, 50) -DynamicMemory $true -SecureBoot $true -AutoStart $false
+        $a = Get-TestActual -Vcpu 6 -RamBytes 14GB -DiskSizeGB @(20, 50) -DynamicMemory $true -SecureBoot $true -AutoStart $false
         (@(Get-StandVmDiff -Desired $script:Want -Actual $a)).Property | Should -Be @('DynamicMemory', 'SecureBoot', 'AutoStart')
     }
 }
