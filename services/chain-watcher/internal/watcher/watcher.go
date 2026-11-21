@@ -41,6 +41,7 @@ type Node interface {
 	HeaderByNumber(ctx context.Context, n uint64) (chain.Header, error)
 	BlockByNumber(ctx context.Context, n uint64) (chain.Block, error)
 	Receipt(ctx context.Context, txHash string) (chain.Receipt, error)
+	TransferLogs(ctx context.Context, blockHash string, contracts []string) ([]chain.TokenTransfer, error)
 }
 
 // Store keeps the reading state (store.Store). Save fails with store.ErrConflict when the stored version
@@ -77,6 +78,8 @@ type Config struct {
 	Addresses Addresses
 	// Breaker protects the node calls.
 	Breaker *breaker.Breaker
+	// Tokens are the ERC-20 contracts whose Transfer logs are read; empty means only ETH transfers are tracked.
+	Tokens []chain.Token
 	// ChainID is the expected chain; a node of another chain is not read.
 	ChainID uint64
 	// StartBlock is the first block when there is no stored state; nil means the node head at that moment.
@@ -158,6 +161,8 @@ func New(cfg Config) (*Watcher, error) {
 		return nil, errors.New("watcher: max reorg depth must be >= 1 and smaller than the window size")
 	case cfg.PollInterval <= 0 || cfg.BackoffInitial <= 0 || cfg.BackoffMax < cfg.BackoffInitial:
 		return nil, errors.New("watcher: poll interval and backoff must be positive, backoff max >= initial")
+	case duplicateToken(cfg.Tokens):
+		return nil, errors.New("watcher: token contracts must be distinct")
 	case cfg.RescanClockSkew < 0 || cfg.RescanLookback <= 0:
 		return nil, errors.New("watcher: rescan clock skew must be >= 0 and rescan lookback positive")
 	}
@@ -393,12 +398,15 @@ func (w *Watcher) process(ctx context.Context, st *chain.State, b chain.Block) (
 		w.chain, attribute.Int64("block.number", chain.Int64(h.Number)), attribute.String("block.hash", h.Hash)))
 	defer func() { endSpan(span, err) }()
 
-	recipients := b.Recipients()
-	tracked, err := w.cfg.Addresses.Tracked(ctx, recipients)
+	logs, err := w.tokenLogs(ctx, b)
 	if err != nil {
 		return err
 	}
-	if err := w.publishTransfers(ctx, b, func(tx chain.Tx) bool { return tracked[tx.To] }, modeLive); err != nil {
+	tracked, err := w.cfg.Addresses.Tracked(ctx, recipients(b, logs))
+	if err != nil {
+		return err
+	}
+	if err := w.publishTransfers(ctx, b, logs, func(to string) bool { return tracked[to] }, modeLive); err != nil {
 		return err
 	}
 	if err := w.cfg.Publisher.PublishNewHead(ctx, w.cfg.ChainID, h); err != nil {

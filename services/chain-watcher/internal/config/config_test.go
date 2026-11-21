@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// contractsEnv is the variable of the ERC-20 contracts (a name, not a credential).
+const contractsEnv = "TOKEN_CONTRACTS"
+
 func setRequired(t *testing.T) {
 	t.Helper()
 	t.Setenv("KAFKA_BROKERS", "k1:9092, k2:9092,")
@@ -104,7 +107,13 @@ func TestInvalid(t *testing.T) {
 		"bad poll":           {map[string]string{"POLL_INTERVAL": "soon"}, "POLL_INTERVAL"},
 		"backoff inverted":   {map[string]string{"BACKOFF_INITIAL": "1m", "BACKOFF_MAX": "1s"}, "BACKOFF_MAX"},
 		"bad breaker":        {map[string]string{"NODE_BREAKER_OPEN_TIMEOUT": "x"}, "NODE_BREAKER_OPEN_TIMEOUT"},
-		"lease without pod":  {map[string]string{"LEADER_LEASE_NAME": "chain-watcher"}, "POD_NAME"},
+		"token no decimals":  {map[string]string{contractsEnv: "0x5fbdb2315678afecb367f032d93f642f64180aa3"}, "TOKEN_CONTRACTS"},
+		"token bad address":  {map[string]string{contractsEnv: "0x5fbd:6"}, "TOKEN_CONTRACTS"},
+		"token bad decimals": {map[string]string{contractsEnv: "0x5fbdb2315678afecb367f032d93f642f64180aa3:x"}, "TOKEN_CONTRACTS"},
+		"token decimals max": {map[string]string{contractsEnv: "0x5fbdb2315678afecb367f032d93f642f64180aa3:78"}, "TOKEN_CONTRACTS"},
+		"token twice": {map[string]string{contractsEnv: "0x5fbdb2315678afecb367f032d93f642f64180aa3:6,0x5FBDB2315678AFECB367F032D93F642F64180AA3:6"},
+			"twice"},
+		"lease without pod": {map[string]string{"LEADER_LEASE_NAME": "chain-watcher"}, "POD_NAME"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			setRequired(t)
@@ -116,5 +125,22 @@ func TestInvalid(t *testing.T) {
 				t.Fatalf("err = %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestTokenContracts(t *testing.T) {
+	setRequired(t)
+	c, err := FromEnv()
+	if err != nil || len(c.Tokens) != 0 {
+		t.Fatalf("default: %v, %v", c.Tokens, err)
+	}
+	t.Setenv(contractsEnv, " 0x5FbDB2315678afecb367f032d93F642f64180aa3:6, 0x00000000000000000000000000000000000000dd:18,")
+	c, err = FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Tokens) != 2 || c.Tokens[0].Address != "0x5fbdb2315678afecb367f032d93f642f64180aa3" || c.Tokens[0].Decimals != 6 ||
+		c.Tokens[1].Decimals != 18 {
+		t.Fatalf("tokens %+v", c.Tokens)
 	}
 }

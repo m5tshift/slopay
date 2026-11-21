@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/m5tshift/weigate/pkg/breaker"
 	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
 )
 
 // Config is the service configuration.
@@ -58,6 +60,10 @@ type Config struct {
 	WindowSize int
 	// MaxReorgDepth is the deepest reorg handled (REORG_MAX_DEPTH, SRS 4.1.9: 6); smaller than WINDOW_SIZE.
 	MaxReorgDepth int
+
+	// Tokens are the ERC-20 contracts whose Transfer logs are read (TOKEN_CONTRACTS, comma-separated
+	// <address>:<decimals>); empty means only native ETH transfers are tracked.
+	Tokens []chain.Token
 
 	// PollInterval is the pause when the cursor has reached the node head (POLL_INTERVAL, default 1s).
 	PollInterval time.Duration
@@ -131,6 +137,9 @@ func FromEnv() (Config, error) {
 		errs = append(errs, errors.New("REORG_MAX_DEPTH must be smaller than WINDOW_SIZE"))
 	}
 
+	c.Tokens, err = tokens(os.Getenv("TOKEN_CONTRACTS"))
+	errs = append(errs, err)
+
 	c.NodeTimeout, err = duration("NODE_TIMEOUT", 5*time.Second)
 	errs = append(errs, err)
 	c.PollInterval, err = duration("POLL_INTERVAL", time.Second)
@@ -188,4 +197,26 @@ func integer(name string, def, minimum int) (int, error) {
 		return def, fmt.Errorf("%s must be an integer >= %d", name, minimum)
 	}
 	return n, nil
+}
+
+var addressRe = regexp.MustCompile(`^0x[0-9a-fA-F]{40}$`)
+
+// tokens parses TOKEN_CONTRACTS: <address>:<decimals>[,...]. Addresses are lower-cased; a repeated one is an error.
+func tokens(v string) ([]chain.Token, error) {
+	var out []chain.Token
+	seen := map[string]bool{}
+	for _, item := range splitList(v) {
+		addr, dec, ok := strings.Cut(item, ":")
+		d, err := strconv.ParseUint(dec, 10, 8)
+		if !ok || !addressRe.MatchString(addr) || err != nil || d > 77 {
+			return nil, fmt.Errorf("TOKEN_CONTRACTS item %q must be <0x address>:<decimals 0..77>", item)
+		}
+		addr = strings.ToLower(addr)
+		if seen[addr] {
+			return nil, fmt.Errorf("TOKEN_CONTRACTS lists %s twice", addr)
+		}
+		seen[addr] = true
+		out = append(out, chain.Token{Address: addr, Decimals: int(d)})
+	}
+	return out, nil
 }

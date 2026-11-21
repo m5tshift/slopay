@@ -3,9 +3,9 @@
 ## Назначение
 
 Читает блоки EVM-цепочки (Anvil, опционально Sepolia) с курсора, публикует новые блоки, обнаруживает
-реорганизации и публикует переводы нативного ETH на отслеживаемые адреса. Адреса берёт из проекции
-`invoice.events`. Требования — SRS 4.1.3, 4.1.6, 4.1.7, 4.1.9, FR-04, FR-06, NFR-04, NFR-05, NFR-07,
-испытания 8.2в и 8.5. Переводы токенов (ERC-20) — отдельная задача.
+реорганизации и публикует переводы нативного ETH и ERC-20 (события `Transfer`) на отслеживаемые адреса. Адреса берёт из
+проекции `invoice.events`. Требования — SRS 4.1.3, 4.1.6, 4.1.7, 4.1.9, FR-04, FR-06, FR-10, NFR-04, NFR-05,
+NFR-07, испытания 8.2в и 8.5.
 
 ## API и топики
 
@@ -13,14 +13,14 @@
 |---|---|---|
 | HTTP | только `/health/live`, `/health/ready`, `/metrics` | — |
 | Публикует | `chain.blocks`: `chain.new_head` (`number`, `hash`, `parentHash`, `timestamp`), `chain.reorg` (`fromBlock`); ключ — `chainId` | [`contracts/asyncapi/chain-watcher.yaml`](../../contracts/asyncapi/chain-watcher.yaml) |
-| Публикует | `chain.transfers`: `chain.transfer` — перевод ETH (`blockNumber`, `blockHash`, `txHash`, `from`, `to`, `amount`, `logIndex` = null); ключ — адрес получателя | там же |
+| Публикует | `chain.transfers`: `chain.transfer` — перевод ETH (`logIndex` = null) или ERC-20 (`logIndex`, `asset.contract`, `asset.decimals`); поля `blockNumber`, `blockHash`, `txHash`, `from`, `to`, `amount`; ключ — адрес получателя | там же |
 | Потребляет | `invoice.events`: `invoice.created` (адрес и окно отслеживания), `invoice.paid` (продление окна); группа `KAFKA_CONSUMER_GROUP` | [`contracts/asyncapi/invoice-service.yaml`](../../contracts/asyncapi/invoice-service.yaml) |
 
 Синхронные вызовы: нода EVM по JSON-RPC (`eth_chainId`, `eth_blockNumber`, `eth_getBlockByNumber`,
-`eth_getTransactionReceipt`) через Circuit Breaker.
+`eth_getTransactionReceipt`, `eth_getLogs` по `blockHash`) через Circuit Breaker.
 
 `event.id` детерминирован: `<chainId>:<hash>` у `chain.new_head`, `<chainId>:reorg:<fromBlock>:<hash первого
-отменённого блока>` у `chain.reorg`, `<blockHash>:<txHash>:` у `chain.transfer`. Повтор шага после сбоя публикует то же событие, потребители его
+отменённого блока>` у `chain.reorg`, `<blockHash>:<txHash>:` у перевода ETH и `<blockHash>:<txHash>:<logIndex>` у перевода ERC-20. Повтор шага после сбоя публикует то же событие, потребители его
 дедуплицируют.
 
 ## Хранилища
@@ -48,6 +48,7 @@
 | `BACKOFF_INITIAL`, `BACKOFF_MAX` | пауза после ошибки, удваивается до максимума | 500 мс, 30 с |
 | `POLL_INTERVAL` | пауза, когда курсор дошёл до головы ноды | 1 с |
 | `CHAIN_ID` | ожидаемая цепочка, обязательно; нода другой цепочки не читается | 31337 (Anvil) |
+| `TOKEN_CONTRACTS` | контракты ERC-20 через запятую, `<адрес>:<decimals>`; пусто — только ETH | адрес тестового USDT из stand-setup, 6 знаков |
 | `CHAIN_START_BLOCK` | первый блок, если курсора ещё нет; без значения — голова ноды на момент старта | — |
 | `WINDOW_SIZE` | число хранимых заголовков | 64 (4.1.6) |
 | `REORG_MAX_DEPTH` | наибольшая обрабатываемая глубина реорганизации, меньше `WINDOW_SIZE` | 6 (4.1.9) |
@@ -96,6 +97,13 @@ go test -race -tags integration ./services/chain-watcher/...   # Testcontainers:
 - Если `projection_state` пуст (первый старт или потеря данных), до потребления `invoice.events` проекция
   строится заново чтением топика за `PROJECTION_REBUILD_WINDOW`. Потеря проекции обнаруживается только при
   старте.
+- ERC-20: для блока одним `eth_getLogs` с фильтром `blockHash`, адресами из `TOKEN_CONTRACTS` и topic
+  `Transfer(address,address,uint256)` читаются логи; нода, не знающая блок (его заменила реорганизация), считается
+  признаком замены блока, как отсутствующая квитанция. Берутся логи с тремя topics и 32 байтами данных
+  (ERC-721 и `removed` пропускаются), `amount` — целое в минимальных единицах токена, `logIndex` — номер лога
+  в блоке; он входит в `event.id`, так как транзакция может содержать несколько `Transfer`. Квитанция не
+  нужна: неуспешная транзакция логов не оставляет. Получатели логов проверяются вместе с получателями ETH;
+  при повторном просмотре логи читаются по тем же правилам. Без `TOKEN_CONTRACTS` `eth_getLogs` не вызывается.
 - Внутренние переводы ETH из контрактов не видны: ищутся только транзакции с `value` > 0.
 - Ошибка ноды, Kafka или MongoDB приостанавливает чтение с backoff; блок, который не удалось опубликовать или
   сохранить, читается заново.

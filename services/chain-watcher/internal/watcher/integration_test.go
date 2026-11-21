@@ -37,6 +37,7 @@ import (
 	"github.com/m5tshift/weigate/pkg/breaker"
 	"github.com/m5tshift/weigate/pkg/kafka"
 	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
 	"github.com/m5tshift/weigate/services/chain-watcher/internal/events"
 	"github.com/m5tshift/weigate/services/chain-watcher/internal/node"
 	"github.com/m5tshift/weigate/services/chain-watcher/internal/projection"
@@ -225,8 +226,15 @@ type received struct {
 	BlockNumber uint64 `json:"blockNumber"`
 	BlockHash   string `json:"blockHash"`
 	TxHash      string `json:"txHash"`
-	To          string `json:"to"`
-	Amount      string `json:"amount"`
+	LogIndex    *uint  `json:"logIndex"`
+	From        string `json:"from"`
+	Asset       struct {
+		Kind     string `json:"kind"`
+		Contract string `json:"contract"`
+		Decimals int    `json:"decimals"`
+	} `json:"asset"`
+	To     string `json:"to"`
+	Amount string `json:"amount"`
 }
 
 // collector reads the topic of a test from the start.
@@ -378,6 +386,7 @@ type harness struct {
 	store     *store.Store
 	addresses *projection.Store
 	events    *collector
+	tokens    []chain.Token
 	reader    *sdkmetric.ManualReader
 	start     uint64
 
@@ -484,7 +493,7 @@ func (h *harness) run(t *testing.T) {
 	start := h.start
 	w, err := watcher.New(watcher.Config{
 		Node: client, Store: h.store, Publisher: events.NewPublisher(producer, h.topic, h.topic), Addresses: book,
-		Breaker: br, ChainID: anvilChainID, StartBlock: &start, WindowSize: 64, MaxReorgDepth: 6,
+		Breaker: br, Tokens: h.tokens, ChainID: anvilChainID, StartBlock: &start, WindowSize: 64, MaxReorgDepth: 6,
 		RescanClockSkew: 30 * time.Second, RescanLookback: 26 * time.Hour,
 		PollInterval: 100 * time.Millisecond, BackoffInitial: 100 * time.Millisecond, BackoffMax: time.Second,
 		Logger: log, Meter: meter,

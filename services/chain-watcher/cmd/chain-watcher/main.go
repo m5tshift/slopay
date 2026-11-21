@@ -119,7 +119,7 @@ func run(log *slog.Logger) error {
 	w, err := watcher.New(watcher.Config{
 		Node: client, Store: store.New(mongo), Addresses: book,
 		Publisher: events.NewPublisher(producer, events.TopicBlocks, events.TopicTransfers),
-		Breaker:   br, ChainID: cfg.ChainID, StartBlock: cfg.StartBlock, WindowSize: cfg.WindowSize,
+		Breaker:   br, Tokens: cfg.Tokens, ChainID: cfg.ChainID, StartBlock: cfg.StartBlock, WindowSize: cfg.WindowSize,
 		MaxReorgDepth: cfg.MaxReorgDepth, RescanClockSkew: cfg.RescanClockSkew, RescanLookback: cfg.RebuildWindow,
 		PollInterval: cfg.PollInterval, BackoffInitial: cfg.BackoffInitial, BackoffMax: cfg.BackoffMax, Logger: log,
 	})

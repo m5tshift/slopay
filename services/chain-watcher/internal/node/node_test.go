@@ -255,3 +255,104 @@ func TestReceiptErrors(t *testing.T) {
 		t.Fatal("rpc error accepted")
 	}
 }
+
+const (
+	usdtAddr = "0x5FbDB2315678afecb367f032d93F642f64180aa3"
+	topicTr  = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+	topicA   = "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+	topicB   = "0x0000000000000000000000002546bcd3c84621e976d8185a91a922ae77ecec30"
+)
+
+func logJSON(topics []string, data string, extra string) string {
+	return `{"address":"` + usdtAddr + `","topics":["` + strings.Join(topics, `","`) + `"],"data":"` + data +
+		`","blockHash":"` + hashA + `","transactionHash":"` + hashB + `","logIndex":"0x3"` + extra + `}`
+}
+
+const amount20 = "0x0000000000000000000000000000000000000000000000000000000001312d00" // 20000000
+
+func TestTransferLogs(t *testing.T) {
+	c, seen := server(t, map[string]string{"eth_getLogs": `[` + strings.Join([]string{
+		logJSON([]string{topicTr, topicA, topicB}, amount20, ""),
+		logJSON([]string{topicTr, topicA, topicB}, amount20, `,"removed":true`), // not canonical
+		logJSON([]string{topicTr, topicA, topicB, topicB}, "0x", ""),            // ERC-721
+		logJSON([]string{topicTr, topicA, topicB}, "0x01", ""),                  // malformed data
+		logJSON([]string{topicTr, topicA}, amount20, ""),                        // malformed topics
+	}, ",") + `]`}, 0)
+	got, err := c.TransferLogs(context.Background(), hashA, []string{strings.ToLower(usdtAddr)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("logs %+v", got)
+	}
+	l := got[0]
+	if l.BlockHash != strings.ToLower(hashA) || l.TxHash != strings.ToLower(hashB) || l.LogIndex != 3 ||
+		l.Contract != strings.ToLower(usdtAddr) || l.From != "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266" ||
+		l.To != "0x2546bcd3c84621e976d8185a91a922ae77ecec30" || l.Amount.String() != "20000000" {
+		t.Fatalf("log %+v", l)
+	}
+	req := seen.first()
+	f, _ := req.Params[0].(map[string]any)
+	if req.Method != "eth_getLogs" || len(req.Params) != 1 || f["blockHash"] != strings.ToLower(hashA) {
+		t.Fatalf("request %+v", req)
+	}
+	if topics, _ := f["topics"].([]any); len(topics) != 1 {
+		t.Fatalf("topics %v", f["topics"])
+	}
+	if addrs, _ := f["address"].([]any); len(addrs) != 1 || !strings.EqualFold(addrs[0].(string), usdtAddr) {
+		t.Fatalf("address %v", f["address"])
+	}
+}
+
+func TestTransferLogsMaxAmount(t *testing.T) {
+	max := "0x" + strings.Repeat("ff", 32)
+	c, _ := server(t, map[string]string{"eth_getLogs": `[` + logJSON([]string{topicTr, topicA, topicB}, max, "") + `]`}, 0)
+	got, err := c.TransferLogs(context.Background(), hashA, []string{usdtAddr})
+	if err != nil || len(got) != 1 || got[0].Amount.BitLen() != 256 {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+func TestTransferLogsErrors(t *testing.T) {
+	for name, res := range map[string]string{
+		"no log index": `[{"address":"` + usdtAddr + `","topics":[],"data":"0x","blockHash":"` + hashA + `","transactionHash":"` + hashB + `"}]`,
+		"no address":   `[{"topics":[],"data":"0x","blockHash":"` + hashA + `","transactionHash":"` + hashB + `","logIndex":"0x0"}]`,
+		"bad json":     `{"a":1}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, _ := server(t, map[string]string{"eth_getLogs": res}, 0)
+			if _, err := c.TransferLogs(context.Background(), hashA, []string{usdtAddr}); err == nil || errors.Is(err, chain.ErrNotFound) {
+				t.Fatalf("err = %v", err)
+			}
+		})
+	}
+	c, _ := server(t, map[string]string{}, 0)
+	if _, err := c.TransferLogs(context.Background(), hashA, []string{usdtAddr}); err == nil || errors.Is(err, chain.ErrNotFound) {
+		t.Fatalf("rpc error: err = %v", err)
+	}
+}
+
+func TestTransferLogsUnknownBlock(t *testing.T) {
+	for _, msg := range []string{"Block not found", "unknown block"} {
+		t.Run(msg, func(t *testing.T) { unknownBlock(t, msg) })
+	}
+}
+
+func unknownBlock(t *testing.T, msg string) {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var req rpcReq
+		_ = json.Unmarshal(body, &req)
+		_, _ = io.WriteString(w, `{"jsonrpc":"2.0","id":`+string(req.ID)+`,"error":{"code":-32000,"message":"`+msg+`"}}`)
+	}))
+	t.Cleanup(srv.Close)
+	c, err := Dial(context.Background(), srv.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(c.Close)
+	if _, err := c.TransferLogs(context.Background(), hashA, []string{usdtAddr}); !errors.Is(err, chain.ErrNotFound) {
+		t.Fatalf("err = %v", err)
+	}
+}

@@ -146,6 +146,64 @@ func TestTransferMatchesContract(t *testing.T) {
 	}
 }
 
+var tokenTransfer = chain.Transfer{
+	Block: head,
+	Log: &chain.TokenTransfer{
+		BlockHash: head.Hash, TxHash: "0xf6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9", LogIndex: 0,
+		Contract: "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+		From:     "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266", To: "0x2546bcd3c84621e976d8185a91a922ae77ecec30",
+		Amount: big.NewInt(20_000_000),
+	},
+	Token: chain.Token{Address: "0x5fbdb2315678afecb367f032d93f642f64180aa3", Decimals: 6},
+}
+
+// TestTokenTransferMatchesContract validates an ERC-20 chain.transfer against the schema: logIndex is a number,
+// including 0, which is in the ID, and the asset names the contract.
+func TestTokenTransferMatchesContract(t *testing.T) {
+	ev, err := Transfer(31337, tokenTransfer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := codec(t).Encode(ev)
+	if err != nil {
+		t.Fatalf("contract: %v", err)
+	}
+	l := tokenTransfer.Log
+	if ev.ID != head.Hash+":"+l.TxHash+":0" || ev.Subject != l.To || ev.Type != TypeTransfer {
+		t.Fatalf("envelope = %+v", ev)
+	}
+	var got struct {
+		Data map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]any{"blockNumber": 101.0, "txHash": l.TxHash, "logIndex": 0.0, "from": l.From, "to": l.To,
+		"amount": "20000000"}
+	for k, v := range want {
+		if got.Data[k] != v {
+			t.Errorf("data.%s = %v, want %v", k, got.Data[k], v)
+		}
+	}
+	a, _ := got.Data["asset"].(map[string]any)
+	if a["kind"] != "ERC20" || a["contract"] != l.Contract || a["decimals"] != 6.0 || len(a) != 3 {
+		t.Errorf("asset = %v", got.Data["asset"])
+	}
+
+	// The same transaction with another logIndex is another transfer.
+	second := tokenTransfer
+	log2 := *l
+	log2.LogIndex = 7
+	second.Log = &log2
+	ev2, err := Transfer(31337, second)
+	if err != nil || ev2.ID == ev.ID || ev2.ID != head.Hash+":"+l.TxHash+":7" {
+		t.Fatalf("second id %q, %v", ev2.ID, err)
+	}
+	if _, err := Transfer(31337, chain.Transfer{Block: head, Log: &chain.TokenTransfer{TxHash: l.TxHash}}); err == nil {
+		t.Error("token transfer without an amount accepted")
+	}
+}
+
 type recorder struct {
 	topics []string
 	evs    []kafka.Event

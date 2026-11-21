@@ -23,12 +23,82 @@ const (
 // errReplaced means that a block read from the node is no longer canonical.
 var errReplaced = errors.New("watcher: block replaced on the node")
 
-// publishTransfers publishes the transfers of b selected by match, in block order. A transfer is published only
-// when its receipt is in b and the transaction succeeded; a receipt missing or in another block means b was
-// replaced (errReplaced).
-func (w *Watcher) publishTransfers(ctx context.Context, b chain.Block, match func(chain.Tx) bool, mode string) error {
+// tokenLogs returns the ERC-20 Transfer logs of the configured contracts in b, in log order. A block the node
+// no longer knows has been replaced (errReplaced). Without configured tokens no call is made.
+func (w *Watcher) tokenLogs(ctx context.Context, b chain.Block) ([]chain.TokenTransfer, error) {
+	if len(w.cfg.Tokens) == 0 {
+		return nil, nil
+	}
+	contracts := make([]string, 0, len(w.cfg.Tokens))
+	for _, t := range w.cfg.Tokens {
+		contracts = append(contracts, t.Address)
+	}
+	var logs []chain.TokenTransfer
+	err := w.call(ctx, "eth_getLogs", func(ctx context.Context) (err error) {
+		logs, err = w.cfg.Node.TransferLogs(ctx, b.Hash, contracts)
+		return err
+	})
+	if errors.Is(err, chain.ErrNotFound) {
+		return nil, fmt.Errorf("%w: logs of block %d: %w", errReplaced, b.Number, err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	known := w.tokens()
+	out := logs[:0:0]
+	for _, l := range logs {
+		if l.BlockHash != b.Hash {
+			return nil, fmt.Errorf("%w: log %s:%d is in block %s, not %s", errReplaced, l.TxHash, l.LogIndex, l.BlockHash, b.Hash)
+		}
+		if _, ok := known[l.Contract]; ok {
+			out = append(out, l)
+		}
+	}
+	return out, nil
+}
+
+func (w *Watcher) tokens() map[string]chain.Token {
+	m := make(map[string]chain.Token, len(w.cfg.Tokens))
+	for _, t := range w.cfg.Tokens {
+		m[t.Address] = t
+	}
+	return m
+}
+
+// recipients returns the distinct recipients of the ETH transfers and the token transfer logs of b.
+func recipients(b chain.Block, logs []chain.TokenTransfer) []string {
+	out := b.Recipients()
+	seen := make(map[string]bool, len(out))
+	for _, a := range out {
+		seen[a] = true
+	}
+	for _, l := range logs {
+		if !seen[l.To] {
+			seen[l.To] = true
+			out = append(out, l.To)
+		}
+	}
+	return out
+}
+
+func duplicateToken(tokens []chain.Token) bool {
+	seen := make(map[string]bool, len(tokens))
+	for _, t := range tokens {
+		if seen[t.Address] {
+			return true
+		}
+		seen[t.Address] = true
+	}
+	return false
+}
+
+// publishTransfers publishes the transfers of b to the recipients selected by match: first the ETH transfers
+// in block order, then the token transfers in log order. An ETH transfer is published only when its receipt is
+// in b and the transaction succeeded (a token log exists only for a successful one); a receipt missing or in
+// another block means b was replaced (errReplaced).
+func (w *Watcher) publishTransfers(ctx context.Context, b chain.Block, logs []chain.TokenTransfer, match func(to string) bool, mode string) error {
 	for _, tx := range b.Txs {
-		if !match(tx) {
+		if !match(tx.To) {
 			continue
 		}
 		var r chain.Receipt
@@ -48,14 +118,36 @@ func (w *Watcher) publishTransfers(ctx context.Context, b chain.Block, match fun
 				"block", b.Number)
 			continue
 		}
-		if err := w.cfg.Publisher.PublishTransfer(ctx, w.cfg.ChainID, chain.Transfer{Block: b.Header, Tx: tx}); err != nil {
+		if err := w.publish(ctx, b, chain.Transfer{Block: b.Header, Tx: tx}, tx.Hash, tx.To, mode); err != nil {
 			return err
 		}
-		attrs := metric.WithAttributes(w.chain, attribute.String("mode", mode))
-		w.transfers.Add(ctx, 1, attrs)
-		w.delay.Record(ctx, w.cfg.now().Sub(time.Unix(chain.Int64(b.Timestamp), 0)).Seconds(), attrs)
-		w.log.InfoContext(ctx, "transfer published", "mode", mode, "tx", tx.Hash, "to", tx.To, "block", b.Number)
 	}
+	tokens := w.tokens()
+	for i := range logs {
+		l := &logs[i]
+		if !match(l.To) {
+			continue
+		}
+		t := chain.Transfer{Block: b.Header, Log: l, Token: tokens[l.Contract]}
+		if err := w.publish(ctx, b, t, l.TxHash, l.To, mode); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Watcher) publish(ctx context.Context, b chain.Block, t chain.Transfer, tx, to, mode string) error {
+	if err := w.cfg.Publisher.PublishTransfer(ctx, w.cfg.ChainID, t); err != nil {
+		return err
+	}
+	attrs := metric.WithAttributes(w.chain, attribute.String("mode", mode))
+	w.transfers.Add(ctx, 1, attrs)
+	w.delay.Record(ctx, w.cfg.now().Sub(time.Unix(chain.Int64(b.Timestamp), 0)).Seconds(), attrs)
+	args := []any{"mode", mode, "tx", tx, "to", to, "block", b.Number}
+	if t.Log != nil {
+		args = append(args, "log_index", t.Log.LogIndex, "token", t.Log.Contract)
+	}
+	w.log.InfoContext(ctx, "transfer published", args...)
 	return nil
 }
 
@@ -115,10 +207,10 @@ func (w *Watcher) rescan(ctx context.Context, st *chain.State, pending []project
 		return false, err
 	}
 	span.SetAttributes(attribute.Int64("rescan.from_block", chain.Int64(first)))
-	match := func(b chain.Block) func(chain.Tx) bool {
+	match := func(b chain.Block) func(string) bool {
 		t := time.Unix(chain.Int64(b.Timestamp), 0)
-		return func(tx chain.Tx) bool {
-			since, ok := from[tx.To]
+		return func(to string) bool {
+			since, ok := from[to]
 			return ok && !t.Before(since)
 		}
 	}
@@ -128,7 +220,10 @@ func (w *Watcher) rescan(ctx context.Context, st *chain.State, pending []project
 			return false, err
 		}
 		w.rescanned.Add(ctx, 1, metric.WithAttributes(w.chain))
-		err = w.publishTransfers(ctx, b, match(b), modeRescan)
+		logs, err := w.tokenLogs(ctx, b)
+		if err == nil {
+			err = w.publishTransfers(ctx, b, logs, match(b), modeRescan)
+		}
 		if errors.Is(err, errReplaced) {
 			// The reorg is handled by the next step, and the new branch is searched after it.
 			w.log.InfoContext(ctx, "processed block replaced on the node, search postponed", "number", n, "error", err)
