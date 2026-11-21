@@ -33,6 +33,7 @@ charts/
 infra/
   hyperv/                PowerShell-скрипты VM
   talos/                 патчи конфигурации (generated/ — вне git)
+  bootstrap/             скрипт минимального стенда: неймспейсы, ArgoCD, root Application (до Terraform, #53)
   terraform/             bootstrap-слой (SRS INF-2.1)
   ansible/roles/strimzi/ генерация оператора и CR Kafka в slopay-gitops (SRS INF-2.3)
   ansible/roles/lb/      HAProxy + Keepalived на VM lb-1, lb-2 (SRS 4.1.8)
@@ -79,6 +80,7 @@ make ansible-lint       # ansible-lint infra/ansible
 make psa                # PSScriptAnalyzer для infra/hyperv, нужен pwsh
 make infra-test         # Pester для infra/hyperv, нужен pwsh
 make talos-check        # infra/talos: gen.sh --render на примере env, talosctl не нужен
+make bootstrap-check    # infra/bootstrap: shellcheck, helm template Argo CD, проверка health-check и RBAC агента
 make precommit          # gitleaks и базовые проверки; один раз: pre-commit install
 ```
 

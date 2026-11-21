@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check bootstrap-check precommit
 
 build:
 	go build ./...
@@ -72,6 +72,16 @@ talos-check:
 	grep -q 'talos-cp-1' "$$tmp/out/patches/controlplane.yaml"; \
 	grep -q 'physical: true' "$$tmp/out/patches/worker.yaml"; \
 	grep -q 'kind: UserVolumeConfig' "$$tmp/out/patches/worker-data-volume.yaml"
+
+# infra/bootstrap: shellcheck, helm template of Argo CD with the script's values, health-check and RBAC checks.
+# Needs helm and yq plus network access to the Argo CD chart repo; no cluster.
+bootstrap-check:
+	@if [ ! -d infra/bootstrap ]; then echo "bootstrap-check: no infra/bootstrap/, skipping"; exit 0; fi; \
+	set -e; \
+	if command -v shellcheck >/dev/null; then shellcheck infra/bootstrap/*.sh; \
+	elif [ -n "$$CI" ]; then echo "bootstrap-check: shellcheck is required in CI"; exit 1; \
+	else echo "bootstrap-check: shellcheck not installed, skipping it"; fi; \
+	infra/bootstrap/test.sh
 
 # gitleaks and basic checks; once per clone: pre-commit install
 precommit:
