@@ -28,6 +28,14 @@ func TestGet(t *testing.T) {
 	}
 }
 
+func TestGetToken(t *testing.T) {
+	c := serve(t, 200, `{"address":"0x71c7656ec7ab88b098defb751b7401b5f6d8976f","amount":"5000000","asset":{"kind":"ERC20","contract":"0xe7f1725e7734ce288f8367e1bb143e90bb3f0512","decimals":6}}`)
+	p, err := c.Get(context.Background(), "abc")
+	if err != nil || p.Asset != "ERC20" || p.Contract != "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512" || p.Amount.Int64() != 5000000 {
+		t.Errorf("%+v %v", p, err)
+	}
+}
+
 func TestGetErrors(t *testing.T) {
 	for name, c := range map[string]*Client{
 		"not found":  serve(t, 404, `{}`),

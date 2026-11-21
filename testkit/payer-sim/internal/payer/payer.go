@@ -1,4 +1,4 @@
-// Package payer decides what the simulated buyer does with an invoice, signs the ETH transfer, keeps the signed
+// Package payer decides what the simulated buyer does with an invoice, signs the ETH or ERC-20 transfer, keeps the signed
 // transaction and sends it again on command (SRS 4.1.3, 8.1, 8.5).
 package payer
 
@@ -19,8 +19,14 @@ import (
 	"github.com/m5tshift/weigate/testkit/payer-sim/internal/invoice"
 )
 
-// transferGas is the gas of a plain ETH transfer to an externally owned account.
-const transferGas = 21000
+const (
+	// transferGas is the gas of a plain ETH transfer to an externally owned account.
+	transferGas = 21000
+	// tokenTransferGas is the gas limit of ERC-20 transfer(address,uint256); the test USDT uses about 50000.
+	// A fixed limit keeps the stored transaction valid for a replay and needs no estimate that fails
+	// for an account without tokens.
+	tokenTransferGas = 100000
+)
 
 // Outcome is what the payer does with an invoice.
 type Outcome string
@@ -79,8 +85,8 @@ type Payment struct {
 	Amount    *big.Int    // nil when the payer did not pay
 }
 
-// ErrNotETH is returned for an invoice in another asset.
-var ErrNotETH = errors.New("invoice is not an ETH invoice")
+// ErrUnsupportedAsset is returned for an invoice in an asset other than ETH or ERC20.
+var ErrUnsupportedAsset = errors.New("invoice asset is not ETH or ERC20")
 
 // Payer pays invoices from the pre-funded accounts in turn.
 type Payer struct {
@@ -139,8 +145,11 @@ func (p *Payer) Pay(ctx context.Context, invoiceID string) (Payment, error) {
 	if err != nil {
 		return Payment{}, err
 	}
-	if inv.Asset != "ETH" {
-		return Payment{}, ErrNotETH
+	if inv.Asset != "ETH" && inv.Asset != "ERC20" {
+		return Payment{}, ErrUnsupportedAsset
+	}
+	if inv.Asset == "ERC20" && !common.IsHexAddress(inv.Contract) {
+		return Payment{}, fmt.Errorf("invalid token contract %q", inv.Contract)
 	}
 	if !common.IsHexAddress(inv.Address) {
 		return Payment{}, fmt.Errorf("invalid payment address %q", inv.Address)
@@ -155,14 +164,14 @@ func (p *Payer) Pay(ctx context.Context, invoiceID string) (Payment, error) {
 	if pay.Outcome != Skip {
 		amount := new(big.Int).Set(inv.Amount)
 		if pay.Outcome == Underpay {
-			// Rounded down, at least one wei: the payer always sends less than the invoice.
+			// Rounded down, at least one minimal unit: the payer always sends less than the invoice.
 			amount.Mul(amount, big.NewInt(int64(p.cfg.UnderpayBps)))
 			amount.Div(amount, big.NewInt(10000))
 			if amount.Sign() == 0 {
 				amount.SetInt64(1)
 			}
 		}
-		tx, err := p.send(ctx, common.HexToAddress(inv.Address), amount)
+		tx, err := p.send(ctx, inv, amount)
 		if err != nil {
 			return Payment{}, err
 		}
@@ -185,7 +194,7 @@ func (p *Payer) find(id string) (Payment, bool) {
 }
 
 // send signs the transfer from the next account and sends it; the caller holds p.mu.
-func (p *Payer) send(ctx context.Context, to common.Address, amount *big.Int) (*types.Transaction, error) {
+func (p *Payer) send(ctx context.Context, inv invoice.Payment, amount *big.Int) (*types.Transaction, error) {
 	key := p.cfg.Keys[p.next%len(p.cfg.Keys)]
 	p.next++
 	from := crypto.PubkeyToAddress(key.PublicKey)
@@ -202,7 +211,16 @@ func (p *Payer) send(ctx context.Context, to common.Address, amount *big.Int) (*
 	}
 	// Twice the suggestion keeps the stored transaction valid when the base fee rises before it is replayed.
 	price = new(big.Int).Mul(price, big.NewInt(2))
-	tx, err := types.SignTx(types.NewTx(&types.LegacyTx{Nonce: nonce, To: &to, Value: amount, Gas: transferGas, GasPrice: price}), p.signer, key)
+	legacy := &types.LegacyTx{Nonce: nonce, GasPrice: price}
+	to := common.HexToAddress(inv.Address)
+	if inv.Asset == "ERC20" {
+		// transfer(to, amount) of the token contract; no ETH value.
+		token := common.HexToAddress(inv.Contract)
+		legacy.To, legacy.Value, legacy.Gas, legacy.Data = &token, new(big.Int), tokenTransferGas, transferData(to, amount)
+	} else {
+		legacy.To, legacy.Value, legacy.Gas = &to, amount, transferGas
+	}
+	tx, err := types.SignTx(types.NewTx(legacy), p.signer, key)
 	if err != nil {
 		return nil, fmt.Errorf("sign: %w", err)
 	}
@@ -251,4 +269,11 @@ func (p *Payer) Replay(ctx context.Context, invoiceID string) (ReplayResult, err
 func isKnown(err error) bool {
 	m := strings.ToLower(err.Error())
 	return strings.Contains(m, "already known") || strings.Contains(m, "nonce too low") || strings.Contains(m, "already imported")
+}
+
+// transferData is the calldata of ERC-20 transfer(address,uint256).
+func transferData(to common.Address, amount *big.Int) []byte {
+	d := crypto.Keccak256([]byte("transfer(address,uint256)"))[:4]
+	d = append(d, common.LeftPadBytes(to.Bytes(), 32)...)
+	return append(d, common.LeftPadBytes(amount.Bytes(), 32)...)
 }

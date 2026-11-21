@@ -100,7 +100,7 @@ func TestCreateInvalid(t *testing.T) {
 }
 
 func TestCreateUpstream(t *testing.T) {
-	for err, want := range map[error]string{payer.ErrNotETH: "not an ETH", errors.New("secret detail"): "failed"} {
+	for err, want := range map[error]string{payer.ErrUnsupportedAsset: "not supported", errors.New("secret detail"): "failed"} {
 		rec := do(t, &fakePayer{err: err}, "POST", "/payments", `{"invoiceId":"`+id+`"}`)
 		if rec.Code != 502 || !strings.Contains(rec.Body.String(), want) || strings.Contains(rec.Body.String(), "secret") {
 			t.Errorf("%d %s", rec.Code, rec.Body.String())
