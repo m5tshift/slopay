@@ -102,8 +102,8 @@ func (s *server) create(w http.ResponseWriter, r *http.Request) {
 }
 
 func errMessage(err error) string {
-	if errors.Is(err, payer.ErrNotETH) {
-		return "Invoice is not an ETH invoice"
+	if errors.Is(err, payer.ErrUnsupportedAsset) {
+		return "Invoice asset is not supported"
 	}
 	return "Paying the invoice failed"
 }

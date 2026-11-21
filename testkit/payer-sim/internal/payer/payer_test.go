@@ -187,7 +187,8 @@ func TestPayErrors(t *testing.T) {
 		want string
 	}{
 		"invoice":  {&fakeChain{id: big.NewInt(1)}, fakeInvoices{err: errors.New("down")}, "down"},
-		"asset":    {&fakeChain{id: big.NewInt(1)}, fakeInvoices{p: invoice.Payment{Address: addr, Amount: big.NewInt(1), Asset: "USDT"}}, "not an ETH"},
+		"asset":    {&fakeChain{id: big.NewInt(1)}, fakeInvoices{p: invoice.Payment{Address: addr, Amount: big.NewInt(1), Asset: "USDT"}}, "not ETH or ERC20"},
+		"contract": {&fakeChain{id: big.NewInt(1)}, fakeInvoices{p: invoice.Payment{Address: addr, Amount: big.NewInt(1), Asset: "ERC20", Contract: "nope"}}, "invalid token contract"},
 		"address":  {&fakeChain{id: big.NewInt(1)}, fakeInvoices{p: invoice.Payment{Address: "nope", Amount: big.NewInt(1), Asset: "ETH"}}, "invalid payment address"},
 		"nonce":    {&fakeChain{id: big.NewInt(1), nonceErr: errors.New("x")}, ethInvoice(1), "nonce"},
 		"gasprice": {&fakeChain{id: big.NewInt(1), gasErr: errors.New("x")}, ethInvoice(1), "gas price"},
@@ -253,5 +254,51 @@ func TestReplay(t *testing.T) {
 	ch.sendErr = errors.New("insufficient funds")
 	if _, err = p.Replay(ctx, ""); err == nil {
 		t.Error("other error ignored")
+	}
+}
+
+const usdtAddr = "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512"
+
+func tokenInvoice(amount int64) fakeInvoices {
+	return fakeInvoices{p: invoice.Payment{Address: addr, Amount: big.NewInt(amount), Asset: "ERC20", Contract: usdtAddr}}
+}
+
+// An ERC20 payment is a call of transfer(to, amount) to the token contract with no ETH value.
+func TestPayToken(t *testing.T) {
+	for name, tc := range map[string]struct {
+		roll int
+		want int64
+	}{"pay": {0, 1000}, "underpay": {85, 500}} {
+		t.Run(name, func(t *testing.T) {
+			ch := &fakeChain{id: big.NewInt(31337)}
+			p := newPayer(t, ch, tokenInvoice(1000), tc.roll, 1)
+			pay, err := p.Pay(context.Background(), "inv-1")
+			if err != nil || pay.Amount.Int64() != tc.want || len(ch.sent) != 1 {
+				t.Fatalf("%+v %v", pay, err)
+			}
+			tx := ch.sent[0]
+			data := tx.Data()
+			if tx.To().Hex() != common.HexToAddress(usdtAddr).Hex() || tx.Value().Sign() != 0 || tx.Gas() != tokenTransferGas || tx.Hash() != pay.TxHash {
+				t.Errorf("tx %+v", tx)
+			}
+			if len(data) != 68 || common.Bytes2Hex(data[:4]) != "a9059cbb" ||
+				common.BytesToAddress(data[4:36]) != common.HexToAddress(addr) || new(big.Int).SetBytes(data[36:]).Int64() != tc.want {
+				t.Errorf("calldata %x", data)
+			}
+		})
+	}
+}
+
+func TestPayTokenSkipAndReplay(t *testing.T) {
+	ch := &fakeChain{id: big.NewInt(31337)}
+	p := newPayer(t, ch, tokenInvoice(1000), 95, 1)
+	if pay, err := p.Pay(context.Background(), "inv-1"); err != nil || pay.Outcome != Skip || len(ch.sent) != 0 {
+		t.Fatalf("%+v %v", pay, err)
+	}
+	ch = &fakeChain{id: big.NewInt(31337)}
+	p = newPayer(t, ch, tokenInvoice(1000), 0, 1)
+	pay, _ := p.Pay(context.Background(), "inv-1")
+	if res, err := p.Replay(context.Background(), ""); err != nil || res.Sent != 1 || ch.sent[1].Hash() != pay.TxHash {
+		t.Errorf("replay %+v %v", res, err)
 	}
 }

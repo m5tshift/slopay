@@ -5,12 +5,12 @@ info:
   description: |
     Test component that plays the buyer (SRS 4.1.3, 8.1, 8.5). For an invoice it reads the payment address and
     the amount from `GET /pay/{id}` of `invoice-service`, then, by the configured shares (80 % pay, 10 % underpay,
-    10 % do not pay by default), sends an ETH transfer to Anvil from a pre-funded account. Every signed transaction
+    10 % do not pay by default), sends a transfer to Anvil from a pre-funded account: ETH, or `transfer` of the test USDT contract for an ERC20 invoice. Every signed transaction
     is kept, so after a reorganisation the command `/control/replay` sends the same transactions again
     (the same `txHash`, SRS 8.5).
 
     The component lives in the cluster mesh only and has no application-level authentication. The state is kept
-    in memory: a restart forgets the transactions. Only ETH invoices are paid.
+    in memory: a restart forgets the transactions. Only ETH and ERC20 invoices are paid.
 servers:
   - url: http://payer-sim.apps.svc.cluster.local
     description: In-cluster service
@@ -52,14 +52,14 @@ paths:
         '400':
           $ref: '#/components/responses/Error'
         '502':
-          description: '`invoice-service` or Anvil failed, or the invoice cannot be paid by the simulator (not an ETH invoice).'
+          description: '`invoice-service` or Anvil failed, or the invoice cannot be paid by the simulator (an asset other than ETH or ERC20).'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
                 code: upstream_failed
-                message: Invoice is not an ETH invoice
+                message: Invoice asset is not supported
     get:
       tags: [payments]
       operationId: listPayments
@@ -166,7 +166,7 @@ components:
         amount:
           type: string
           pattern: '^(0|[1-9][0-9]{0,77})$'
-          description: Sent amount in wei. Absent when the payer did not pay.
+          description: Sent amount in minimal units of the asset (wei for ETH). Absent when the payer did not pay.
     Error:
       type: object
       required: [code, message]

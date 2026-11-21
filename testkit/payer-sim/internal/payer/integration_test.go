@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -90,6 +91,153 @@ func setup(t *testing.T, amount *big.Int, to common.Address, shares payer.Shares
 		t.Fatal(err)
 	}
 	return p, ec, rc
+}
+
+// deployUSDT deploys the test USDT (bytecode of stand-setup) from a funded account and mints amount to each key.
+func deployUSDT(t *testing.T, ec *ethclient.Client, rc *rpc.Client, holders []common.Address, amount *big.Int) common.Address {
+	t.Helper()
+	ctx := context.Background()
+	raw, err := os.ReadFile("../../../stand-setup/internal/usdt/TestUSDT.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := common.FromHex(strings.TrimSpace(string(raw)))
+	dk, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := crypto.PubkeyToAddress(dk.PublicKey)
+	if err := rc.CallContext(ctx, nil, "anvil_setBalance", from, hexutil.EncodeBig(big.NewInt(1e18))); err != nil {
+		t.Fatal(err)
+	}
+	id, err := ec.ChainID(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer := types.LatestSignerForChainID(id)
+	nonce := uint64(0)
+	send := func(to *common.Address, data []byte) *types.Receipt {
+		price, err := ec.SuggestGasPrice(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		tx, err := types.SignNewTx(dk, signer, &types.LegacyTx{Nonce: nonce, GasPrice: price, Gas: 2_000_000, To: to, Data: data})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := ec.SendTransaction(ctx, tx); err != nil {
+			t.Fatal(err)
+		}
+		nonce++
+		r := waitReceipt(t, ec, tx.Hash())
+		if r.Status != 1 {
+			t.Fatalf("reverted %s", tx.Hash())
+		}
+		return r
+	}
+	token := send(nil, code).ContractAddress
+	for _, h := range holders {
+		d := crypto.Keccak256([]byte("mint(address,uint256)"))[:4]
+		d = append(d, common.LeftPadBytes(h.Bytes(), 32)...)
+		d = append(d, common.LeftPadBytes(amount.Bytes(), 32)...)
+		send(&token, d)
+	}
+	return token
+}
+
+func tokenBalance(t *testing.T, ec *ethclient.Client, token, who common.Address) *big.Int {
+	t.Helper()
+	d := append(crypto.Keccak256([]byte("balanceOf(address)"))[:4], common.LeftPadBytes(who.Bytes(), 32)...)
+	out, err := ec.CallContract(context.Background(), ethereum.CallMsg{To: &token, Data: d}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return new(big.Int).SetBytes(out)
+}
+
+// TestPayTokenOnAnvil pays an ERC20 invoice with the real test USDT, rolls the chain back and replays.
+func TestPayTokenOnAnvil(t *testing.T) {
+	ctx := context.Background()
+	to := randomAddress(t)
+	rc, err := rpc.DialContext(ctx, anvilURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(rc.Close)
+	ec := ethclient.NewClient(rc)
+	var keys []*ecdsa.PrivateKey
+	var holders []common.Address
+	for range 2 {
+		k, err := crypto.GenerateKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys = append(keys, k)
+		a := crypto.PubkeyToAddress(k.PublicKey)
+		holders = append(holders, a)
+		if err := rc.CallContext(ctx, nil, "anvil_setBalance", a, hexutil.EncodeBig(big.NewInt(1e18))); err != nil {
+			t.Fatal(err)
+		}
+	}
+	token := deployUSDT(t, ec, rc, holders, big.NewInt(1_000_000_000))
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintf(w, `{"address":%q,"amount":"5000000","asset":{"kind":"ERC20","contract":%q,"decimals":6}}`, to.Hex(), token.Hex())
+	}))
+	t.Cleanup(srv.Close)
+	mk := func(shares payer.Shares) *payer.Payer {
+		p, err := payer.New(ctx, payer.Config{Chain: ec, Invoices: invoice.NewClient(srv.URL, srv.Client()), Keys: keys,
+			Shares: shares, UnderpayBps: 5000, Roll: func(int) int { return 0 }})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	// Underpay: half of the amount.
+	pu := mk(payer.Shares{Underpay: 100})
+	under, err := pu.Pay(ctx, "0b6ce2b8-6a8e-4c3c-9b1d-5a3c1b2f7f11")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := waitReceipt(t, ec, under.TxHash); r.Status != 1 {
+		t.Fatalf("receipt %v", r)
+	}
+	if got := tokenBalance(t, ec, token, to); got.Int64() != 2_500_000 {
+		t.Fatalf("balance after underpay = %s", got)
+	}
+
+	// Full payment, then revert and replay: same hash, included again once.
+	var snap string
+	if err := rc.CallContext(ctx, &snap, "evm_snapshot"); err != nil {
+		t.Fatal(err)
+	}
+	pf := mk(payer.Shares{Pay: 100})
+	pay, err := pf.Pay(ctx, "0b6ce2b8-6a8e-4c3c-9b1d-5a3c1b2f7f10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r := waitReceipt(t, ec, pay.TxHash); r.Status != 1 || len(r.Logs) != 1 {
+		t.Fatalf("receipt %v", r)
+	}
+	if got := tokenBalance(t, ec, token, to); got.Int64() != 7_500_000 {
+		t.Fatalf("balance after pay = %s", got)
+	}
+	var ok bool
+	if err := rc.CallContext(ctx, &ok, "evm_revert", snap); err != nil || !ok {
+		t.Fatalf("revert: %v %v", ok, err)
+	}
+	if got := tokenBalance(t, ec, token, to); got.Int64() != 2_500_000 {
+		t.Fatalf("balance after revert = %s", got)
+	}
+	if res, err := pf.Replay(ctx, ""); err != nil || res.Sent != 1 {
+		t.Fatalf("replay %+v %v", res, err)
+	}
+	if r := waitReceipt(t, ec, pay.TxHash); r.Status != 1 {
+		t.Fatalf("receipt %v", r)
+	}
+	if got := tokenBalance(t, ec, token, to); got.Int64() != 7_500_000 {
+		t.Fatalf("balance after replay = %s", got)
+	}
 }
 
 func randomAddress(t *testing.T) common.Address {
