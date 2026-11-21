@@ -78,6 +78,7 @@ make tf-validate        # terraform validate в infra/terraform
 make ansible-lint       # ansible-lint infra/ansible
 make psa                # PSScriptAnalyzer для infra/hyperv, нужен pwsh
 make infra-test         # Pester для infra/hyperv, нужен pwsh
+make talos-check        # infra/talos: gen.sh --render на примере env, talosctl не нужен
 make precommit          # gitleaks и базовые проверки; один раз: pre-commit install
 ```
 

@@ -1,0 +1,10 @@
+# Data disk of talos-w-1 (the second, 50 GB disk) for local-path-provisioner.
+# A user volume named "data" is mounted by Talos at /var/mnt/data; local-path-provisioner
+# writes to /var/mnt/data/local-path. No kubelet extraMounts or machine.disks are needed.
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: data
+provisioning:
+  diskSelector:
+    match: "!system_disk"
+  minSize: 40GB
