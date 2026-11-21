@@ -39,6 +39,13 @@ type Config struct {
 	// MaxActiveKeys is the number of API keys active at the same time (API_KEY_MAX_ACTIVE, SRS 4.1.10: 2).
 	MaxActiveKeys int
 
+	// OpenBaoAddr, OpenBaoTokenFile and OpenBaoMount configure the KV v2 store of webhook secrets
+	// (OPENBAO_ADDR, OPENBAO_TOKEN_FILE, OPENBAO_KV_MOUNT, default "secret"). Without OPENBAO_ADDR the
+	// rotation endpoint answers 501.
+	OpenBaoAddr      string
+	OpenBaoTokenFile string
+	OpenBaoMount     string
+
 	// DefaultToleranceBps is the tolerance when the merchant does not set one
 	// (TOLERANCE_DEFAULT_BPS, SRS 4.1.4: 100 = 1 %).
 	DefaultToleranceBps int
@@ -58,6 +65,13 @@ func FromEnv() (Config, error) {
 		KafkaBrokers: splitList(os.Getenv("KAFKA_BROKERS")),
 		JWTKeyFile:   os.Getenv("JWT_SIGNING_KEY_FILE"),
 		JWTIssuer:    envOr("JWT_ISSUER", "slopay-merchant-service"),
+
+		OpenBaoAddr:      os.Getenv("OPENBAO_ADDR"),
+		OpenBaoTokenFile: os.Getenv("OPENBAO_TOKEN_FILE"),
+		OpenBaoMount:     envOr("OPENBAO_KV_MOUNT", "secret"),
+	}
+	if c.OpenBaoAddr != "" && c.OpenBaoTokenFile == "" {
+		errs = append(errs, errors.New("OPENBAO_TOKEN_FILE is required with OPENBAO_ADDR"))
 	}
 	if len(c.KafkaBrokers) == 0 {
 		errs = append(errs, errors.New("KAFKA_BROKERS is required"))

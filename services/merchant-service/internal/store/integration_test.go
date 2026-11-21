@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -19,6 +21,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tckafka "github.com/testcontainers/testcontainers-go/modules/kafka"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
@@ -27,6 +30,7 @@ import (
 	"github.com/m5tshift/slopay/pkg/outbox"
 	"github.com/m5tshift/slopay/pkg/storage"
 	"github.com/m5tshift/slopay/services/merchant-service/internal/merchant"
+	"github.com/m5tshift/slopay/services/merchant-service/internal/openbao"
 	"github.com/m5tshift/slopay/services/merchant-service/internal/xpubtest"
 	"github.com/m5tshift/slopay/services/merchant-service/migrations"
 )
@@ -389,5 +393,122 @@ func TestEventsReachKafka(t *testing.T) {
 	if len(got) != 2 || got[0].Version != 2 || got[1].Version != 3 || got[1].ToleranceBps != 0 ||
 		got[1].WebhookURL == nil || *got[1].WebhookURL != "https://merchant.example.com/hooks" || got[1].Xpub != xpubtest.Xpub {
 		t.Errorf("events = %+v", got)
+	}
+}
+
+// startOpenBao runs OpenBao in dev mode (KV v2 on secret/) and returns its address and root token.
+func startOpenBao(t *testing.T) (addr, token string) {
+	t.Helper()
+	ctx := ctxT(t)
+	const root = "dev-root-token"
+	c, err := testcontainers.Run(ctx, "openbao/openbao:2.1.0",
+		testcontainers.WithExposedPorts("8200/tcp"),
+		testcontainers.WithCmd("server", "-dev", "-dev-root-token-id="+root, "-dev-listen-address=0.0.0.0:8200"),
+		testcontainers.WithWaitStrategy(wait.ForHTTP("/v1/sys/health").WithPort("8200/tcp")),
+	)
+	if err != nil {
+		t.Fatalf("start openbao: %v", err)
+	}
+	t.Cleanup(func() { _ = testcontainers.TerminateContainer(c) })
+	host, err := c.Host(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := c.MappedPort(ctx, "8200/tcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("http://%s:%s", host, port.Port()), root
+}
+
+func readSecret(t *testing.T, addr, token string, id uuid.UUID, version int) (secret string, v float64) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(ctxT(t), http.MethodGet, addr+openbao.Path("secret", id, version), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Vault-Token", token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("read version %d: %d", version, resp.StatusCode)
+	}
+	var out struct {
+		Data struct {
+			Data struct {
+				Secret  string  `json:"secret"`
+				Version float64 `json:"version"`
+			} `json:"data"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	return out.Data.Data.Secret, out.Data.Data.Version
+}
+
+// TestWebhookSecretRotation checks the new version lands in OpenBao KV and in the outbox in one logical step,
+// that the old version stays readable and that an OpenBao failure leaves no trace in PostgreSQL.
+func TestWebhookSecretRotation(t *testing.T) {
+	ctx := ctxT(t)
+	addr, token := startOpenBao(t)
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	if err := os.WriteFile(tokenFile, []byte(token), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bao, err := openbao.New(openbao.Config{Addr: addr, TokenFile: tokenFile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := newService()
+	svc.WithSecrets(bao)
+	m, _, err := svc.Register(ctx, "Shop", "a@b.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.SetXpub(ctx, m.ID, xpubtest.Xpub); err != nil {
+		t.Fatal(err)
+	}
+	r1, err := svc.RotateWebhookSecret(ctx, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r2, err := svc.RotateWebhookSecret(ctx, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r1.Version != 2 || r2.Version != 3 {
+		t.Fatalf("versions %d %d", r1.Version, r2.Version)
+	}
+	for _, r := range []merchant.RotatedSecret{r1, r2} {
+		if got, v := readSecret(t, addr, token, m.ID, r.Version); got != r.Secret || int(v) != r.Version {
+			t.Errorf("version %d in OpenBao: %q %v", r.Version, got, v)
+		}
+	}
+	got, err := svc.Get(ctx, m.ID)
+	if err != nil || got.WebhookSecretVersion != 3 || got.Version != 4 || outboxCount(t, m.ID) != 3 {
+		t.Errorf("state: %+v %v outbox=%d", got, err, outboxCount(t, m.ID))
+	}
+	var payload string
+	if err := pg.Pool().QueryRow(ctx, `SELECT event::text FROM outbox WHERE key = $1 ORDER BY id DESC LIMIT 1`, m.ID.String()).Scan(&payload); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(payload, r2.Secret) || !strings.Contains(payload, `"webhookSecretVersion": 3`) && !strings.Contains(payload, `"webhookSecretVersion":3`) {
+		t.Errorf("outbox payload: %s", payload)
+	}
+
+	// A wrong token: OpenBao rejects the write, the version does not move and no event is added.
+	if err := os.WriteFile(tokenFile, []byte("wrong"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.RotateWebhookSecret(ctx, m.ID); !errors.Is(err, openbao.ErrUnavailable) {
+		t.Errorf("rejected token: %v", err)
+	}
+	got, _ = svc.Get(ctx, m.ID)
+	if got.WebhookSecretVersion != 3 || got.Version != 4 || outboxCount(t, m.ID) != 3 {
+		t.Errorf("state after failure: %+v outbox=%d", got, outboxCount(t, m.ID))
 	}
 }

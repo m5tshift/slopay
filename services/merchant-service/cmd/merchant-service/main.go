@@ -24,6 +24,7 @@ import (
 	"github.com/m5tshift/slopay/services/merchant-service/internal/config"
 	"github.com/m5tshift/slopay/services/merchant-service/internal/jwt"
 	"github.com/m5tshift/slopay/services/merchant-service/internal/merchant"
+	"github.com/m5tshift/slopay/services/merchant-service/internal/openbao"
 	"github.com/m5tshift/slopay/services/merchant-service/internal/store"
 	"github.com/m5tshift/slopay/services/merchant-service/migrations"
 )
@@ -89,6 +90,15 @@ func run(log *slog.Logger) error {
 		DefaultToleranceBps: cfg.DefaultToleranceBps,
 		MaxToleranceBps:     cfg.MaxToleranceBps,
 	}, log)
+	if cfg.OpenBaoAddr != "" {
+		bao, err := openbao.New(openbao.Config{Addr: cfg.OpenBaoAddr, TokenFile: cfg.OpenBaoTokenFile, Mount: cfg.OpenBaoMount})
+		if err != nil {
+			return err
+		}
+		svc.WithSecrets(bao)
+	} else {
+		log.Warn("OPENBAO_ADDR is not set: webhook secret rotation is disabled")
+	}
 
 	health := telemetry.NewHealth(log, 0)
 	health.AddReadiness("postgresql", pg.Ready)
