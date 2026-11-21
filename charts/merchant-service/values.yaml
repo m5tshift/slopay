@@ -26,7 +26,7 @@ secrets:
 
 postgres:
   enabled: true
-  url: postgres://merchant-service@pg-rw.db.svc:5432/merchant
+  url: postgres://merchant-service@merchant-pg-rw.data.svc:5432/merchant
   password:
     secret: postgres
     key: password

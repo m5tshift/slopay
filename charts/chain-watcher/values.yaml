@@ -29,7 +29,7 @@ secrets:
 
 mongodb:
   enabled: true
-  uri: mongodb://mongodb-rs0.db.svc:27017/?replicaSet=rs0
+  uri: mongodb://mongodb-rs0.data.svc:27017/?replicaSet=rs0
   username: chain-watcher
   database: chain_watcher
   authSource: chain_watcher
@@ -41,7 +41,7 @@ mongodb:
 valkey:
   enabled: true
   addrs:
-    - valkey.db.svc:6379
+    - valkey.data.svc:6379
   username: chain-watcher
   password:
     secret: valkey
@@ -51,7 +51,7 @@ env:
   # Reads invoice.events into the projection of tracked addresses.
   KAFKA_CONSUMER_GROUP: chain-watcher
   # Anvil on the stand (SRS 4.1.3); Sepolia would be another deployment with its own CHAIN_ID.
-  NODE_URL: http://anvil.apps.svc:8545
+  NODE_URL: http://anvil.chain.svc:8545
   CHAIN_ID: "31337"
   NODE_TIMEOUT: 5s
   # SRS 4.1.9: backoff to the node; the circuit breaker adds to the mesh outlier detection.

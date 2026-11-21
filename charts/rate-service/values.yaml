@@ -28,7 +28,7 @@ secrets:
 valkey:
   enabled: true
   addrs:
-    - valkey.db.svc:6379
+    - valkey.data.svc:6379
   username: rate-service
   password:
     secret: valkey

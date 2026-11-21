@@ -25,7 +25,7 @@ secrets:
 
 postgres:
   enabled: true
-  url: postgres://invoice-service@pg-rw.db.svc:5432/invoice
+  url: postgres://invoice-service@invoice-pg-rw.data.svc:5432/invoice
   password:
     secret: postgres
     key: password
@@ -34,7 +34,7 @@ postgres:
 valkey:
   enabled: true
   addrs:
-    - valkey.db.svc:6379
+    - valkey.data.svc:6379
   username: invoice-service
   password:
     secret: valkey
