@@ -136,3 +136,27 @@ jobs:
       - if: hashFiles('infra/ansible/**') != ''
         run: pip install ansible-lint==26.11.0
       - run: make ansible-lint
+
+  # Shared job for infrastructure scripts. Add steps for new scripts (shellcheck, tests) here
+  # instead of creating new jobs: the job name is a required status check.
+  infra:
+    name: infra
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PSSCRIPTANALYZER_VERSION: 1.24.0
+      PESTER_VERSION: 5.7.1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: PowerShell modules
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -RequiredVersion $env:PSSCRIPTANALYZER_VERSION -Scope CurrentUser
+          Install-Module Pester -RequiredVersion $env:PESTER_VERSION -Scope CurrentUser -SkipPublisherCheck
+      - name: PowerShell lint (PSScriptAnalyzer)
+        run: make psa
+      - name: PowerShell tests (Pester)
+        run: make infra-test

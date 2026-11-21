@@ -1,0 +1,11 @@
+{
+  "switchName": "slopay-external",
+  "netAdapterName": "Ethernet",
+  "vmPath": "D:\\Hyper-V\\VMs",
+  "vhdPath": "D:\\Hyper-V\\VHDX",
+  "isoPath": "D:\\ISO\\talos-metal-amd64.iso",
+  "vms": [
+    { "name": "talos-cp-1", "vcpu": 2, "ramGB": 3,  "disks": [20],     "iso": true },
+    { "name": "talos-w-1",  "vcpu": 6, "ramGB": 14, "disks": [20, 50], "iso": true }
+  ]
+}
