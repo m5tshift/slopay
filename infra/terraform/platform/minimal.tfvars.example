@@ -1,0 +1,2 @@
+# Minimal stand (SRS 6.4): flannel and kube-proxy stay, no Cilium. Copy to terraform.tfvars (kept out of Git).
+kubeconfig_path = "~/.weigate/kubeconfig-admin"
