@@ -22,9 +22,9 @@ kubeconfig; агент его не запускает. После OpenBao + ESO 
 | `invoice-service-valkey` | `apps` | `password` | пароль пользователя Valkey `invoice-service` |
 | `chain-watcher-valkey` | `apps` | `password` | пароль пользователя Valkey `chain-watcher` |
 | `rate-service-valkey` | `apps` | `password` | пароль пользователя Valkey `rate-service` |
-| `valkey-users` | `data` | `invoice-service`, `chain-watcher`, `rate-service` | те же пароли; из них init-контейнер Valkey (`platform/valkey` в `slopay-gitops`) строит ACL |
+| `valkey-users` | `data` | `invoice-service`, `chain-watcher`, `rate-service` | те же пароли; из них init-контейнер Valkey (`platform/valkey` в `weigate-gitops`) строит ACL |
 
-Имена секретов — `<компонент>-<name>` из `charts/<сервис>/values.yaml` (правило `slopay-lib`).
+Имена секретов — `<компонент>-<name>` из `charts/<сервис>/values.yaml` (правило `weigate-lib`).
 У `rate-mock` секретов нет.
 
 Пароли — 24 случайных байта в hex (`openssl rand`). Группа Kafka `chain-watcher` читает `invoice.events`;

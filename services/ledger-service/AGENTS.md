@@ -38,7 +38,7 @@ kin-openapi), ошибка — `400` с именами параметров. С�
 | `POSTGRES_URL`, `POSTGRES_PASSWORD_FILE`, `POSTGRES_MAX_CONNS` | PostgreSQL (`storage.PostgresConfigFromEnv`) | — |
 | `FEE_BPS` | комиссия платформы, б. п. (0..10000) | 50 = 0,5 % (4.1.3) |
 
-Секреты читаются из файлов: `/var/run/secrets/slopay/postgres/password`.
+Секреты читаются из файлов: `/var/run/secrets/weigate/postgres/password`.
 
 ## Команды
 

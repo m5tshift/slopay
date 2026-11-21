@@ -1,5 +1,5 @@
 asyncapi: 3.0.0
-id: urn:slopay:ledger-service
+id: urn:weigate:ledger-service
 info:
   title: ledger-service events
   version: 1.0.0
@@ -74,11 +74,11 @@ components:
           payload:
             specversion: '1.0'
             id: 'receipt:0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4:0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7:'
-            source: /slopay/ledger-service
+            source: /weigate/ledger-service
             type: ledger.receipt_posted
             time: '2026-11-15T10:03:00Z'
             subject: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.receipt_posted.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/ledger.receipt_posted.v1.json
             datacontenttype: application/json
             data:
               merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
@@ -100,11 +100,11 @@ components:
           payload:
             specversion: '1.0'
             id: 'receipt:0xc3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6c3d4e5f6:0xf6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9f6a7b8c9:0'
-            source: /slopay/ledger-service
+            source: /weigate/ledger-service
             type: ledger.receipt_posted
             time: '2026-11-15T10:04:00Z'
             subject: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.receipt_posted.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/ledger.receipt_posted.v1.json
             datacontenttype: application/json
             data:
               merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
@@ -135,11 +135,11 @@ components:
           payload:
             specversion: '1.0'
             id: 'fee:0xa1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4a1b2c3d4:0xd4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7d4e5f6a7:'
-            source: /slopay/ledger-service
+            source: /weigate/ledger-service
             type: ledger.fee_accrued
             time: '2026-11-15T10:03:00Z'
             subject: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/ledger.fee_accrued.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/ledger.fee_accrued.v1.json
             datacontenttype: application/json
             data:
               merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b

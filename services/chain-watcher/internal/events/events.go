@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
 )
 
 // Event source, types and topic of the contract.
 const (
-	EventSource    = "/slopay/chain-watcher"
+	EventSource    = "/weigate/chain-watcher"
 	TypeNewHead    = "chain.new_head"
 	TypeReorg      = "chain.reorg"
 	TypeTransfer   = "chain.transfer"

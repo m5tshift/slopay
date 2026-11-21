@@ -268,7 +268,7 @@ func TestStateMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 	m := rm.ScopeMetrics[0].Metrics[0]
-	if m.Name != "slopay_circuit_breaker_state" {
+	if m.Name != "weigate_circuit_breaker_state" {
 		t.Fatal(m.Name)
 	}
 	dp := m.Data.(metricdata.Gauge[int64]).DataPoints[0]

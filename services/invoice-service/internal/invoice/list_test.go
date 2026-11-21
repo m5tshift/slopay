@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoicetest"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoicetest"
 )
 
 // seed creates n invoices one second apart, the newest last; two of them share a createdAt to test ties.
@@ -150,7 +150,7 @@ func TestCursorRoundTrip(t *testing.T) {
 
 func TestMerchantFromEvent(t *testing.T) {
 	id := uuid.New()
-	ev, err := kafka.NewEvent("/slopay/merchant-service", "merchant.updated", id.String(), 1, map[string]any{
+	ev, err := kafka.NewEvent("/weigate/merchant-service", "merchant.updated", id.String(), 1, map[string]any{
 		"merchantId": id, "version": 4, "xpub": invoicetest.Xpub, "webhookUrl": nil, "toleranceBps": 150,
 		"webhookSecretVersion": 1,
 	})

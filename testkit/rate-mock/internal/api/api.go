@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m5tshift/slopay/testkit/rate-mock/internal/market"
+	"github.com/m5tshift/weigate/testkit/rate-mock/internal/market"
 )
 
 // maxBodyBytes limits command bodies; the largest one is a few bytes.

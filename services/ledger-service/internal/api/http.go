@@ -14,7 +14,7 @@ import (
 	"github.com/getkin/kin-openapi/routers"
 	"github.com/getkin/kin-openapi/routers/legacy"
 
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledger"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledger"
 )
 
 // Options are the dependencies of the HTTP API.

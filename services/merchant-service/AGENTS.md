@@ -35,7 +35,7 @@
 | `KAFKA_BROKERS` | брокеры через запятую, обязательно | — |
 | `POSTGRES_URL`, `POSTGRES_PASSWORD_FILE`, `POSTGRES_MAX_CONNS` | PostgreSQL (`storage.PostgresConfigFromEnv`) | — |
 | `JWT_SIGNING_KEY_FILE` | приватный ключ ECDSA P-256 в PEM (PKCS#8 или SEC1), обязательно | — |
-| `JWT_ISSUER` | `iss` токена | `slopay-merchant-service` |
+| `JWT_ISSUER` | `iss` токена | `weigate-merchant-service` |
 | `JWT_TTL` | срок жизни JWT | 15 мин (4.1.10) |
 | `JWKS_MAX_AGE` | `Cache-Control: max-age` у JWKS | 5 мин |
 | `API_KEY_ROTATION_GRACE` | сколько работает старый ключ после выпуска нового | 24 ч (4.1.10) |
@@ -43,8 +43,8 @@
 | `OPENBAO_ADDR`, `OPENBAO_TOKEN_FILE`, `OPENBAO_KV_MOUNT` | OpenBao для секретов вебхуков; файл токена читается при каждом запросе | не задан, `secret` |
 | `TOLERANCE_DEFAULT_BPS`, `TOLERANCE_MAX_BPS` | допуск оплаты по умолчанию и максимум, б. п. | 100 и 500 (4.1.4) |
 
-Секреты читаются из файлов: `/var/run/secrets/slopay/postgres/password`, `/var/run/secrets/slopay/openbao/token`,
-`/var/run/secrets/slopay/jwt-signing/private.pem`. Файл ключа подписи перечитывается: после ротации
+Секреты читаются из файлов: `/var/run/secrets/weigate/postgres/password`, `/var/run/secrets/weigate/openbao/token`,
+`/var/run/secrets/weigate/jwt-signing/private.pem`. Файл ключа подписи перечитывается: после ротации
 новые токены подписываются новым ключом, прежний публичный ключ остаётся в JWKS на время `JWT_TTL`.
 
 ## Команды

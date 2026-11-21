@@ -1,15 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.mismatch.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/reconciliation.mismatch.v1.json",
   "title": "reconciliation.mismatch",
   "description": "A discrepancy found by a run (SRS 4.1.3): for an address and an asset the three sums are given. The event raises the alert. The event ID: <runId>:<address>:<ETH or token contract>.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "reconciliation.mismatch" },
     "id": { "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:0x[0-9a-f]{40}:(ETH|0x[0-9a-f]{40})$" },
-    "source": { "const": "/slopay/reconciliation-service" },
+    "source": { "const": "/weigate/reconciliation-service" },
     "subject": { "$ref": "defs.v1.json#/definitions/uuid" },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.mismatch.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/reconciliation.mismatch.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

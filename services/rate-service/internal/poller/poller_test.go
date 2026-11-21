@@ -13,8 +13,8 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/pkg/breaker"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
 )
 
 var t0 = time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
@@ -208,7 +208,7 @@ func gauge(t *testing.T, m map[string][]metricdata.DataPoint[int64], name string
 
 func requestsWith(m map[string][]metricdata.DataPoint[int64], src, result string) int64 {
 	var n int64
-	for _, dp := range m["slopay_rate_source_requests"] {
+	for _, dp := range m["weigate_rate_source_requests"] {
 		s, _ := dp.Attributes.Value("source")
 		r, _ := dp.Attributes.Value("result")
 		if s.AsString() == src && r.AsString() == result {
@@ -239,14 +239,14 @@ func TestBothSourcesAgreeGiveTheMean(t *testing.T) {
 		}
 	}
 	m := e.metrics(t)
-	if v, ok := gauge(t, m, "slopay_rate_diverged"); !ok || v != 0 {
+	if v, ok := gauge(t, m, "weigate_rate_diverged"); !ok || v != 0 {
 		t.Errorf("diverged %d %v", v, ok)
 	}
-	if v, ok := gauge(t, m, "slopay_rate_divergence_bps"); !ok || v != 27 { // 10 / 3700
+	if v, ok := gauge(t, m, "weigate_rate_divergence_bps"); !ok || v != 27 { // 10 / 3700
 		t.Errorf("divergence %d %v", v, ok)
 	}
 	if requestsWith(m, "coinbase", "ok") != 2 || requestsWith(m, "okx", "ok") != 1 {
-		t.Errorf("requests %+v", m["slopay_rate_source_requests"])
+		t.Errorf("requests %+v", m["weigate_rate_source_requests"])
 	}
 }
 
@@ -284,10 +284,10 @@ func TestDivergenceMakesTheRateUnreliable(t *testing.T) {
 		}
 	}
 	m := e.metrics(t)
-	if v, _ := gauge(t, m, "slopay_rate_diverged"); v != 1 {
+	if v, _ := gauge(t, m, "weigate_rate_diverged"); v != 1 {
 		t.Errorf("diverged gauge %d", v)
 	}
-	if v, _ := gauge(t, m, "slopay_rate_divergence_bps"); v != 135 {
+	if v, _ := gauge(t, m, "weigate_rate_divergence_bps"); v != 135 {
 		t.Errorf("divergence %d", v)
 	}
 	if !strings.Contains(e.logs.String(), "rate sources diverge") {
@@ -301,7 +301,7 @@ func TestDivergenceMakesTheRateUnreliable(t *testing.T) {
 	if r, err := e.served(t, rate.ETHUSD); err != nil || r.Price.String() != "3700" {
 		t.Fatalf("%+v %v", r, err)
 	}
-	if v, _ := gauge(t, e.metrics(t), "slopay_rate_diverged"); v != 0 {
+	if v, _ := gauge(t, e.metrics(t), "weigate_rate_diverged"); v != 0 {
 		t.Errorf("diverged gauge %d", v)
 	}
 }
@@ -341,7 +341,7 @@ func TestNoQuoteKeepsTheLastRateUntilStale(t *testing.T) {
 	m := e.metrics(t)
 	// okx: failures at 5, 10, 15 s open the breaker; the probe at 45 s fails and opens it again.
 	if requestsWith(m, "okx", "error") != 4 || requestsWith(m, "okx", "rejected") != 8 {
-		t.Errorf("okx requests: %+v", m["slopay_rate_source_requests"])
+		t.Errorf("okx requests: %+v", m["weigate_rate_source_requests"])
 	}
 	if e.f.calls[request{rate.OKX, rate.ETHUSDT}] != 5 {
 		t.Errorf("okx was called %d times while open", e.f.calls[request{rate.OKX, rate.ETHUSDT}])
@@ -363,7 +363,7 @@ func TestOneSourceDownTheOtherServes(t *testing.T) {
 		t.Fatalf("%+v %v", r, err)
 	}
 	m := e.metrics(t)
-	for _, dp := range m["slopay_circuit_breaker_state"] {
+	for _, dp := range m["weigate_circuit_breaker_state"] {
 		dep, _ := dp.Attributes.Value("dependency")
 		want := int64(breaker.Closed)
 		if dep.AsString() == "okx" {
@@ -455,7 +455,7 @@ func TestCancelledRoundWritesNothing(t *testing.T) {
 	if requestsWith(m, "okx", "error") != 0 {
 		t.Error("cancellation counted as a source failure")
 	}
-	for _, dp := range m["slopay_circuit_breaker_state"] {
+	for _, dp := range m["weigate_circuit_breaker_state"] {
 		if dp.Value != int64(breaker.Closed) {
 			t.Errorf("breaker %v", dp)
 		}
@@ -464,16 +464,16 @@ func TestCancelledRoundWritesNothing(t *testing.T) {
 
 func TestGaugesOnlyOnTheLeader(t *testing.T) {
 	e := newEnv(t)
-	if _, ok := gauge(t, e.metrics(t), "slopay_rate_diverged"); ok {
+	if _, ok := gauge(t, e.metrics(t), "weigate_rate_diverged"); ok {
 		t.Error("reported before the first round")
 	}
 	e.p.Poll(context.Background())
 	e.p.leading.Store(false)
 	m := e.metrics(t)
-	if _, ok := gauge(t, m, "slopay_rate_diverged"); ok {
+	if _, ok := gauge(t, m, "weigate_rate_diverged"); ok {
 		t.Error("diverged reported by a follower")
 	}
-	if _, ok := gauge(t, m, "slopay_rate_divergence_bps"); ok {
+	if _, ok := gauge(t, m, "weigate_rate_divergence_bps"); ok {
 		t.Error("divergence reported by a follower")
 	}
 }
@@ -554,7 +554,7 @@ func TestAgeGauge(t *testing.T) {
 		t.Fatal(err)
 	}
 	dps := rm.ScopeMetrics[0].Metrics[0].Data.(metricdata.Gauge[float64]).DataPoints
-	if rm.ScopeMetrics[0].Metrics[0].Name != "slopay_rate_age_seconds" || len(dps) != 1 || dps[0].Value != 42 {
+	if rm.ScopeMetrics[0].Metrics[0].Name != "weigate_rate_age_seconds" || len(dps) != 1 || dps[0].Value != 42 {
 		t.Fatalf("%+v", dps)
 	}
 	if v, _ := dps[0].Attributes.Value("pair"); v.AsString() != "ETH-USD" {
@@ -605,7 +605,7 @@ func TestOutgoingLimitSkipsRequestsWithoutTrippingTheBreaker(t *testing.T) {
 	if got := requestsWith(m, "okx", "error"); got != 0 {
 		t.Errorf("a limited request counted as an error: %d", got)
 	}
-	for _, dp := range m["slopay_circuit_breaker_state"] {
+	for _, dp := range m["weigate_circuit_breaker_state"] {
 		if dp.Value != int64(breaker.Closed) {
 			t.Errorf("breaker left closed state: %+v", dp)
 		}

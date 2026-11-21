@@ -15,7 +15,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers/legacy"
 
-	"github.com/m5tshift/slopay/testkit/rate-mock/internal/market"
+	"github.com/m5tshift/weigate/testkit/rate-mock/internal/market"
 )
 
 const contractFile = "../../../../contracts/openapi/rate-mock.yaml"

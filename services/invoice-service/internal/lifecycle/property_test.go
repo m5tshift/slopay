@@ -15,9 +15,9 @@ import (
 	"github.com/google/uuid"
 	"pgregory.net/rapid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/money"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/money"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
 )
 
 // The property test drives the Engine with what chain-watcher publishes, delivered as Kafka may deliver it,

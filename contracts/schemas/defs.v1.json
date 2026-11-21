@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/defs.v1.json",
-  "title": "Common definitions of SLOPay events",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/defs.v1.json",
+  "title": "Common definitions of Weigate events",
   "definitions": {
     "uuid": {
       "type": "string",

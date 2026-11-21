@@ -10,11 +10,11 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/projection"
 )
 
-// Modes of slopay_chain_transfers_published and slopay_chain_transfer_delay.
+// Modes of weigate_chain_transfers_published and weigate_chain_transfer_delay.
 const (
 	modeLive   = "live"
 	modeRescan = "rescan"

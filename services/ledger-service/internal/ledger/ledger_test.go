@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/money"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledger"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledgertest"
+	"github.com/m5tshift/weigate/pkg/money"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledger"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledgertest"
 )
 
 var (

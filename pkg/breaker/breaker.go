@@ -121,10 +121,10 @@ func New(cfg Config) (*Breaker, error) {
 	}
 	m := cfg.Meter
 	if m == nil {
-		m = otel.Meter("github.com/m5tshift/slopay/pkg/breaker")
+		m = otel.Meter("github.com/m5tshift/weigate/pkg/breaker")
 	}
 	b := &Breaker{cfg: cfg}
-	_, err := m.Int64ObservableGauge("slopay_circuit_breaker_state",
+	_, err := m.Int64ObservableGauge("weigate_circuit_breaker_state",
 		metric.WithDescription("Circuit Breaker state: 0 closed, 1 half-open, 2 open"),
 		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
 			o.Observe(int64(b.State()), metric.WithAttributes(attribute.String("dependency", cfg.Dependency)))

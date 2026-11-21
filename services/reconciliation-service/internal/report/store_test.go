@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/recon"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/recon"
 )
 
 func TestDocRoundTrip(t *testing.T) {

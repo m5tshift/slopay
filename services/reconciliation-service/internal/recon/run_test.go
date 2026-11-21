@@ -13,7 +13,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
+	"github.com/m5tshift/weigate/pkg/breaker"
 )
 
 const chainID = 31337
@@ -256,7 +256,7 @@ func (e *env) metric(t *testing.T, name string) []metricdata.DataPoint[int64] {
 
 func (e *env) runs(t *testing.T, result string) int64 {
 	t.Helper()
-	for _, dp := range e.metric(t, "slopay_reconciliation_runs") {
+	for _, dp := range e.metric(t, "weigate_reconciliation_runs") {
 		if v, _ := dp.Attributes.Value(attribute.Key("result")); v.AsString() == result {
 			return dp.Value
 		}
@@ -338,14 +338,14 @@ func TestRunDetectsDiscrepancies(t *testing.T) {
 		t.Error("runs{mismatch} not counted")
 	}
 	// The gauges are reported by the leader only.
-	if dps := e.metric(t, "slopay_reconciliation_mismatches"); len(dps) != 0 {
+	if dps := e.metric(t, "weigate_reconciliation_mismatches"); len(dps) != 0 {
 		t.Errorf("gauge outside leadership: %v", dps)
 	}
 	e.r.leading.Store(true)
-	if dps := e.metric(t, "slopay_reconciliation_mismatches"); len(dps) != 1 || dps[0].Value != 2 {
+	if dps := e.metric(t, "weigate_reconciliation_mismatches"); len(dps) != 1 || dps[0].Value != 2 {
 		t.Errorf("mismatches gauge %v", dps)
 	}
-	if dps := e.metric(t, "slopay_reconciliation_after_window"); len(dps) != 1 || dps[0].Value != 1 {
+	if dps := e.metric(t, "weigate_reconciliation_after_window"); len(dps) != 1 || dps[0].Value != 1 {
 		t.Errorf("after window gauge %v", dps)
 	}
 }
@@ -410,7 +410,7 @@ func TestNodeFailures(t *testing.T) {
 		t.Fatalf("err %v, want breaker open", err)
 	}
 	rejected := false
-	for _, dp := range e.metric(t, "slopay_reconciliation_node_requests") {
+	for _, dp := range e.metric(t, "weigate_reconciliation_node_requests") {
 		if v, _ := dp.Attributes.Value("result"); v.AsString() == "rejected" {
 			rejected = true
 		}
@@ -480,7 +480,7 @@ func TestScheduleLeads(t *testing.T) {
 			t.Error("not leading while scheduled")
 		}
 		if runs == 0 {
-			if dps := e.metric(t, "slopay_reconciliation_mismatches"); len(dps) != 1 || dps[0].Value != 4 {
+			if dps := e.metric(t, "weigate_reconciliation_mismatches"); len(dps) != 1 || dps[0].Value != 4 {
 				t.Errorf("gauge from the stored report: %v", dps)
 			}
 		}
@@ -495,7 +495,7 @@ func TestScheduleLeads(t *testing.T) {
 	if runs != 2 || len(e.reports.reports) != 3 || e.r.leading.Load() {
 		t.Fatalf("runs %d, reports %d", runs, len(e.reports.reports))
 	}
-	if dps := e.metric(t, "slopay_reconciliation_mismatches"); len(dps) != 0 {
+	if dps := e.metric(t, "weigate_reconciliation_mismatches"); len(dps) != 0 {
 		t.Errorf("gauge after leadership: %v", dps)
 	}
 }

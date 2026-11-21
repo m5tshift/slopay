@@ -14,9 +14,9 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/mongodb"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
-	"github.com/m5tshift/slopay/pkg/storage"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/store"
+	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/store"
 )
 
 func openMongo(t *testing.T) *storage.Mongo {

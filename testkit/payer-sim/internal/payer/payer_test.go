@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/m5tshift/slopay/testkit/payer-sim/internal/invoice"
+	"github.com/m5tshift/weigate/testkit/payer-sim/internal/invoice"
 )
 
 type fakeChain struct {

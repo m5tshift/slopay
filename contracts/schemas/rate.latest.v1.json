@@ -1,14 +1,14 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.latest.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/rate.latest.v1.json",
   "title": "rate.latest",
   "description": "The latest aggregated rate of a pair (SRS 4.1.5, 4.1.9). The topic is compacted by pair; rate-service restores its cache from it after a restart. A rate older than 60 s is stale.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "rate.latest" },
-    "source": { "const": "/slopay/rate-service" },
+    "source": { "const": "/weigate/rate-service" },
     "subject": { "enum": ["ETH-USD", "USDT-USD"] },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.latest.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/rate.latest.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

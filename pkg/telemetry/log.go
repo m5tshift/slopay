@@ -1,5 +1,5 @@
 // Package telemetry provides logging, metrics, traces and health endpoints
-// shared by all SLOPay services (SRS 4.5.1, 5, NFR-11).
+// shared by all Weigate services (SRS 4.5.1, 5, NFR-11).
 package telemetry
 
 import (

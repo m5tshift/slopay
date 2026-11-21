@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const tracerName = "github.com/m5tshift/slopay/pkg/kafka"
+const tracerName = "github.com/m5tshift/weigate/pkg/kafka"
 
 // Producer publishes events. The client is idempotent: franz-go enables idempotent writes with
 // acks=all, so a retried batch does not create duplicates in the partition (SRS 4.1.5).

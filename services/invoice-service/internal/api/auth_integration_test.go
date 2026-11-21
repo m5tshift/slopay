@@ -18,7 +18,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/services/invoice-service/internal/jwks"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/jwks"
 )
 
 // merchantService mimics merchant-service as the contracts and its code define it (internal/jwt there cannot be

@@ -27,8 +27,8 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"go.mongodb.org/mongo-driver/v2/bson"
 
-	"github.com/m5tshift/slopay/pkg/hdwallet"
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/hdwallet"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 // waitTimeout bounds every wait for an asynchronous result of the slice.

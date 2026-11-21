@@ -9,8 +9,8 @@ import (
 	"github.com/google/uuid"
 	"go.yaml.in/yaml/v3"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/xpubtest"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/xpubtest"
 )
 
 // TestUpdatedEventContract checks merchant.updated against contracts/schemas/merchant.updated.v1.json and
@@ -20,7 +20,7 @@ func TestUpdatedEventContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	xpub, url := xpubtest.Xpub, "https://merchant.example.com/hooks/slopay"
+	xpub, url := xpubtest.Xpub, "https://merchant.example.com/hooks/weigate"
 	for name, m := range map[string]Merchant{
 		"without webhook": {ID: uuid.New(), Xpub: &xpub, ToleranceBps: 100, WebhookSecretVersion: 1, Version: 2},
 		"full":            {ID: uuid.New(), Xpub: &xpub, WebhookURL: &url, ToleranceBps: 500, WebhookSecretVersion: 3, Version: 9},
@@ -36,7 +36,7 @@ func TestUpdatedEventContract(t *testing.T) {
 				t.Fatalf("event does not match the schema: %v", err)
 			}
 			back, err := codec.Decode(raw)
-			if err != nil || back.Subject != m.ID.String() || back.Type != "merchant.updated" || back.Source != "/slopay/merchant-service" {
+			if err != nil || back.Subject != m.ID.String() || back.Type != "merchant.updated" || back.Source != "/weigate/merchant-service" {
 				t.Fatalf("decoded %+v, err %v", back, err)
 			}
 			var data map[string]any

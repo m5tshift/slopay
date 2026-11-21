@@ -1,5 +1,5 @@
 asyncapi: 3.0.0
-id: urn:slopay:reconciliation-service
+id: urn:weigate:reconciliation-service
 info:
   title: reconciliation-service events
   version: 1.0.0
@@ -74,11 +74,11 @@ components:
           payload:
             specversion: '1.0'
             id: 'c0a8e1f2-3b4d-4c5e-8f60-7a8b9c0d1e2f:completed'
-            source: /slopay/reconciliation-service
+            source: /weigate/reconciliation-service
             type: reconciliation.completed
             time: '2026-11-15T10:10:07Z'
             subject: c0a8e1f2-3b4d-4c5e-8f60-7a8b9c0d1e2f
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.completed.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/reconciliation.completed.v1.json
             datacontenttype: application/json
             data:
               runId: c0a8e1f2-3b4d-4c5e-8f60-7a8b9c0d1e2f
@@ -95,11 +95,11 @@ components:
           payload:
             specversion: '1.0'
             id: 'd1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30:completed'
-            source: /slopay/reconciliation-service
+            source: /weigate/reconciliation-service
             type: reconciliation.completed
             time: '2026-11-15T10:20:09Z'
             subject: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.completed.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/reconciliation.completed.v1.json
             datacontenttype: application/json
             data:
               runId: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
@@ -125,11 +125,11 @@ components:
           payload:
             specversion: '1.0'
             id: 'd1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30:0x8ba1f109551bd432803012645ac136ddd64dba72:ETH'
-            source: /slopay/reconciliation-service
+            source: /weigate/reconciliation-service
             type: reconciliation.mismatch
             time: '2026-11-15T10:20:05Z'
             subject: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.mismatch.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/reconciliation.mismatch.v1.json
             datacontenttype: application/json
             data:
               runId: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
@@ -146,11 +146,11 @@ components:
           payload:
             specversion: '1.0'
             id: 'd1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30:0x2546bcd3c84621e976d8185a91a922ae77ecec30:0x5fbdb2315678afecb367f032d93f642f64180aa3'
-            source: /slopay/reconciliation-service
+            source: /weigate/reconciliation-service
             type: reconciliation.mismatch
             time: '2026-11-15T10:20:06Z'
             subject: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/reconciliation.mismatch.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/reconciliation.mismatch.v1.json
             datacontenttype: application/json
             data:
               runId: d1b9f2a3-4c5e-4d6f-9a71-8b9c0d1e2f30

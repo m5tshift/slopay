@@ -26,13 +26,13 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/outbox"
-	"github.com/m5tshift/slopay/pkg/storage"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/merchant"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/openbao"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/xpubtest"
-	"github.com/m5tshift/slopay/services/merchant-service/migrations"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/outbox"
+	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/merchant"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/openbao"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/xpubtest"
+	"github.com/m5tshift/weigate/services/merchant-service/migrations"
 )
 
 var (

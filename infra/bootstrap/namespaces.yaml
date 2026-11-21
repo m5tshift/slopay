@@ -1,4 +1,4 @@
-# Namespaces of the minimal stand (SRS 6.4, 4.4): the destinations of apps/project.yaml in slopay-gitops.
+# Namespaces of the minimal stand (SRS 6.4, 4.4): the destinations of apps/project.yaml in weigate-gitops.
 # The rest stay on the Talos default (baseline); local-path-provisioner helper pods need hostPath.
 apiVersion: v1
 kind: Namespace

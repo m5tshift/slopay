@@ -43,7 +43,7 @@ type Config struct {
 	RetryPeriod   time.Duration
 	// Logger defaults to slog.Default().
 	Logger *slog.Logger
-	// Meter registers the slopay_leader_is_leader gauge; defaults to the global OTel meter.
+	// Meter registers the weigate_leader_is_leader gauge; defaults to the global OTel meter.
 	Meter metric.Meter
 }
 
@@ -79,9 +79,9 @@ func New(cfg Config) (*Leader, error) {
 	}
 	m := cfg.Meter
 	if m == nil {
-		m = otel.Meter("github.com/m5tshift/slopay/pkg/leader")
+		m = otel.Meter("github.com/m5tshift/weigate/pkg/leader")
 	}
-	_, err := m.Int64ObservableGauge("slopay_leader_is_leader",
+	_, err := m.Int64ObservableGauge("weigate_leader_is_leader",
 		metric.WithDescription("1 if this replica currently holds the lease, else 0"),
 		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
 			var v int64

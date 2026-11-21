@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))

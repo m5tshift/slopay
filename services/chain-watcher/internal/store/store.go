@@ -13,7 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
 )
 
 // Collection is the name of the state collection.

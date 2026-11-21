@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: SLOPay merchant webhook
+  title: Weigate merchant webhook
   version: 1.0.0
   description: |
     The webhook that webhook-service sends to the merchant endpoint (SRS 4.1.3, 4.1.10; FR-07). The endpoint is
@@ -19,25 +19,25 @@ info:
     **Signature.** HMAC-SHA256, computed anew for every attempt, so the timestamp and the signature of a repeated
     delivery differ while the body is the same.
 
-    1. `timestamp` is the value of `X-SLOPay-Timestamp`: Unix time in whole seconds, decimal, no leading zeros.
+    1. `timestamp` is the value of `X-Weigate-Timestamp`: Unix time in whole seconds, decimal, no leading zeros.
     2. The string to sign is the bytes `timestamp` + `.` (one ASCII dot, 0x2E) + the raw request body exactly as
        received, without parsing or re-serialising. No other separators or newlines.
     3. `signature` = lower-case hex of `HMAC-SHA256(key = webhook secret, message = string to sign)`; 64 characters.
-    4. The header is `X-SLOPay-Signature: v1=<signature>`.
+    4. The header is `X-Weigate-Signature: v1=<signature>`.
 
     The key is the secret bytes as they were issued by merchant-service, without decoding. Verify in constant
     time. Reject the webhook if the timestamp differs from the receiver clock by more than 5 minutes (replay
     protection).
 
     **Secret rotation.** After `POST /api/v1/merchants/me/webhook-secret/rotate` webhooks are signed with the new
-    secret at once, and `X-SLOPay-Secret-Version` carries its version. For 24 h the merchant accepts both the old
+    secret at once, and `X-Weigate-Secret-Version` carries its version. For 24 h the merchant accepts both the old
     and the new version: choose the secret by the version from the header.
 servers:
   - url: '{webhookUrl}'
     description: The webhook URL from the merchant settings; webhooks are sent to it as is.
     variables:
       webhookUrl:
-        default: https://merchant.example.com/slopay/webhook
+        default: https://merchant.example.com/weigate/webhook
 
 tags:
   - name: webhook
@@ -52,7 +52,7 @@ paths:
         Implemented by the merchant. Answer `2xx` quickly (webhook-service waits for the answer a limited time) and
         process the event afterwards.
       parameters:
-        - name: X-SLOPay-Timestamp
+        - name: X-Weigate-Timestamp
           in: header
           required: true
           description: Unix time in whole seconds of this attempt; part of the string to sign.
@@ -60,7 +60,7 @@ paths:
             type: string
             pattern: '^(0|[1-9][0-9]{0,15})$'
             example: '1795953600'
-        - name: X-SLOPay-Signature
+        - name: X-Weigate-Signature
           in: header
           required: true
           description: '`v1=` and the lower-case hex HMAC-SHA256 of `<timestamp>.<raw body>`.'
@@ -68,7 +68,7 @@ paths:
             type: string
             pattern: '^v1=[0-9a-f]{64}$'
             example: v1=5257a869e7ecebeda32affa62cdca3fa51cad7e77a0e56ff536d0ce8e108d8bd
-        - name: X-SLOPay-Secret-Version
+        - name: X-Weigate-Secret-Version
           in: header
           required: true
           description: Version of the secret the signature is made with (`webhookSecretVersion` of the merchant).
@@ -85,11 +85,11 @@ paths:
             example:
               specversion: '1.0'
               id: 6c3f1c1e-6a0b-4d44-9a8e-3a8f4f0f5b22
-              source: /slopay/invoice-service
+              source: /weigate/invoice-service
               type: invoice.paid
               time: '2026-11-28T12:00:05Z'
               subject: 0d6f1c1e-6a0b-4d44-9a8e-3a8f4f0f5b21
-              dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/invoice.paid.v1.json
+              dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/invoice.paid.v1.json
               datacontenttype: application/json
               data:
                 invoiceId: 0d6f1c1e-6a0b-4d44-9a8e-3a8f4f0f5b21
@@ -121,7 +121,7 @@ components:
           description: Event id. Deduplicate by it.
         source:
           type: string
-          enum: [/slopay/invoice-service]
+          enum: [/weigate/invoice-service]
         type:
           type: string
           enum:

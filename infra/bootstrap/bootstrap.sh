@@ -8,7 +8,7 @@ set -euo pipefail
 
 ARGOCD_CHART_VERSION="${ARGOCD_CHART_VERSION:-10.18.2}"
 ARGOCD_CHART_REPO="https://argoproj.github.io/argo-helm"
-ROOT_URL="${ROOT_URL:-https://raw.githubusercontent.com/m5tshift/slopay-gitops/main/apps/root.yaml}"
+ROOT_URL="${ROOT_URL:-https://raw.githubusercontent.com/m5tshift/weigate-gitops/main/apps/root.yaml}"
 TOKEN_DURATION="${TOKEN_DURATION:-168h}"
 
 dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,7 +27,7 @@ agent_kubeconfig() {
 apiVersion: v1
 kind: Config
 clusters:
-  - name: slopay
+  - name: weigate
     cluster:
       server: ${server}
       certificate-authority-data: ${ca}
@@ -36,12 +36,12 @@ users:
     user:
       token: ${token}
 contexts:
-  - name: slopay-apps
+  - name: weigate-apps
     context:
-      cluster: slopay
+      cluster: weigate
       user: agent-reader
       namespace: apps
-current-context: slopay-apps
+current-context: weigate-apps
 KUBECONFIG
 }
 

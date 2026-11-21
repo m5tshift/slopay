@@ -3,13 +3,13 @@ package merchant
 import (
 	"errors"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/kafka"
 )
 
 // Event constants of contracts/asyncapi/merchant-service.yaml.
 const (
 	Topic         = "merchant.events"
-	EventSource   = "/slopay/merchant-service"
+	EventSource   = "/weigate/merchant-service"
 	EventType     = "merchant.updated"
 	schemaVersion = 1
 )

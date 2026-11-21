@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
 )
 
 const (
@@ -82,10 +82,10 @@ func TestLiveTransfersBeforeNewHead(t *testing.T) {
 		t.Errorf("recipients of block 3: %v", q)
 	}
 	m := e.metrics(t)
-	if v, _ := value(m, "slopay_chain_transfers_published", "mode=live", "chain_id=31337"); v != 4 {
+	if v, _ := value(m, "weigate_chain_transfers_published", "mode=live", "chain_id=31337"); v != 4 {
 		t.Errorf("published %d", v)
 	}
-	dp, ok := e.histogram(t, "slopay_chain_transfer_delay", "live")
+	dp, ok := e.histogram(t, "weigate_chain_transfer_delay", "live")
 	// Block 4 is 2 s old, block 3 is 12 s older.
 	if lo, _ := dp.Min.Value(); !ok || dp.Count != 4 || lo != 2 || dp.Sum != 2+3*14 {
 		t.Errorf("delay %+v", dp)
@@ -235,13 +235,13 @@ func TestRescanBeforeNextNewHead(t *testing.T) {
 		}
 	}
 	m := e.metrics(t)
-	if v, _ := value(m, "slopay_chain_transfers_published", "mode=rescan"); v != 2 {
+	if v, _ := value(m, "weigate_chain_transfers_published", "mode=rescan"); v != 2 {
 		t.Errorf("rescan transfers %d", v)
 	}
-	if v, _ := value(m, "slopay_chain_rescan_blocks"); v != 4 {
+	if v, _ := value(m, "weigate_chain_rescan_blocks"); v != 4 {
 		t.Errorf("rescan blocks %d", v) // 4..7
 	}
-	if dp, ok := e.histogram(t, "slopay_chain_transfer_delay", "rescan"); !ok || dp.Count != 2 {
+	if dp, ok := e.histogram(t, "weigate_chain_transfer_delay", "rescan"); !ok || dp.Count != 2 {
 		t.Errorf("rescan delay %+v", dp)
 	}
 }

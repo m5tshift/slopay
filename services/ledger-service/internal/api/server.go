@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledger"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledger"
 )
 
 // Server implements StrictServerInterface on top of the ledger service.

@@ -13,7 +13,7 @@ const (
 	// ContentType is the Kafka content-type header of a structured-mode CloudEvent.
 	ContentType = "application/cloudevents+json; charset=UTF-8"
 	// SchemaBaseURL is the prefix of every dataschema; the file name follows (<event>.v<N>.json).
-	SchemaBaseURL = "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/"
+	SchemaBaseURL = "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/"
 
 	specVersion         = "1.0"
 	dataContentTypeJSON = "application/json"
@@ -39,7 +39,7 @@ func SchemaURL(eventType string, version int) string {
 }
 
 // NewEvent builds an event with a fresh ID and the current time. data is marshalled to JSON.
-// source is /slopay/<service>; subject is the aggregate and becomes the Kafka key.
+// source is /weigate/<service>; subject is the aggregate and becomes the Kafka key.
 // To republish the same fact (outbox retry) build the event once and keep its ID.
 func NewEvent(source, eventType, subject string, schemaVersion int, data any) (Event, error) {
 	raw, err := json.Marshal(data)

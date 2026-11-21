@@ -45,7 +45,7 @@ crash.log
 
 # Helm dependencies
 **/charts/*.tgz
-charts/slopay-lib/example/Chart.lock
+charts/weigate-lib/example/Chart.lock
 charts/*/Chart.lock
 
 # Go

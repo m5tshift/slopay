@@ -1,18 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.tick.v1.json",
+  "$id": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/rate.tick.v1.json",
   "title": "rate.tick",
   "description": "A quote from one source (SRS 4.1.3, 4.1.5). Key and subject: <source>:<pair>, so the order is kept within a source. Goes to ClickHouse as the rate history.",
   "allOf": [{ "$ref": "cloudevent.v1.json" }],
   "properties": {
     "type": { "const": "rate.tick" },
-    "source": { "const": "/slopay/rate-service" },
+    "source": { "const": "/weigate/rate-service" },
     "subject": {
       "description": "<source>:<pair>, equals the Kafka key.",
       "type": "string",
       "pattern": "^(coinbase:(ETH-USD|USDT-USD)|okx:ETH-USDT)$"
     },
-    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/rate.tick.v1.json" },
+    "dataschema": { "const": "https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/rate.tick.v1.json" },
     "data": {
       "type": "object",
       "additionalProperties": false,

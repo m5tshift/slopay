@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"pgregory.net/rapid"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledger"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledgertest"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledger"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledgertest"
 )
 
 var postingEventTypes = []string{"invoice.paid", "invoice.underpaid", "invoice.late_paid", "invoice.late_transfer"}

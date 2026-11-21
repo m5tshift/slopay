@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
 )
 
 // Event source and types of the contract.
 const (
-	EventSource = "/slopay/rate-service"
+	EventSource = "/weigate/rate-service"
 	TypeTick    = "rate.tick"
 	TypeLatest  = "rate.latest"
 	// TopicTicks and TopicLatest are the topic names of the contract.

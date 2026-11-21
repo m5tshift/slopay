@@ -27,7 +27,7 @@ test:
 test-integration:
 	go test -race -tags integration ./...
 
-# Library charts are linted but not rendered; slopay-lib is rendered through its example consumer.
+# Library charts are linted but not rendered; weigate-lib is rendered through its example consumer.
 helm-lint:
 	@charts=$$(for f in charts/*/Chart.yaml; do [ -f "$$f" ] && dirname "$$f"; done); \
 	if [ -z "$$charts" ]; then echo "helm-lint: no charts/*/Chart.yaml, skipping"; exit 0; fi; \
@@ -39,7 +39,7 @@ helm-lint:
 	for c in $$charts; do \
 		if ! grep -q '^type: *library' "$$c/Chart.yaml"; then helm template "$$c" > /dev/null; fi; \
 	done; \
-	if [ -x charts/slopay-lib/example/test.sh ]; then charts/slopay-lib/example/test.sh; fi
+	if [ -x charts/weigate-lib/example/test.sh ]; then charts/weigate-lib/example/test.sh; fi
 
 tf-validate:
 	@if [ ! -d infra/terraform ]; then echo "tf-validate: no infra/terraform/, skipping"; exit 0; fi; \

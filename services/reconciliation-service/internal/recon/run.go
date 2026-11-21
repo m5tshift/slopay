@@ -16,12 +16,12 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
+	"github.com/m5tshift/weigate/pkg/breaker"
 )
 
-const instrumentation = "github.com/m5tshift/slopay/services/reconciliation-service/internal/recon"
+const instrumentation = "github.com/m5tshift/weigate/services/reconciliation-service/internal/recon"
 
-// Run results: the result attribute of slopay_reconciliation_runs.
+// Run results: the result attribute of weigate_reconciliation_runs.
 const (
 	ResultOK        = "ok"
 	ResultMismatch  = "mismatch"
@@ -213,21 +213,21 @@ func (r *Reconciler) registerMetrics(m metric.Meter) error {
 		m = otel.Meter(instrumentation)
 	}
 	var err error
-	if r.runs, err = m.Int64Counter("slopay_reconciliation_runs",
+	if r.runs, err = m.Int64Counter("weigate_reconciliation_runs",
 		metric.WithDescription("Reconciliation runs by result: ok, mismatch, postponed (ledger-service unavailable), failed")); err != nil {
 		return err
 	}
-	if r.duration, err = m.Float64Histogram("slopay_reconciliation_run_duration", metric.WithUnit("s"),
+	if r.duration, err = m.Float64Histogram("weigate_reconciliation_run_duration", metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(1, 5, 10, 20, 30, 60, 120, 300),
 		metric.WithDescription("Duration of a reconciliation run, including the settle delay")); err != nil {
 		return err
 	}
-	if r.requests, err = m.Int64Counter("slopay_reconciliation_node_requests",
+	if r.requests, err = m.Int64Counter("weigate_reconciliation_node_requests",
 		metric.WithDescription("Node calls by method and result: ok, error, rejected (breaker open)")); err != nil {
 		return err
 	}
 	// The gauges describe the latest completed run and are reported only by the leader, so that a replica that
-	// lost the lease does not keep an old value (alert ReconciliationMismatch on slopay_reconciliation_mismatches > 0).
+	// lost the lease does not keep an old value (alert ReconciliationMismatch on weigate_reconciliation_mismatches > 0).
 	gauge := func(name, desc string, v func(*Report) int64) error {
 		_, err := m.Int64ObservableGauge(name, metric.WithDescription(desc),
 			metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
@@ -238,23 +238,23 @@ func (r *Reconciler) registerMetrics(m metric.Meter) error {
 			}))
 		return err
 	}
-	if err = gauge("slopay_reconciliation_mismatches", "Discrepancies found by the latest run (ReconciliationMismatch)",
+	if err = gauge("weigate_reconciliation_mismatches", "Discrepancies found by the latest run (ReconciliationMismatch)",
 		func(rp *Report) int64 { return int64(rp.Mismatches) }); err != nil {
 		return err
 	}
-	if err = gauge("slopay_reconciliation_after_window", "Addresses with transfers after the tracking window in the latest run",
+	if err = gauge("weigate_reconciliation_after_window", "Addresses with transfers after the tracking window in the latest run",
 		func(rp *Report) int64 { return int64(rp.AfterWindow) }); err != nil {
 		return err
 	}
-	if err = gauge("slopay_reconciliation_addresses_checked", "Addresses checked by the latest run",
+	if err = gauge("weigate_reconciliation_addresses_checked", "Addresses checked by the latest run",
 		func(rp *Report) int64 { return int64(rp.AddressesChecked) }); err != nil {
 		return err
 	}
-	if err = gauge("slopay_reconciliation_block", "Block the latest run read the balances at",
+	if err = gauge("weigate_reconciliation_block", "Block the latest run read the balances at",
 		func(rp *Report) int64 { return int64(min(rp.BlockNumber, 1<<62)) }); err != nil { //nolint:gosec // clamped.
 		return err
 	}
-	return gauge("slopay_reconciliation_last_run_timestamp", "Unix time the latest completed run finished",
+	return gauge("weigate_reconciliation_last_run_timestamp", "Unix time the latest completed run finished",
 		func(rp *Report) int64 { return rp.FinishedAt.Unix() })
 }
 

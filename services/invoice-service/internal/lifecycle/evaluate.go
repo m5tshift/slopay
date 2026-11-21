@@ -19,8 +19,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/money"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/pkg/money"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
 )
 
 // Config holds the numbers of SRS 4.1.4. They come from the service configuration.

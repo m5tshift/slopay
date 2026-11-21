@@ -17,15 +17,15 @@ import (
 
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/outbox"
-	"github.com/m5tshift/slopay/pkg/storage"
-	"github.com/m5tshift/slopay/pkg/telemetry"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/api"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/config"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/ledger"
-	"github.com/m5tshift/slopay/services/ledger-service/internal/store"
-	"github.com/m5tshift/slopay/services/ledger-service/migrations"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/outbox"
+	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/pkg/telemetry"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/api"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/config"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/ledger"
+	"github.com/m5tshift/weigate/services/ledger-service/internal/store"
+	"github.com/m5tshift/weigate/services/ledger-service/migrations"
 )
 
 const serviceName = "ledger-service"

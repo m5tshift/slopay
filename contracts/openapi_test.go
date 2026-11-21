@@ -330,19 +330,19 @@ func TestMerchantWebhook(t *testing.T) {
 			hdr[p.Value.Name] = p.Value
 		}
 	}
-	for _, n := range []string{"X-SLOPay-Timestamp", "X-SLOPay-Signature", "X-SLOPay-Secret-Version"} {
+	for _, n := range []string{"X-Weigate-Timestamp", "X-Weigate-Signature", "X-Weigate-Secret-Version"} {
 		if hdr[n] == nil || !hdr[n].Required {
 			t.Errorf("header %s is not required", n)
 		}
 	}
-	if h := hdr["X-SLOPay-Signature"]; h != nil {
+	if h := hdr["X-Weigate-Signature"]; h != nil {
 		// v1= plus the 64 hex characters of HMAC-SHA256.
 		if !strings.Contains(h.Schema.Value.Pattern, "{64}") {
 			t.Errorf("signature pattern %q must fix 64 hex characters", h.Schema.Value.Pattern)
 		}
 	}
 	for _, want := range []string{"HMAC-SHA256", "<timestamp>", "raw", "Secret-Version", "`sequence`"} {
-		if !strings.Contains(doc.Info.Description+post.Description+hdr["X-SLOPay-Signature"].Description, want) {
+		if !strings.Contains(doc.Info.Description+post.Description+hdr["X-Weigate-Signature"].Description, want) {
 			t.Errorf("description does not mention %q", want)
 		}
 	}

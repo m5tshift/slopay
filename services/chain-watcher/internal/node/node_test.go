@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
 )
 
 const (

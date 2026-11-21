@@ -16,7 +16,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/getkin/kin-openapi/routers/legacy"
 
-	"github.com/m5tshift/slopay/testkit/payer-sim/internal/payer"
+	"github.com/m5tshift/weigate/testkit/payer-sim/internal/payer"
 )
 
 const (

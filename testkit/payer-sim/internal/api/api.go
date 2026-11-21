@@ -11,7 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/testkit/payer-sim/internal/payer"
+	"github.com/m5tshift/weigate/testkit/payer-sim/internal/payer"
 )
 
 const maxBodyBytes = 1 << 10

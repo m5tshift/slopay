@@ -17,9 +17,9 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/events"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/events"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/projection"
 )
 
 // payer is the first unlocked account of Anvil.
@@ -63,7 +63,7 @@ func (h *harness) createInvoice(t *testing.T, address string, at, expires time.T
 		t.Fatal(err)
 	}
 	id := uuid.NewString()
-	ev, err := kafka.NewEvent("/slopay/invoice-service", projection.EventCreated, id, 1, map[string]any{
+	ev, err := kafka.NewEvent("/weigate/invoice-service", projection.EventCreated, id, 1, map[string]any{
 		"invoiceId": id, "merchantId": uuid.NewString(), "sequence": 1, "status": "NEW", "address": address,
 		"asset": map[string]any{"kind": "ETH", "decimals": 18}, "amount": "1000", "orderId": "order-" + id,
 		"amountUsdCents": 100, "rate": "3000", "expiresAt": expires.UTC().Format(time.RFC3339),
@@ -173,10 +173,10 @@ func TestTransferBeforeAddressIsFound(t *testing.T) {
 	}
 	view, _ := replay(t, evs)
 	matchesNode(t, view, h.start, m)
-	if got := h.metric(t, "slopay_chain_transfers_published", attribute.String("mode", "rescan")); got != 1 {
+	if got := h.metric(t, "weigate_chain_transfers_published", attribute.String("mode", "rescan")); got != 1 {
 		t.Errorf("rescan transfers %d", got)
 	}
-	if got := h.metric(t, "slopay_chain_transfers_published", attribute.String("mode", "live")); got != 1 {
+	if got := h.metric(t, "weigate_chain_transfers_published", attribute.String("mode", "live")); got != 1 {
 		t.Errorf("live transfers %d", got)
 	}
 }
@@ -191,7 +191,7 @@ func TestRestartWithValkeyStopped(t *testing.T) {
 	h.waitSearched(t, known)
 	first, _ := sendETH(t, known, 1)
 	h.events.waitTransfer(t, first)
-	if got := h.metric(t, "slopay_chain_address_lookups", attribute.String("source", "cache")); got == 0 {
+	if got := h.metric(t, "weigate_chain_address_lookups", attribute.String("source", "cache")); got == 0 {
 		t.Fatal("cache not used while valkey is up")
 	}
 	h.stop()
@@ -225,7 +225,7 @@ func TestRestartWithValkeyStopped(t *testing.T) {
 	if tr, head := position(t, evs, toAdded, n2+1); tr < 0 || tr > head {
 		t.Fatalf("transfer to the added address at %d, head %d at %d", tr, n2+1, head)
 	}
-	if got := h.metric(t, "slopay_chain_address_lookups", attribute.String("source", "mongodb")); got == 0 {
+	if got := h.metric(t, "weigate_chain_address_lookups", attribute.String("source", "mongodb")); got == 0 {
 		t.Fatal("mongodb not used without valkey")
 	}
 
@@ -236,11 +236,11 @@ func TestRestartWithValkeyStopped(t *testing.T) {
 	if err := refreshValkeyAddr(ctx); err != nil {
 		t.Fatal(err)
 	}
-	before := h.metric(t, "slopay_chain_address_lookups", attribute.String("source", "cache"))
+	before := h.metric(t, "weigate_chain_address_lookups", attribute.String("source", "cache"))
 	eventually(t, "the cache used again", func() bool {
 		tx, _ := sendETH(t, known, 4)
 		h.events.waitTransfer(t, tx)
-		return h.metric(t, "slopay_chain_address_lookups", attribute.String("source", "cache")) > before
+		return h.metric(t, "weigate_chain_address_lookups", attribute.String("source", "cache")) > before
 	})
 	// A transfer is published before the chain.new_head of its block: wait for the head before comparing.
 	head := headNumber(t)

@@ -11,7 +11,7 @@ import (
 
 	"github.com/valkey-io/valkey-go"
 
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
 )
 
 var t0 = time.Date(2026, 11, 20, 12, 0, 0, 123456789, time.UTC)

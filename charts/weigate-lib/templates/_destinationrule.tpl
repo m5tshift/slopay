@@ -1,16 +1,16 @@
 {{/* Outlier detection for callers of this service (SRS 4.1.9, INF-3.1). */}}
-{{- define "slopay-lib.destinationrule" -}}
+{{- define "weigate-lib.destinationrule" -}}
 {{- with .v.istio.destinationRule }}
 {{- if .enabled }}
 ---
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
-  name: {{ include "slopay-lib.fullname" $ }}
+  name: {{ include "weigate-lib.fullname" $ }}
   labels:
-    {{- include "slopay-lib.labels" $ | nindent 4 }}
+    {{- include "weigate-lib.labels" $ | nindent 4 }}
 spec:
-  host: {{ include "slopay-lib.fullname" $ }}.{{ $.root.Release.Namespace }}.svc.cluster.local
+  host: {{ include "weigate-lib.fullname" $ }}.{{ $.root.Release.Namespace }}.svc.cluster.local
   trafficPolicy:
     outlierDetection:
       {{- toYaml .outlierDetection | nindent 6 }}

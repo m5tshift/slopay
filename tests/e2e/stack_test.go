@@ -37,7 +37,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 
-	"github.com/m5tshift/slopay/pkg/storage"
+	"github.com/m5tshift/weigate/pkg/storage"
 )
 
 // The images of the integration tests of the services.
@@ -117,7 +117,7 @@ type proc struct {
 func TestMain(m *testing.M) { os.Exit(run(m)) }
 
 func run(m *testing.M) int {
-	dir, err := os.MkdirTemp("", "slopay-e2e-")
+	dir, err := os.MkdirTemp("", "weigate-e2e-")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "e2e:", err)
 		return 1

@@ -1,1 +1,1 @@
-{{ include "slopay-lib.all" . }}
+{{ include "weigate-lib.all" . }}

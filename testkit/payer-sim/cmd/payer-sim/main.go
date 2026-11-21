@@ -17,11 +17,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/m5tshift/slopay/pkg/telemetry"
-	"github.com/m5tshift/slopay/testkit/payer-sim/internal/api"
-	"github.com/m5tshift/slopay/testkit/payer-sim/internal/config"
-	"github.com/m5tshift/slopay/testkit/payer-sim/internal/invoice"
-	"github.com/m5tshift/slopay/testkit/payer-sim/internal/payer"
+	"github.com/m5tshift/weigate/pkg/telemetry"
+	"github.com/m5tshift/weigate/testkit/payer-sim/internal/api"
+	"github.com/m5tshift/weigate/testkit/payer-sim/internal/config"
+	"github.com/m5tshift/weigate/testkit/payer-sim/internal/invoice"
+	"github.com/m5tshift/weigate/testkit/payer-sim/internal/payer"
 )
 
 const serviceName = "payer-sim"

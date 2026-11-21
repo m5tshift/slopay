@@ -1,5 +1,5 @@
 asyncapi: 3.0.0
-id: urn:slopay:merchant-service
+id: urn:weigate:merchant-service
 info:
   title: merchant-service events
   version: 1.0.0
@@ -70,11 +70,11 @@ components:
           payload:
             specversion: '1.0'
             id: 6c1e2f3a-4b5d-4c6e-8f70-91a2b3c4d5e6
-            source: /slopay/merchant-service
+            source: /weigate/merchant-service
             type: merchant.updated
             time: '2026-11-15T09:00:00Z'
             subject: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/merchant.updated.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/merchant.updated.v1.json
             datacontenttype: application/json
             data:
               merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
@@ -89,16 +89,16 @@ components:
           payload:
             specversion: '1.0'
             id: 7d2f3a4b-5c6e-4d7f-9a81-a2b3c4d5e6f7
-            source: /slopay/merchant-service
+            source: /weigate/merchant-service
             type: merchant.updated
             time: '2026-11-15T12:30:00Z'
             subject: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
-            dataschema: https://raw.githubusercontent.com/m5tshift/slopay/main/contracts/schemas/merchant.updated.v1.json
+            dataschema: https://raw.githubusercontent.com/m5tshift/weigate/main/contracts/schemas/merchant.updated.v1.json
             datacontenttype: application/json
             data:
               merchantId: 0b9f4e2a-7c3d-4e5f-8a1b-6c2d3e4f5a6b
               version: 3
               xpub: xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8
-              webhookUrl: https://merchant.example.com/hooks/slopay
+              webhookUrl: https://merchant.example.com/hooks/weigate
               toleranceBps: 250
               webhookSecretVersion: 2

@@ -15,7 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/money"
+	"github.com/m5tshift/weigate/pkg/money"
 )
 
 // newInvoice registers a merchant and creates an invoice for cents; it checks FR-01 (idempotent creation),

@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
-	"github.com/m5tshift/slopay/services/merchant-service/internal/jwt"
-	"github.com/m5tshift/slopay/services/merchant-service/internal/merchant"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/jwt"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/merchant"
 )
 
 // Server implements StrictServerInterface on top of the merchant service and the JWT issuer.

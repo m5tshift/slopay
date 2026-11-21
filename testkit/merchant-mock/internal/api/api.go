@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/m5tshift/slopay/testkit/merchant-mock/internal/receiver"
+	"github.com/m5tshift/weigate/testkit/merchant-mock/internal/receiver"
 )
 
 const (
@@ -76,9 +76,9 @@ func (s *server) webhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res, err := s.r.Handle(r.Context(), name, receiver.Headers{
-		Timestamp:     r.Header.Get("X-SLOPay-Timestamp"),
-		Signature:     r.Header.Get("X-SLOPay-Signature"),
-		SecretVersion: r.Header.Get("X-SLOPay-Secret-Version"),
+		Timestamp:     r.Header.Get("X-Weigate-Timestamp"),
+		Signature:     r.Header.Get("X-Weigate-Signature"),
+		SecretVersion: r.Header.Get("X-Weigate-Secret-Version"),
 	}, body)
 	switch {
 	case errors.Is(err, receiver.ErrUnknownEndpoint):

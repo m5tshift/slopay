@@ -23,7 +23,7 @@ func TestDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if c.HTTPAddr != ":8080" || len(c.KafkaBrokers) != 2 || c.ConsumerGroup != "invoice-service" ||
-		c.JWTIssuer != "slopay-merchant-service" || c.RateServiceURL != "http://rate-service" {
+		c.JWTIssuer != "weigate-merchant-service" || c.RateServiceURL != "http://rate-service" {
 		t.Errorf("%+v", c)
 	}
 	// Numbers of SRS 4.1.3, 4.1.4, 4.1.7.

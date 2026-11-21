@@ -1,6 +1,6 @@
 # Minimal component: only the required values. Istio, ExternalSecret and ServiceMonitor are off.
 image:
-  repository: zot.example.internal/slopay/example
+  repository: zot.example.internal/weigate/example
   tag: 0123abc
 resources:
   requests:

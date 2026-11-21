@@ -16,11 +16,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
 )
 
-const meterName = "github.com/m5tshift/slopay/services/invoice-service/internal/lifecycle"
+const meterName = "github.com/m5tshift/weigate/services/invoice-service/internal/lifecycle"
 
 // Block is a canonical block of chain.new_head.
 type Block struct {
@@ -156,11 +156,11 @@ func NewEngine(store Store, cache invoice.StatusCache, cfg EngineConfig, log *sl
 	}
 	e := &Engine{cfg: cfg, store: store, cache: cache, log: log}
 	var err error
-	if e.transitions, err = m.Int64Counter("slopay_invoice_transitions",
+	if e.transitions, err = m.Int64Counter("weigate_invoice_transitions",
 		metric.WithDescription("invoice.* events of the lifecycle, by type")); err != nil {
 		return nil, err
 	}
-	if e.transfers, err = m.Int64Counter("slopay_invoice_chain_transfers",
+	if e.transfers, err = m.Int64Counter("weigate_invoice_chain_transfers",
 		metric.WithDescription("chain.transfer events, by result: stored, duplicate or ignored")); err != nil {
 		return nil, err
 	}

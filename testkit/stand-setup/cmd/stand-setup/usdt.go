@@ -15,8 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/setup"
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/usdt"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/setup"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/usdt"
 )
 
 // runDeployUSDT deploys the test USDT (testkit/erc20) to Anvil, mints it to the

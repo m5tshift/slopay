@@ -23,15 +23,15 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
-	"github.com/m5tshift/slopay/pkg/kafka"
-	"github.com/m5tshift/slopay/pkg/storage"
-	"github.com/m5tshift/slopay/services/rate-service/internal/api"
-	"github.com/m5tshift/slopay/services/rate-service/internal/events"
-	"github.com/m5tshift/slopay/services/rate-service/internal/poller"
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
-	"github.com/m5tshift/slopay/services/rate-service/internal/source"
-	"github.com/m5tshift/slopay/services/rate-service/internal/store"
+	"github.com/m5tshift/weigate/pkg/breaker"
+	"github.com/m5tshift/weigate/pkg/kafka"
+	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/rate-service/internal/api"
+	"github.com/m5tshift/weigate/services/rate-service/internal/events"
+	"github.com/m5tshift/weigate/services/rate-service/internal/poller"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/services/rate-service/internal/source"
+	"github.com/m5tshift/weigate/services/rate-service/internal/store"
 )
 
 var (

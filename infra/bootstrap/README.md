@@ -6,7 +6,7 @@ Bootstrap минимального стенда (SRS 6.4, INF-2.2). Скрипт
 | Файл | Назначение |
 |---|---|
 | `bootstrap.sh` | неймспейсы, ArgoCD, root Application, RBAC агента; подкоманда `agent-kubeconfig` |
-| `namespaces.yaml` | `argocd`, `local-path-storage`, `kafka`, `data`, `chain`, `apps` (назначения `apps/project.yaml` в `slopay-gitops`) |
+| `namespaces.yaml` | `argocd`, `local-path-storage`, `kafka`, `data`, `chain`, `apps` (назначения `apps/project.yaml` в `weigate-gitops`) |
 | `argocd-values.yaml` | values чарта `argo-cd`: dex, notifications и ApplicationSet выключены, `server.insecure`, requests и limits, Lua health-check для `argoproj.io/Application` |
 | `agent-rbac.yaml` | ServiceAccount `agent-reader` в `apps`: только `get`, `list`, `watch`, без Secrets и ConfigMaps, без ClusterRole |
 | `test.sh` | проверки без кластера (`make bootstrap-check`) |
@@ -25,7 +25,7 @@ PodSecurity: метка `privileged` только у `local-path-storage` (helpe
 2. ставит ArgoCD: `helm upgrade --install argocd argo-cd` из `https://argoproj.github.io/argo-helm`,
    версия чарта закреплена в `ARGOCD_CHART_VERSION` (в начале `bootstrap.sh`);
 3. ждёт CRD `applications.argoproj.io`;
-4. скачивает `apps/root.yaml` из ветки `main` `slopay-gitops` (`ROOT_URL`) и применяет его: AppProject и дочерние
+4. скачивает `apps/root.yaml` из ветки `main` `weigate-gitops` (`ROOT_URL`) и применяет его: AppProject и дочерние
    Application разворачивает ArgoCD сам;
 5. создаёт RBAC агента.
 

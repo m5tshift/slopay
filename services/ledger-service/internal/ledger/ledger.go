@@ -23,7 +23,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/money"
+	"github.com/m5tshift/weigate/pkg/money"
 )
 
 // Asset kinds of contracts/schemas/defs.v1.json.

@@ -14,7 +14,7 @@ import (
 	"github.com/valkey-io/valkey-go/mock"
 	"go.uber.org/mock/gomock"
 
-	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/weigate/services/invoice-service/internal/invoice"
 )
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))

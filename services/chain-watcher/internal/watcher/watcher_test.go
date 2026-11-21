@@ -17,10 +17,10 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/chain"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/store"
+	"github.com/m5tshift/weigate/pkg/breaker"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/projection"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/store"
 )
 
 const chainID = 31337
@@ -555,24 +555,24 @@ func TestFreshStartAtHead(t *testing.T) {
 		t.Fatalf("stored cursor %d", c)
 	}
 	m := e.metrics(t)
-	if _, ok := value(m, "slopay_chain_cursor_block"); ok {
+	if _, ok := value(m, "weigate_chain_cursor_block"); ok {
 		t.Error("cursor reported by a replica that does not lead")
 	}
 	e.w.leading.Store(true)
 	m = e.metrics(t)
-	if v, _ := value(m, "slopay_chain_cursor_block", "chain_id=31337"); v != 12 {
+	if v, _ := value(m, "weigate_chain_cursor_block", "chain_id=31337"); v != 12 {
 		t.Errorf("cursor gauge %d", v)
 	}
-	if v, _ := value(m, "slopay_chain_head_block", "chain_id=31337"); v != 12 {
+	if v, _ := value(m, "weigate_chain_head_block", "chain_id=31337"); v != 12 {
 		t.Errorf("head gauge %d", v)
 	}
-	if v, _ := value(m, "slopay_chain_blocks_processed", "chain_id=31337"); v != 3 {
+	if v, _ := value(m, "weigate_chain_blocks_processed", "chain_id=31337"); v != 3 {
 		t.Errorf("blocks %d", v)
 	}
-	if v, _ := value(m, "slopay_chain_node_requests", "method=eth_blockNumber", "result=ok"); v < 4 {
+	if v, _ := value(m, "weigate_chain_node_requests", "method=eth_blockNumber", "result=ok"); v < 4 {
 		t.Errorf("node requests %d", v)
 	}
-	if v, ok := value(m, "slopay_chain_reorg_too_deep"); !ok || v != 0 {
+	if v, ok := value(m, "weigate_chain_reorg_too_deep"); !ok || v != 0 {
 		t.Errorf("too deep %d, %v", v, ok)
 	}
 }
@@ -652,7 +652,7 @@ func TestReorgWithinLimit(t *testing.T) {
 			}
 			e.w.leading.Store(true)
 			m := e.metrics(t)
-			if v, _ := value(m, "slopay_chain_reorgs", "depth="+fmt.Sprint(depth)); v != 1 {
+			if v, _ := value(m, "weigate_chain_reorgs", "depth="+fmt.Sprint(depth)); v != 1 {
 				t.Errorf("reorgs{depth=%d} = %d", depth, v)
 			}
 		})
@@ -906,7 +906,7 @@ func TestRunResumesFromStoredCursor(t *testing.T) {
 	if e.w.leading.Load() {
 		t.Fatal("still leading after Run")
 	}
-	if _, ok := value(e.metrics(t), "slopay_chain_cursor_block"); ok {
+	if _, ok := value(e.metrics(t), "weigate_chain_cursor_block"); ok {
 		t.Fatal("gauge reported after Run")
 	}
 }
@@ -926,10 +926,10 @@ func TestRunBacksOffAndOpensBreaker(t *testing.T) {
 		t.Fatalf("pauses %v", pauses)
 	}
 	m := e.metrics(t)
-	if v, _ := value(m, "slopay_chain_node_requests", "method=eth_chainId", "result=rejected"); v == 0 {
+	if v, _ := value(m, "weigate_chain_node_requests", "method=eth_chainId", "result=rejected"); v == 0 {
 		t.Error("the breaker never rejected a call")
 	}
-	if v, _ := value(m, "slopay_chain_node_requests", "method=eth_chainId", "result=error"); v < 3 {
+	if v, _ := value(m, "weigate_chain_node_requests", "method=eth_chainId", "result=error"); v < 3 {
 		t.Errorf("errors %d", v)
 	}
 	if !strings.Contains(e.logs.String(), "chain reading paused") {
@@ -1003,7 +1003,7 @@ func TestRunHaltsOnTooDeepReorg(t *testing.T) {
 	go func() { e.w.Run(ctx); close(done) }()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		if v, _ := value(e.metrics(t), "slopay_chain_reorg_too_deep", "chain_id=31337"); v == 1 {
+		if v, _ := value(e.metrics(t), "weigate_chain_reorg_too_deep", "chain_id=31337"); v == 1 {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -1030,7 +1030,7 @@ func TestRunHaltsOnTooDeepReorg(t *testing.T) {
 	if !strings.Contains(e.logs.String(), "ChainReorgTooDeep") {
 		t.Error("alert not logged")
 	}
-	if _, ok := value(e.metrics(t), "slopay_chain_reorg_too_deep"); ok {
+	if _, ok := value(e.metrics(t), "weigate_chain_reorg_too_deep"); ok {
 		t.Error("gauge reported after leadership ended")
 	}
 	if tip, _ := e.store.cursor(); tip != 20 {

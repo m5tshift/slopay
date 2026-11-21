@@ -23,7 +23,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/m5tshift/slopay/services/reconciliation-service/internal/recon"
+	"github.com/m5tshift/weigate/services/reconciliation-service/internal/recon"
 )
 
 // maxBody bounds an answer read from ledger-service: a page of 1000 postings is well below it.
@@ -187,7 +187,7 @@ func (t tracing) RoundTrip(req *http.Request) (*http.Response, error) {
 	if name == "" {
 		name = req.Method
 	}
-	ctx, span := otel.Tracer("github.com/m5tshift/slopay/services/reconciliation-service/internal/ledger").Start(
+	ctx, span := otel.Tracer("github.com/m5tshift/weigate/services/reconciliation-service/internal/ledger").Start(
 		req.Context(), name, trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String("http.request.method", req.Method), attribute.String("server.address", req.URL.Host)))
 	defer span.End()

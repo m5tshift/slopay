@@ -2,17 +2,17 @@
 Timeout and retries applied by callers of this service (SRS 4.1.9). Fault injection is off
 unless istio.virtualService.fault.enabled, which acceptance test 8.2г (SRS 8) switches on.
 */}}
-{{- define "slopay-lib.virtualservice" -}}
+{{- define "weigate-lib.virtualservice" -}}
 {{- with .v.istio.virtualService }}
 {{- if .enabled }}
-{{- $host := printf "%s.%s.svc.cluster.local" (include "slopay-lib.fullname" $) $.root.Release.Namespace }}
+{{- $host := printf "%s.%s.svc.cluster.local" (include "weigate-lib.fullname" $) $.root.Release.Namespace }}
 ---
 apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata:
-  name: {{ include "slopay-lib.fullname" $ }}
+  name: {{ include "weigate-lib.fullname" $ }}
   labels:
-    {{- include "slopay-lib.labels" $ | nindent 4 }}
+    {{- include "weigate-lib.labels" $ | nindent 4 }}
 spec:
   hosts:
     - {{ $host }}

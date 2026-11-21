@@ -14,7 +14,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/pkg/hdwallet"
+	"github.com/m5tshift/weigate/pkg/hdwallet"
 )
 
 // ValidationError is a rejected input field. Message never contains the value.

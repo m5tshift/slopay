@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m5tshift/slopay/pkg/breaker"
-	"github.com/m5tshift/slopay/pkg/storage"
-	"github.com/m5tshift/slopay/services/rate-service/internal/limiter"
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
-	"github.com/m5tshift/slopay/services/rate-service/internal/source"
+	"github.com/m5tshift/weigate/pkg/breaker"
+	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/rate-service/internal/limiter"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/services/rate-service/internal/source"
 )
 
 // Source modes (SRS 4.1.3). There is no automatic switch between them.

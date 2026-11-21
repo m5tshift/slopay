@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/m5tshift/slopay/pkg/storage"
+	"github.com/m5tshift/weigate/pkg/storage"
 )
 
 // Config is the service configuration.

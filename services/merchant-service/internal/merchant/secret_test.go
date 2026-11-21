@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/m5tshift/slopay/services/merchant-service/internal/xpubtest"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/xpubtest"
 )
 
 type memSecrets struct {

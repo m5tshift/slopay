@@ -13,9 +13,9 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/client"
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/setup"
-	"github.com/m5tshift/slopay/testkit/stand-setup/internal/wallet"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/client"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/setup"
+	"github.com/m5tshift/weigate/testkit/stand-setup/internal/wallet"
 )
 
 func main() {
@@ -31,7 +31,7 @@ func run(args []string) error {
 	}
 	fs := flag.NewFlagSet("stand-setup", flag.ContinueOnError)
 	var (
-		baseURL      = fs.String("base-url", "", "merchant-service base URL, e.g. https://slopay.example.com (required)")
+		baseURL      = fs.String("base-url", "", "merchant-service base URL, e.g. https://weigate.example.com (required)")
 		mnemonicFile = fs.String("mnemonic-file", "", "file with the test mnemonic, outside the repository (required)")
 		keysFile     = fs.String("keys-file", "", "output file for API keys, outside git (required)")
 		webhookURL   = fs.String("webhook-url", "", "merchant-mock webhook URL, https (required)")

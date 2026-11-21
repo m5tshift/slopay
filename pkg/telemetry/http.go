@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const instrumentation = "github.com/m5tshift/slopay/pkg/telemetry"
+const instrumentation = "github.com/m5tshift/weigate/pkg/telemetry"
 
 type statusWriter struct {
 	http.ResponseWriter

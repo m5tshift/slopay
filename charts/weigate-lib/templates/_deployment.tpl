@@ -1,4 +1,4 @@
-{{- define "slopay-lib.env" -}}
+{{- define "weigate-lib.env" -}}
 {{- $v := .v -}}
 - name: POD_NAME
   valueFrom:
@@ -10,10 +10,10 @@
       fieldPath: metadata.namespace
 {{- if $v.leader.enabled }}
 - name: LEADER_LEASE_NAME
-  value: {{ include "slopay-lib.fullname" . | quote }}
+  value: {{ include "weigate-lib.fullname" . | quote }}
 {{- end }}
 - name: OTEL_SERVICE_NAME
-  value: {{ include "slopay-lib.fullname" . | quote }}
+  value: {{ include "weigate-lib.fullname" . | quote }}
 {{- with $v.telemetry }}
 {{- if .otlpEndpoint }}
 - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -37,7 +37,7 @@
 - name: {{ .prefix }}_URL
   value: {{ required "postgres.url is required" .url | quote }}
 - name: {{ .prefix }}_PASSWORD_FILE
-  value: {{ include "slopay-lib.passwordFile" (dict "ctx" $ "store" "postgres" "password" .password) | quote }}
+  value: {{ include "weigate-lib.passwordFile" (dict "ctx" $ "store" "postgres" "password" .password) | quote }}
 {{- if .maxConns }}
 - name: {{ .prefix }}_MAX_CONNS
   value: {{ .maxConns | toString | quote }}
@@ -51,7 +51,7 @@
 - name: {{ .prefix }}_USERNAME
   value: {{ required "mongodb.username is required" .username | quote }}
 - name: {{ .prefix }}_PASSWORD_FILE
-  value: {{ include "slopay-lib.passwordFile" (dict "ctx" $ "store" "mongodb" "password" .password) | quote }}
+  value: {{ include "weigate-lib.passwordFile" (dict "ctx" $ "store" "mongodb" "password" .password) | quote }}
 - name: {{ .prefix }}_DATABASE
   value: {{ required "mongodb.database is required" .database | quote }}
 {{- if .authSource }}
@@ -70,7 +70,7 @@
 {{- end }}
 {{- if .password.secret }}
 - name: {{ .prefix }}_PASSWORD_FILE
-  value: {{ include "slopay-lib.passwordFile" (dict "ctx" $ "store" "valkey" "password" .password) | quote }}
+  value: {{ include "weigate-lib.passwordFile" (dict "ctx" $ "store" "valkey" "password" .password) | quote }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -83,26 +83,26 @@
 {{- end }}
 {{- end -}}
 
-{{- define "slopay-lib.deployment" -}}
+{{- define "weigate-lib.deployment" -}}
 {{- $v := .v -}}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "slopay-lib.fullname" . }}
+  name: {{ include "weigate-lib.fullname" . }}
   labels:
-    {{- include "slopay-lib.labels" . | nindent 4 }}
+    {{- include "weigate-lib.labels" . | nindent 4 }}
 spec:
   {{- if not $v.hpa.enabled }}
   replicas: {{ $v.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "slopay-lib.selectorLabels" . | nindent 6 }}
+      {{- include "weigate-lib.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "slopay-lib.labels" . | nindent 8 }}
+        {{- include "weigate-lib.labels" . | nindent 8 }}
         {{- with $v.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -111,7 +111,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "slopay-lib.serviceAccountName" . }}
+      serviceAccountName: {{ include "weigate-lib.serviceAccountName" . }}
       # The Kubernetes API is needed only for the leader Lease (pkg/leader).
       automountServiceAccountToken: {{ $v.leader.enabled }}
       terminationGracePeriodSeconds: {{ $v.terminationGracePeriodSeconds }}
@@ -127,7 +127,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       containers:
-        - name: {{ include "slopay-lib.fullname" . }}
+        - name: {{ include "weigate-lib.fullname" . }}
           image: "{{ $v.image.repository }}:{{ $v.image.tag }}"
           imagePullPolicy: {{ $v.image.pullPolicy }}
           {{- with $v.command }}
@@ -143,7 +143,7 @@ spec:
               containerPort: {{ $v.service.port }}
               protocol: TCP
           env:
-            {{- include "slopay-lib.env" . | nindent 12 }}
+            {{- include "weigate-lib.env" . | nindent 12 }}
           startupProbe:
             httpGet:
               path: /health/live
@@ -172,7 +172,7 @@ spec:
               mountPath: /tmp
             {{- range $v.secrets }}
             - name: secret-{{ .name }}
-              mountPath: {{ include "slopay-lib.secretDir" .name }}
+              mountPath: {{ include "weigate-lib.secretDir" .name }}
               readOnly: true
             {{- end }}
       volumes:
@@ -182,7 +182,7 @@ spec:
         {{- range $v.secrets }}
         - name: secret-{{ .name }}
           secret:
-            secretName: {{ include "slopay-lib.secretName" (dict "ctx" $ "s" .) }}
+            secretName: {{ include "weigate-lib.secretName" (dict "ctx" $ "s" .) }}
             defaultMode: 0440
         {{- end }}
       {{- if $v.topologySpread.enabled }}
@@ -192,7 +192,7 @@ spec:
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              {{- include "slopay-lib.selectorLabels" . | nindent 14 }}
+              {{- include "weigate-lib.selectorLabels" . | nindent 14 }}
       {{- end }}
       {{- with $v.nodeSelector }}
       nodeSelector:

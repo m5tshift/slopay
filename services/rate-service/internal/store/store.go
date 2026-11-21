@@ -14,7 +14,7 @@ import (
 
 	"github.com/valkey-io/valkey-go"
 
-	"github.com/m5tshift/slopay/services/rate-service/internal/rate"
+	"github.com/m5tshift/weigate/services/rate-service/internal/rate"
 )
 
 // KeyPrefix is the prefix of the HASH of a pair: rate:latest:ETH-USD.

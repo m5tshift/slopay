@@ -25,7 +25,7 @@ info:
     State changes are published to `merchant.events` from the transactional outbox (see
     `../asyncapi/merchant-service.yaml`). The webhook signing secret is never published.
 servers:
-  - url: https://slopay.example.com
+  - url: https://weigate.example.com
     description: Stand gateway (the real host is set by the gateway route)
 
 tags:
@@ -555,7 +555,7 @@ components:
           format: uri
           pattern: '^https://'
           maxLength: 2048
-          example: https://merchant.example.com/hooks/slopay
+          example: https://merchant.example.com/hooks/weigate
         toleranceBps:
           $ref: '#/components/schemas/ToleranceBps'
 

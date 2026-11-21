@@ -14,7 +14,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/m5tshift/slopay/services/chain-watcher/internal/projection"
+	"github.com/m5tshift/weigate/services/chain-watcher/internal/projection"
 )
 
 // batch bounds one query or command over many addresses.
@@ -62,9 +62,9 @@ func NewBook(store Store, cache Cache, retry time.Duration, meter metric.Meter, 
 		log = slog.Default()
 	}
 	if meter == nil {
-		meter = otel.Meter("github.com/m5tshift/slopay/services/chain-watcher/internal/tracked")
+		meter = otel.Meter("github.com/m5tshift/weigate/services/chain-watcher/internal/tracked")
 	}
-	source, err := meter.Int64Counter("slopay_chain_address_lookups",
+	source, err := meter.Int64Counter("weigate_chain_address_lookups",
 		metric.WithDescription("Address checks of transaction recipients, by source: cache or mongodb."))
 	if err != nil {
 		return nil, err

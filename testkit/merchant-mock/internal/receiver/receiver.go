@@ -66,7 +66,7 @@ type Options struct {
 	Registerer prometheus.Registerer
 }
 
-// Headers are the X-SLOPay-* headers of a webhook as received.
+// Headers are the X-Weigate-* headers of a webhook as received.
 type Headers struct {
 	Timestamp, Signature, SecretVersion string
 }
@@ -280,7 +280,7 @@ func (r *Receiver) record(name string, e *endpoint, entry Entry) {
 	r.metric.WithLabelValues(name, string(entry.Outcome)).Inc()
 }
 
-// Sign returns the value of X-SLOPay-Signature for the timestamp and the raw body.
+// Sign returns the value of X-Weigate-Signature for the timestamp and the raw body.
 func Sign(key []byte, timestamp string, body []byte) string {
 	m := hmac.New(sha256.New, key)
 	m.Write([]byte(timestamp))
@@ -335,7 +335,7 @@ func (r *Receiver) Handle(ctx context.Context, name string, h Headers, body []by
 	}
 	version, verr := strconv.Atoi(h.SecretVersion)
 	if verr != nil || version < 1 || !tsRe.MatchString(h.Timestamp) || !sigRe.MatchString(h.Signature) {
-		return reject(Malformed, 400, "Missing or malformed X-SLOPay headers")
+		return reject(Malformed, 400, "Missing or malformed X-Weigate headers")
 	}
 	entry.SecretVersion = version
 	var key []byte

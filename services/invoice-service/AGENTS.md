@@ -50,7 +50,7 @@ FR: FR-01, FR-02, FR-03, FR-04, FR-05, FR-06, FR-08, NFR: NFR-02, NFR-04, NFR-06
 | `USDT_CONTRACT` | адрес тестового USDT (ERC-20) на стенде; пусто — `asset: USDT` отклоняется `400` | — |
 | `USDT_DECIMALS` | `decimals` токена | 6 |
 | `INVOICE_TTL` | срок жизни счёта | 15 мин (4.1.4) |
-| `JWT_ISSUER` | ожидаемый `iss` JWT; пусто — не проверяется | `slopay-merchant-service` |
+| `JWT_ISSUER` | ожидаемый `iss` JWT; пусто — не проверяется | `weigate-merchant-service` |
 | `JWKS_URL` | JWKS `merchant-service` для проверки подписи JWT, обязательно | — |
 | `JWKS_TIMEOUT` | таймаут запроса JWKS | 2 с |
 | `JWKS_REFRESH` | возраст кэша JWKS, после которого он перечитывается (`Cache-Control` JWKS — 5 мин) | 5 мин |
@@ -62,7 +62,7 @@ FR: FR-01, FR-02, FR-03, FR-04, FR-05, FR-06, FR-08, NFR: NFR-02, NFR-04, NFR-06
 | `CHAIN_BLOCKS` | сколько последних канонических блоков хранится, больше `CONFIRMATIONS` | 256 |
 | `BARRIER_POLL` | период опроса закоммиченных смещений `chain.transfers` перед блоком | 50 мс |
 
-Секреты читаются из файлов: `/var/run/secrets/slopay/postgres/password`, `/var/run/secrets/slopay/valkey/password`.
+Секреты читаются из файлов: `/var/run/secrets/weigate/postgres/password`, `/var/run/secrets/weigate/valkey/password`.
 
 ## Команды
 
