@@ -5,9 +5,9 @@
 # The script is run by the user with the admin kubeconfig (KUBECONFIG); the agent never runs it.
 #   ./stand-secrets.sh                      create the missing Secrets
 #   ./stand-secrets.sh --dry-run            only list what would be created
-#   ./stand-secrets.sh --rotate GROUP       replace the Secrets of GROUP: jwt, anvil, mongodb or valkey
+#   ./stand-secrets.sh --rotate GROUP       replace the Secrets of GROUP: jwt, anvil, postgres, mongodb or valkey
 #   ./stand-secrets.sh --mnemonic-file F    take the Anvil mnemonic from file F instead of generating it
-# Needs kubectl, openssl, jq and cast (Foundry). PostgreSQL credentials are issued by CloudNativePG, not here.
+# Needs kubectl, openssl, jq and cast (Foundry).
 set -euo pipefail
 umask 077
 
@@ -18,6 +18,7 @@ DATA_NS="${DATA_NS:-data}"
 VALKEY_USERS=(invoice-service chain-watcher rate-service)
 
 dry_run=0
+put_type=""
 rotate=""
 mnemonic_src=""
 
@@ -33,7 +34,7 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-case "$rotate" in "" | jwt | anvil | mongodb | valkey) ;; *) die "unknown rotate group: $rotate" ;; esac
+case "$rotate" in "" | jwt | anvil | postgres | mongodb | valkey) ;; *) die "unknown rotate group: $rotate" ;; esac
 [ -z "$mnemonic_src" ] || [ -r "$mnemonic_src" ] || die "cannot read $mnemonic_src"
 
 for tool in kubectl openssl jq cast; do
@@ -56,6 +57,7 @@ put() {
   shift 3
   local args=() kv
   for kv in "$@"; do args+=("--from-file=$kv"); done
+  [ -z "$put_type" ] || args+=("--type=$put_type")
   if exists "$ns" "$name"; then
     if [ "$group" != "$rotate" ]; then echo "exists   $ns/$name"; return; fi
     if [ "$dry_run" = 1 ]; then echo "would replace $ns/$name"; return; fi
@@ -120,14 +122,50 @@ anvil() {
   put "$APPS_NS" payer-sim-payer-keys anvil "keys=$tmp/keys"
 }
 
-# Password of the MongoDB user chain-watcher (client side; the server side is issued with #113).
-mongodb() {
-  if keep "$APPS_NS" chain-watcher-mongodb mongodb || [ "$dry_run" = 1 ]; then
-    put "$APPS_NS" chain-watcher-mongodb mongodb password=/dev/null
+# pair GROUP APPS_NAME DATA_NAME DATA_KEY [USERNAME]: one password in two places: the Secret APPS_NAME (key password,
+# read by the service in apps) and the key DATA_KEY of DATA_NAME (read by the operator in data). With USERNAME the
+# data Secret is kubernetes.io/basic-auth with keys username and password (CloudNativePG bootstrap.initdb.secret).
+# An existing value wins (apps first), so the copies stay equal; a value is generated only when neither exists.
+pair() {
+  local group="$1" apps_name="$2" data_name="$3" data_key="$4" user="${5:-}"
+  local pw="$tmp/pw-$data_name" dkv=() pending=0
+  if [ -n "$user" ]; then dkv+=("username=/dev/null"); fi
+  dkv+=("$data_key=/dev/null")
+  exists "$APPS_NS" "$apps_name" || pending=1
+  exists "$DATA_NS" "$data_name" || pending=1
+  if [ "$dry_run" = 1 ] || { [ "$pending" = 0 ] && [ "$rotate" != "$group" ]; }; then
+    put "$APPS_NS" "$apps_name" "$group" password=/dev/null
+    [ -z "$user" ] || put_type=kubernetes.io/basic-auth
+    put "$DATA_NS" "$data_name" "$group" "${dkv[@]}"
+    put_type=""
     return
   fi
-  openssl rand -hex 24 | tr -d '\n' > "$tmp/mongodb-password"
-  put "$APPS_NS" chain-watcher-mongodb mongodb "password=$tmp/mongodb-password"
+  if [ "$rotate" != "$group" ] && exists "$APPS_NS" "$apps_name"; then
+    read_key "$APPS_NS" "$apps_name" password "$pw"
+  elif [ "$rotate" != "$group" ] && exists "$DATA_NS" "$data_name"; then
+    read_key "$DATA_NS" "$data_name" "$data_key" "$pw"
+  else
+    openssl rand -hex 24 | tr -d '\n' > "$pw"
+  fi
+  [ -s "$pw" ] || die "empty password for $data_name"
+  dkv=()
+  if [ -n "$user" ]; then printf '%s' "$user" > "$tmp/user-$data_name"; dkv+=("username=$tmp/user-$data_name"); fi
+  dkv+=("$data_key=$pw")
+  put "$APPS_NS" "$apps_name" "$group" "password=$pw"
+  [ -z "$user" ] || put_type=kubernetes.io/basic-auth
+  put "$DATA_NS" "$data_name" "$group" "${dkv[@]}"
+  put_type=""
+}
+
+# PostgreSQL users of merchant-service and invoice-service (CloudNativePG clusters, #112).
+postgres() {
+  pair postgres merchant-service-postgres merchant-pg-app-credentials password merchant-service
+  pair postgres invoice-service-postgres invoice-pg-app-credentials password invoice-service
+}
+
+# Password of the MongoDB user chain-watcher: apps copy and the key of data/mongodb-users (Percona, #113).
+mongodb() {
+  pair mongodb chain-watcher-mongodb mongodb-users chain-watcher
 }
 
 # Valkey: one password per service in <service>-valkey (apps) and the same values in valkey-users (data);
@@ -165,5 +203,6 @@ valkey() {
 
 jwt
 anvil
+postgres
 mongodb
 valkey
