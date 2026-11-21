@@ -31,7 +31,7 @@ charts/
   slopay-lib/            library chart
   <component>/           чарт сервиса, тестового компонента или holmes-bridge поверх slopay-lib
 infra/
-  talos/                 патчи конфигурации; gen.sh и generated/ — до #157, заменяет terraform/talos
+  talos/                 патчи машинной конфигурации Talos; подставляет infra/terraform/talos
   bootstrap/             скрипт минимального стенда: неймспейсы, ArgoCD, root Application (до Terraform, #53)
   stand-secrets/         скрипт секретов минимального стенда (до OpenBao + ESO, #63)
   terraform/             слои Terraform с отдельными state (SRS INF-2.1, ADR 0008)
@@ -80,7 +80,6 @@ make test-integration   # go test -race -tags integration ./...: Testcontainers,
 make helm-lint          # helm lint и helm template для charts/*
 make tf-validate        # init -backend=false, validate и terraform test (mock_provider) в каждом слое infra/terraform
 make ansible-lint       # ansible-lint infra/ansible
-make talos-check        # infra/talos: gen.sh --render на примере env, talosctl не нужен (до #157)
 make bootstrap-check    # infra/bootstrap: shellcheck, helm template Argo CD, проверка health-check и RBAC агента
 make stand-secrets-check # infra/stand-secrets: shellcheck и скрипт на поддельных kubectl и cast, кластер не нужен
 make runbook-check      # docs/runbooks: команды и пути runbook развёртывания совпадают с infra/ и .github/

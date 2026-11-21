@@ -3,11 +3,11 @@
 Минимальный стенд (SRS 6.4): две VM Hyper-V (`talos-cp-1`, `talos-w-1`), Talos со стандартной сетью, ArgoCD
 с App of Apps из `slopay-gitops`, платформа и сервисы до статуса `PAID`. Все команды запускает оператор
 стенда: агент пишет код и читает кластер через свой kubeconfig. Подробности каждого шага — в README
-каталогов `infra/terraform/hyperv`, `infra/talos`, `infra/bootstrap`, `infra/stand-secrets`.
+каталогов `infra/terraform/hyperv`, `infra/terraform/talos`, `infra/talos`, `infra/bootstrap`, `infra/stand-secrets`.
 
 Команды выполняются из корня клона `slopay`, если не сказано иное. Шаг 0 — PowerShell от администратора
-на ПК стенда, остальные — оболочка с `kubectl`, `talosctl`, `helm`, `curl`, `openssl`, `jq`, `cast` (Foundry),
-`envsubst`.
+на ПК стенда, остальные — оболочка с `terraform`, `kubectl`, `helm`, `curl`, `openssl`, `jq`, `cast` (Foundry);
+`talosctl` нужен только для диагностики.
 
 ## Требования
 
@@ -16,8 +16,8 @@
 | ПК | Windows Pro с Hyper-V, 12 логических CPU, 32 ГБ RAM, не менее 250 ГБ свободного места на SSD, Ethernet (SRS 6.1) |
 | Ресурсы VM | `talos-cp-1`: 2 vCPU, 3 ГБ, диск 20 ГБ; `talos-w-1`: 6 vCPU, 14 ГБ, диски 20 и 50 ГБ (SRS 6.4) |
 | Windows | обновления приостановлены, сон и гибернация отключены, WSL2 и Docker Desktop остановлены или ограничены `.wslconfig` |
-| Сеть | два свободных адреса вне диапазона DHCP роутера (`CP_IP`, `W_IP`), шлюз, DNS; рабочая машина в той же подсети |
-| ISO | ссылки на ISO Talos из Image Factory (`metal-amd64`) вписываются в `iso_urls`, ISO на ПК скачивает Terraform; версия — `TALOS_VERSION` в `infra/talos/env` |
+| Сеть | два свободных адреса вне диапазона DHCP роутера (`nodes`), шлюз (`gateway`), DNS (`dns`); рабочая машина в той же подсети |
+| ISO | ссылки на ISO Talos из Image Factory выдаёт слой `infra/terraform/talos` (вывод `iso_urls`), ISO на ПК скачивает Terraform слоя `hyperv`; версия — `talos_version` |
 | GitHub | один раз выполнены действия из раздела «Однократные действия на GitHub» |
 
 ## Однократные действия на GitHub
@@ -59,9 +59,24 @@ New-NetFirewallRule -DisplayName "WinRM HTTPS" -Direction Inbound -Protocol TCP 
 Проверка: `winrm enumerate winrm/config/listener` показывает слушатель `Transport = HTTPS`, порт 5986. С рабочей
 машины порт доступен: `nc -vz <адрес ПК> 5986`.
 
-### 1. Создание VM (`infra/terraform/hyperv`)
+### 1. ISO Talos (`infra/terraform/talos`)
 
-Ссылки на ISO Talos вписываются в `iso_urls` вручную (до автоматизации слоя Talos, #157).
+Адрес узла вшит в его ISO (`ip=` в параметрах ядра, ADR 0008), поэтому сначала слой Talos создаёт schematic
+и ссылки на ISO в Image Factory (нужен доступ к `factory.talos.dev`). Остальное в этом слое на шаге 1 не
+затрагивается.
+
+```sh
+cd infra/terraform/talos
+cp minimal.tfvars.example terraform.tfvars    # поправить: nodes, gateway, dns, talos_version, kubernetes_version, config_dir
+terraform init
+terraform apply -target='talos_image_factory_schematic.node' -target='data.talos_image_factory_urls.node'
+terraform output -json iso_urls | jq '{iso_urls: .}' > ../hyperv/iso_urls.auto.tfvars.json
+```
+
+Проверка: `iso_urls.auto.tfvars.json` содержит ссылку на ISO для каждого узла. Оба файла (`terraform.tfvars`,
+`iso_urls.auto.tfvars.json`) в Git не попадают.
+
+### 2. Создание VM (`infra/terraform/hyperv`)
 
 ```sh
 cd infra/terraform/hyperv
@@ -72,6 +87,8 @@ terraform apply
 terraform output vm_macs                      # MAC для резерва адресов в роутере
 ```
 
+Для `full.tfvars.example` ISO Debian (`lb-*`) задаётся отдельно, переменной `extra_iso_urls`.
+
 Проверка:
 ```powershell
 Get-VM | Format-Table Name, Generation, ProcessorCount, MemoryStartup, DynamicMemoryEnabled, AutomaticStartAction
@@ -79,47 +96,34 @@ Get-VM | Format-Table Name, Generation, ProcessorCount, MemoryStartup, DynamicMe
 ```sh
 terraform plan                                # повторный запуск: без изменений
 ```
-Обе VM загрузились с ISO Talos, в консоли виден адрес от DHCP. Эти адреса понадобятся на шаге 3.
+Обе VM загрузились с ISO Talos и отвечают на статических адресах из `nodes`. Необязательная диагностика
+(имя диска установки для `install_disk`): `talosctl get disks --insecure -n <адрес узла>`.
 
-### 2. Параметры и конфигурация Talos (`infra/talos`)
-
-```sh
-talosctl get disks --insecure -n <DHCP-адрес cp>     # имя системного диска для INSTALL_DISK
-cd infra/talos
-cp env.example env      # CP_IP, W_IP, PREFIXLEN, GATEWAY, DNS, INSTALL_DISK, TALOS_VERSION, K8S_VERSION
-./gen.sh
-talosctl validate --mode metal --config generated/controlplane.yaml
-talosctl validate --mode metal --config generated/worker.yaml
-```
-
-Проверка: `generated/` содержит `secrets.yaml`, `controlplane.yaml`, `worker.yaml`, `talosconfig`, обе проверки
-`talosctl validate` проходят. Каталог и `env` в git не попадают; `secrets.yaml` сохранить отдельно.
-
-### 3. Установка Talos и bootstrap Kubernetes
-
-Из `infra/talos`, адреса `<DHCP-адрес …>` — из консолей VM (шаг 1):
+### 3. Установка Talos и bootstrap Kubernetes (`infra/terraform/talos`)
 
 ```sh
-talosctl apply-config --insecure -n <DHCP-адрес cp> -f generated/controlplane.yaml
-talosctl apply-config --insecure -n <DHCP-адрес w>  -f generated/worker.yaml
-talosctl --talosconfig generated/talosconfig -e <CP_IP> -n <CP_IP> bootstrap
-talosctl --talosconfig generated/talosconfig -e <CP_IP> -n <CP_IP> kubeconfig generated/kubeconfig-admin
+cd infra/terraform/talos
+terraform apply
 ```
 
-Узлы устанавливают Talos на диск и перезагружаются на `CP_IP` и `W_IP`.
+Terraform создаёт секреты кластера, собирает машинные конфигурации из патчей `infra/talos/patches`, применяет
+их к узлам, выполняет bootstrap и пишет `kubeconfig-admin` и `talosconfig` в `config_dir` (вне Git, права 0600).
+Узлы устанавливают Talos на диск и перезагружаются на тех же адресах.
 Порядок загрузки VM — диск, затем DVD: после установки ISO вынимать не нужно.
+State слоя (`terraform.tfstate`) содержит ключи CA кластера: он локальный, вне Git, копию хранить отдельно.
 
 Проверка:
 ```sh
-kubectl --kubeconfig generated/kubeconfig-admin get nodes
-talosctl --talosconfig generated/talosconfig -e <CP_IP> -n <W_IP> get volumestatus
+terraform plan                                # повторный запуск: без изменений
+kubectl --kubeconfig <config_dir>/kubeconfig-admin get nodes
+talosctl --talosconfig <config_dir>/talosconfig -e <адрес cp> -n <адрес w> get volumestatus
 ```
 Оба узла `Ready`; том `u-data` в состоянии `ready`.
 
 ### 4. Bootstrap: неймспейсы, ArgoCD, root Application (`infra/bootstrap`)
 
 ```sh
-export KUBECONFIG=<путь к infra/talos/generated/kubeconfig-admin>
+export KUBECONFIG=<config_dir>/kubeconfig-admin
 infra/bootstrap/bootstrap.sh
 ```
 
@@ -214,9 +218,12 @@ KUBECONFIG=<путь вне репозитория>/agent.kubeconfig kubectl -n 
    ```sh
    terraform -chdir=infra/terraform/hyperv destroy
    ```
-2. Шаги 1 и 3 заново (создание VM, `apply-config`, `bootstrap`). Шаг 2 повторять не нужно: `gen.sh` берёт
-   существующий `generated/secrets.yaml`, CA кластера сохраняется, `generated/*.yaml` остаются годными.
-   `gen.sh` запускают снова только при смене адресов или версий.
+2. Шаги 2 и 3 заново. State слоя `talos` сохраняется, поэтому CA кластера остаётся прежним, а schematic и ISO
+   не пересоздаются (шаг 1 повторять не нужно). Bootstrap уже записан в state и повторно не выполнится,
+   его заменяют:
+   ```sh
+   terraform -chdir=infra/terraform/talos apply -replace=talos_machine_bootstrap.this
+   ```
 3. Шаги 4–7 заново: новый кластер пуст, скрипт стенда создаёт все секреты заново, kubeconfig агента выдаётся
    новый (токен привязан к старому кластеру).
 4. Действия на GitHub не повторяются. Теги образов в `slopay-gitops` уже указывают на собранные образы.
@@ -233,4 +240,4 @@ KUBECONFIG=<путь вне репозитория>/agent.kubeconfig kubectl -n 
 | Application `OutOfSync` или `Degraded` на волне 2 | секреты `data` созданы после кластеров CNPG и Percona | выполнить шаг 5; если кластер уже создан с другим паролем, пароль меняют в самой БД |
 | Application ждёт `Progressing` на волне 0 | local-path-provisioner не получил привилегированный неймспейс | проверить, что `bootstrap.sh` отработал (метка `privileged` у `local-path-storage`) |
 | `kubectl -n apps get secrets` у агента не `Forbidden` | выдан админский kubeconfig | выдать `agent-kubeconfig` (шаг 7) |
-| `bootstrap.sh`: `kubectl cluster-info` не отвечает | `KUBECONFIG` не указывает на `generated/kubeconfig-admin` или узлы не готовы | шаги 3 и 4 |
+| `bootstrap.sh`: `kubectl cluster-info` не отвечает | `KUBECONFIG` не указывает на `<config_dir>/kubeconfig-admin` или узлы не готовы | шаги 3 и 4 |

@@ -10,9 +10,5 @@ vms = {
   "talos-w-1"  = { vcpu = 6, ram_gb = 14, disks = [20, 50], mac = "020000000002" }
 }
 
-# Per-node Image Factory ISO URLs (node address is baked in via extraKernelArgs, ADR 0008).
-# Until #157 they are entered by hand.
-iso_urls = {
-  "talos-cp-1" = "https://factory.talos.dev/image/<schematic-id-cp-1>/<talos-version>/metal-amd64.iso"
-  "talos-w-1"  = "https://factory.talos.dev/image/<schematic-id-w-1>/<talos-version>/metal-amd64.iso"
-}
+# iso_urls (per-node Image Factory ISO, ADR 0008) is not set here: the talos layer writes it to
+# iso_urls.auto.tfvars.json (see runbook, step 1).

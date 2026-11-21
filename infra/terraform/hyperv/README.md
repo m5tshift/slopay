@@ -25,8 +25,10 @@
 
 - `vms`: имя VM, `vcpu`, `ram_gb` (статическая память), `disks` (ГБ, первый системный), `mac` (12 символов
   A-F0-9 без разделителей, префикс `02`, уникальный).
-- `iso_urls`: ссылка на ISO для каждой VM (ключи как у `vms`). Для Talos это ссылка Image Factory этого узла
-  (адрес узла вшит в ISO, ADR 0008); до #157 вписывается вручную. Для `lb-*` это Debian netinst из архива cdimage.
+- `iso_urls`: ссылка на ISO узлов Talos (Image Factory, адрес узла вшит в ISO, ADR 0008). Файл
+  `iso_urls.auto.tfvars.json` пишет пользователь из вывода `iso_urls` слоя `infra/terraform/talos` (runbook, шаг 1).
+- `extra_iso_urls`: ссылки на ISO остальных VM, вручную. Для `lb-*` это Debian netinst из архива cdimage.
+  Ключи `iso_urls` и `extra_iso_urls` вместе совпадают с ключами `vms` и не пересекаются.
 - `iso_sha256`: необязательная контрольная сумма по URL; если задана, после скачивания проверяется.
 
 ISO сохраняется как `<iso_dir>\<хеш URL>.iso`: одинаковые URL качаются один раз, смена URL даёт новый файл,

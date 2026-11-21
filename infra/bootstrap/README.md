@@ -31,10 +31,10 @@ PodSecurity: метка `privileged` только у `local-path-storage` (helpe
 
 ## Порядок для пользователя
 
-Нужны `kubectl`, `helm`, `curl`. Админский kubeconfig — результат `infra/talos/` (`generated/kubeconfig-admin`).
+Нужны `kubectl`, `helm`, `curl`. Админский kubeconfig — результат `infra/terraform/talos` (`<config_dir>/kubeconfig-admin`).
 
 ```sh
-export KUBECONFIG=<путь к infra/talos/generated/kubeconfig-admin>
+export KUBECONFIG=<config_dir>/kubeconfig-admin
 infra/bootstrap/bootstrap.sh
 kubectl -n argocd get applications
 ```

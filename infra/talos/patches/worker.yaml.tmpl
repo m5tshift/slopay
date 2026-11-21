@@ -1,17 +1,18 @@
-# Machine config patch for talos-w-1. Rendered by gen.sh (envsubst).
+# Machine config patch for talos-w-1. Rendered by infra/terraform/talos (templatefile).
 machine:
   install:
-    disk: ${INSTALL_DISK}
+    disk: ${install_disk}
+    image: ${install_image}
   network:
-    hostname: talos-w-1
+    hostname: ${hostname}
     nameservers:
-      - ${DNS}
+      - ${dns}
     interfaces:
       - deviceSelector:
           physical: true
         dhcp: false
         addresses:
-          - ${W_IP}/${PREFIXLEN}
+          - ${ip}/${prefixlen}
         routes:
           - network: 0.0.0.0/0
-            gateway: ${GATEWAY}
+            gateway: ${gateway}

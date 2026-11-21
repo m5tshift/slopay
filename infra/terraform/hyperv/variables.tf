@@ -78,7 +78,7 @@ variable "vms" {
 }
 
 variable "iso_urls" {
-  description = "ISO URL for every VM (same keys as vms). Talos: per-node Image Factory URL with the node address in extraKernelArgs."
+  description = "ISO URL by VM name for the Talos nodes. Written by the talos layer to iso_urls.auto.tfvars.json (output iso_urls, ADR 0008)."
   type        = map(string)
 
   validation {
@@ -87,8 +87,19 @@ variable "iso_urls" {
   }
 
   validation {
-    condition     = toset(keys(var.iso_urls)) == toset(keys(var.vms))
-    error_message = "iso_urls must have exactly the same keys as vms."
+    condition     = toset(concat(keys(var.iso_urls), keys(var.extra_iso_urls))) == toset(keys(var.vms)) && length(setintersection(keys(var.iso_urls), keys(var.extra_iso_urls))) == 0
+    error_message = "iso_urls and extra_iso_urls together must have exactly the keys of vms, without overlap."
+  }
+}
+
+variable "extra_iso_urls" {
+  description = "ISO URL by VM name set by hand for the VMs the talos layer does not cover (lb-*: Debian netinst)."
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for u in values(var.extra_iso_urls) : startswith(u, "https://")])
+    error_message = "ISO URLs must be https."
   }
 }
 

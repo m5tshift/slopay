@@ -40,7 +40,7 @@ resource "hyperv_machine_instance" "vm" {
   dvd_drives {
     controller_number   = 0
     controller_location = length(each.value.disks)
-    path                = local.iso_file[var.iso_urls[each.key]]
+    path                = local.iso_file[local.all_iso_urls[each.key]]
   }
 
   network_adaptors {
