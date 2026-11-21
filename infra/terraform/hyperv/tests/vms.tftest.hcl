@@ -79,8 +79,10 @@ run "full" {
       "talos-w-1"  = "https://factory.example/image/w1/metal-amd64.iso"
       "talos-w-2"  = "https://factory.example/image/w2/metal-amd64.iso"
       "talos-w-3"  = "https://factory.example/image/w3/metal-amd64.iso"
-      "lb-1"       = "https://cdimage.example/debian.iso"
-      "lb-2"       = "https://cdimage.example/debian.iso"
+    }
+    extra_iso_urls = {
+      "lb-1" = "https://cdimage.example/debian.iso"
+      "lb-2" = "https://cdimage.example/debian.iso"
     }
   }
 
@@ -152,6 +154,14 @@ run "iso_keys_mismatch" {
   command = plan
   variables {
     iso_urls = { "talos-cp-1" = "https://factory.example/image/cp1/metal-amd64.iso" }
+  }
+  expect_failures = [var.iso_urls]
+}
+
+run "iso_keys_overlap" {
+  command = plan
+  variables {
+    extra_iso_urls = { "talos-w-1" = "https://cdimage.example/debian.iso" }
   }
   expect_failures = [var.iso_urls]
 }

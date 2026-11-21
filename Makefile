@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint talos-check bootstrap-check stand-secrets-check runbook-check ci-check erc20-test precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint bootstrap-check stand-secrets-check runbook-check ci-check erc20-test precommit
 
 build:
 	go build ./...
@@ -52,17 +52,6 @@ tf-validate:
 ansible-lint:
 	@if [ ! -d infra/ansible ]; then echo "ansible-lint: no infra/ansible/, skipping"; exit 0; fi; \
 	ansible-lint infra/ansible
-
-# infra/talos: gen.sh syntax and patch rendering on the example values; needs neither talosctl nor a cluster.
-talos-check:
-	@if [ ! -d infra/talos ]; then echo "talos-check: no infra/talos/, skipping"; exit 0; fi; \
-	set -e; bash -n infra/talos/gen.sh; \
-	tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
-	sed 's/CHANGE_ME/v0.0.0/' infra/talos/env.example > "$$tmp/env"; \
-	ENV_FILE="$$tmp/env" OUT_DIR="$$tmp/out" infra/talos/gen.sh --render; \
-	grep -q 'talos-cp-1' "$$tmp/out/patches/controlplane.yaml"; \
-	grep -q 'physical: true' "$$tmp/out/patches/worker.yaml"; \
-	grep -q 'kind: UserVolumeConfig' "$$tmp/out/patches/worker-data-volume.yaml"
 
 # infra/bootstrap: shellcheck, helm template of Argo CD with the script's values, health-check and RBAC checks.
 # Needs helm and yq plus network access to the Argo CD chart repo; no cluster.

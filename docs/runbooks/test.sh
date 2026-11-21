@@ -15,7 +15,9 @@ in_doc() { need "runbook" "$doc" "$1"; }
 # Files and scripts the runbook runs exist and are named in it.
 for f in infra/terraform/hyperv/minimal.tfvars.example infra/terraform/hyperv/full.tfvars.example \
   infra/terraform/hyperv/variables.tf infra/terraform/hyperv/outputs.tf \
-  infra/talos/gen.sh infra/talos/env.example infra/bootstrap/bootstrap.sh infra/stand-secrets/stand-secrets.sh; do
+  infra/terraform/talos/minimal.tfvars.example infra/terraform/talos/variables.tf infra/terraform/talos/outputs.tf \
+  infra/talos/patches/controlplane.yaml.tmpl infra/talos/patches/worker.yaml.tmpl infra/talos/patches/worker-data-volume.yaml.tmpl \
+  infra/bootstrap/bootstrap.sh infra/stand-secrets/stand-secrets.sh; do
   [ -e "$root/$f" ] || { echo "runbook-check: $f does not exist" >&2; fail=1; }
   case "$f" in
     infra/bootstrap/*.sh | infra/stand-secrets/*.sh) in_doc "$f" ;;
@@ -27,7 +29,11 @@ in_doc 'infra/bootstrap/bootstrap.sh agent-kubeconfig'
 need "bootstrap subcommand" "$root/infra/bootstrap/bootstrap.sh" 'agent-kubeconfig)'
 in_doc '--dry-run'
 need "stand-secrets flag" "$root/infra/stand-secrets/stand-secrets.sh" '--dry-run'
-in_doc './gen.sh'
+in_doc 'infra/terraform/talos'
+in_doc "-target='talos_image_factory_schematic.node'"
+in_doc 'iso_urls.auto.tfvars.json'
+in_doc 'extra_iso_urls'
+need "talos outputs" "$root/infra/terraform/talos/outputs.tf" 'output "iso_urls"'
 in_doc 'minimal.tfvars.example'
 in_doc 'iso_urls'
 in_doc 'winrm_host'
@@ -39,10 +45,11 @@ for v in iso_urls winrm_host winrm_password; do
   need "hyperv variables" "$root/infra/terraform/hyperv/variables.tf" "variable \"$v\""
 done
 need "hyperv README" "$root/infra/terraform/hyperv/README.md" '5986'
+need "hyperv variables" "$root/infra/terraform/hyperv/variables.tf" 'variable "extra_iso_urls"'
 
-# Variables of env.example are the ones named in the runbook.
-for v in CP_IP W_IP PREFIXLEN GATEWAY DNS INSTALL_DISK TALOS_VERSION K8S_VERSION; do
-  need "env.example" "$root/infra/talos/env.example" "$v="
+# Variables of the talos layer are the ones named in the runbook.
+for v in nodes gateway dns install_disk talos_version kubernetes_version config_dir; do
+  need "talos variables" "$root/infra/terraform/talos/variables.tf" "variable \"$v\""
   in_doc "$v"
 done
 
@@ -51,8 +58,8 @@ for n in talos-cp-1 talos-w-1; do
   need "minimal.tfvars" "$root/infra/terraform/hyperv/minimal.tfvars.example" "$n"
   in_doc "$n"
 done
-in_doc 'generated/kubeconfig-admin'
-need "talos README" "$root/infra/talos/README.md" 'generated/kubeconfig-admin'
+in_doc '<config_dir>/kubeconfig-admin'
+need "talos layer README" "$root/infra/terraform/talos/README.md" 'kubeconfig-admin'
 
 # Image build and deploy key.
 in_doc 'GITOPS_DEPLOY_KEY'

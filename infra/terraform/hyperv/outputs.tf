@@ -10,5 +10,5 @@ output "vm_macs" {
 
 output "iso_files" {
   description = "ISO path on the stand PC by VM name."
-  value       = { for k, u in var.iso_urls : k => local.iso_file[u] }
+  value       = { for k, u in local.all_iso_urls : k => local.iso_file[u] }
 }

@@ -1,19 +1,20 @@
-# Machine config patch for talos-cp-1. Rendered by gen.sh (envsubst).
+# Machine config patch for talos-cp-1. Rendered by infra/terraform/talos (templatefile).
 # Network stays at the Talos default: flannel and kube-proxy (SRS 6.4).
 # Workloads are not scheduled on the control plane (allowSchedulingOnControlPlanes stays false).
 machine:
   install:
-    disk: ${INSTALL_DISK}
+    disk: ${install_disk}
+    image: ${install_image}
   network:
-    hostname: talos-cp-1
+    hostname: ${hostname}
     nameservers:
-      - ${DNS}
+      - ${dns}
     interfaces:
       - deviceSelector:
           physical: true
         dhcp: false
         addresses:
-          - ${CP_IP}/${PREFIXLEN}
+          - ${ip}/${prefixlen}
         routes:
           - network: 0.0.0.0/0
-            gateway: ${GATEWAY}
+            gateway: ${gateway}

@@ -14,15 +14,11 @@ vms = {
   "lb-2"       = { vcpu = 1, ram_gb = 0.5, disks = [8], mac = "020000000006" }
 }
 
-# Per-node Image Factory ISO URLs (node address is baked in via extraKernelArgs, ADR 0008).
-# Until #157 the Talos URLs are entered by hand.
-iso_urls = {
-  "talos-cp-1" = "https://factory.talos.dev/image/<schematic-id-cp-1>/<talos-version>/metal-amd64.iso"
-  "talos-w-1"  = "https://factory.talos.dev/image/<schematic-id-w-1>/<talos-version>/metal-amd64.iso"
-  "talos-w-2"  = "https://factory.talos.dev/image/<schematic-id-w-2>/<talos-version>/metal-amd64.iso"
-  "talos-w-3"  = "https://factory.talos.dev/image/<schematic-id-w-3>/<talos-version>/metal-amd64.iso"
-  "lb-1"       = "https://cdimage.debian.org/cdimage/archive/13.7.0/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso"
-  "lb-2"       = "https://cdimage.debian.org/cdimage/archive/13.7.0/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso"
+# ISO of the Talos nodes comes from the talos layer: iso_urls.auto.tfvars.json (see runbook, step 1).
+# ISO of the VMs outside the talos layer is set by hand.
+extra_iso_urls = {
+  "lb-1" = "https://cdimage.debian.org/cdimage/archive/13.7.0/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso"
+  "lb-2" = "https://cdimage.debian.org/cdimage/archive/13.7.0/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso"
 }
 
 # Checksums by URL (checked after the download).
