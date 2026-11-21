@@ -15,7 +15,8 @@ PAYER_ACCOUNTS="${PAYER_ACCOUNTS:-10}"
 APPS_NS="${APPS_NS:-apps}"
 CHAIN_NS="${CHAIN_NS:-chain}"
 DATA_NS="${DATA_NS:-data}"
-VALKEY_USERS=(invoice-service chain-watcher rate-service)
+ISTIO_NS="${ISTIO_NS:-istio-system}"
+VALKEY_USERS=(invoice-service chain-watcher rate-service envoy-rls)
 
 dry_run=0
 put_type=""
@@ -170,22 +171,25 @@ mongodb() {
 
 # Valkey: one password per service in <service>-valkey (apps) and the same values in valkey-users (data);
 # the init container of Valkey turns the latter into the ACL. An existing value wins, so the copies stay equal.
+# The copy of a Valkey password lives in the namespace of its consumer: envoy-rls runs in istio-system.
+valkey_ns() { if [ "$1" = envoy-rls ]; then echo "$ISTIO_NS"; else echo "$APPS_NS"; fi; }
+
 valkey() {
   local u have_users=0 pending=0 kv=()
   exists "$DATA_NS" valkey-users && have_users=1
   for u in "${VALKEY_USERS[@]}"; do
-    exists "$APPS_NS" "$u-valkey" || pending=1
+    exists "$(valkey_ns "$u")" "$u-valkey" || pending=1
     kv+=("$u=/dev/null")
   done
   [ "$have_users" = 1 ] || pending=1
   if [ "$dry_run" = 1 ] || { [ "$pending" = 0 ] && [ "$rotate" != valkey ]; }; then
-    for u in "${VALKEY_USERS[@]}"; do put "$APPS_NS" "$u-valkey" valkey password=/dev/null; done
+    for u in "${VALKEY_USERS[@]}"; do put "$(valkey_ns "$u")" "$u-valkey" valkey password=/dev/null; done
     put "$DATA_NS" valkey-users valkey "${kv[@]}"
     return
   fi
   for u in "${VALKEY_USERS[@]}"; do
-    if [ "$rotate" != valkey ] && exists "$APPS_NS" "$u-valkey"; then
-      read_key "$APPS_NS" "$u-valkey" password "$tmp/valkey-$u"
+    if [ "$rotate" != valkey ] && exists "$(valkey_ns "$u")" "$u-valkey"; then
+      read_key "$(valkey_ns "$u")" "$u-valkey" password "$tmp/valkey-$u"
     elif [ "$rotate" != valkey ] && [ "$have_users" = 1 ]; then
       read_key "$DATA_NS" valkey-users "$u" "$tmp/valkey-$u"
     else
@@ -195,7 +199,7 @@ valkey() {
   done
   kv=()
   for u in "${VALKEY_USERS[@]}"; do
-    put "$APPS_NS" "$u-valkey" valkey "password=$tmp/valkey-$u"
+    put "$(valkey_ns "$u")" "$u-valkey" valkey "password=$tmp/valkey-$u"
     kv+=("$u=$tmp/valkey-$u")
   done
   put "$DATA_NS" valkey-users valkey "${kv[@]}"
