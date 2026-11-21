@@ -164,3 +164,5 @@ jobs:
         run: make talos-check
       - name: Bootstrap (shellcheck, Argo CD helm template)
         run: make bootstrap-check
+      - name: Stand secrets (shellcheck, script on a fake kubectl)
+        run: make stand-secrets-check

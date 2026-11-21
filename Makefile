@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check bootstrap-check precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check bootstrap-check stand-secrets-check precommit
 
 build:
 	go build ./...
@@ -82,6 +82,15 @@ bootstrap-check:
 	elif [ -n "$$CI" ]; then echo "bootstrap-check: shellcheck is required in CI"; exit 1; \
 	else echo "bootstrap-check: shellcheck not installed, skipping it"; fi; \
 	infra/bootstrap/test.sh
+
+# infra/stand-secrets: shellcheck and the script against a fake kubectl and cast; needs openssl and jq, no cluster.
+stand-secrets-check:
+	@if [ ! -d infra/stand-secrets ]; then echo "stand-secrets-check: no infra/stand-secrets/, skipping"; exit 0; fi; \
+	set -e; \
+	if command -v shellcheck >/dev/null; then shellcheck infra/stand-secrets/*.sh; \
+	elif [ -n "$$CI" ]; then echo "stand-secrets-check: shellcheck is required in CI"; exit 1; \
+	else echo "stand-secrets-check: shellcheck not installed, skipping it"; fi; \
+	infra/stand-secrets/test.sh
 
 # gitleaks and basic checks; once per clone: pre-commit install
 precommit:
