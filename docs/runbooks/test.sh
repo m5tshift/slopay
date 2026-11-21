@@ -68,6 +68,14 @@ in_doc 'ghcr.io/m5tshift/weigate/<component>'
 # shellcheck disable=SC2016  # the pattern is literal workflow text
 need "build workflow" "$root/.github/workflows/build.yml" 'ghcr.io/${{ github.repository }}'
 
+# Load balancer step.
+in_doc 'infra/ansible/roles/lb'
+in_doc 'WEIGATE_LB_VRRP_PASSWORD'
+need "lb tasks" "$root/infra/ansible/roles/lb/tasks/main.yml" 'WEIGATE_LB_VRRP_PASSWORD'
+for f in infra/ansible/lb.yml infra/ansible/inventory/hosts.yml.example infra/ansible/inventory/group_vars/lb.yml.example; do
+  [ -e "$root/$f" ] || { echo "runbook-check: $f does not exist" >&2; fail=1; }
+done
+
 # Secret named in the troubleshooting table.
 need "stand-secrets" "$root/infra/stand-secrets/stand-secrets.sh" 'anvil-mnemonic'
 in_doc 'anvil-mnemonic'

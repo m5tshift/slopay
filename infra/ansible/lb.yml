@@ -1,0 +1,7 @@
+---
+- name: HAProxy and Keepalived on the load balancer VMs (SRS 4.1.8)
+  hosts: lb
+  become: true
+  serial: 1
+  roles:
+    - lb

@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: weigate
+  description: HAProxy (L4, PROXY protocol v2) and Keepalived (unicast VRRP) for lb-1, lb-2
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions:
+        - trixie
+  galaxy_tags: []
+dependencies: []

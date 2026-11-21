@@ -1,0 +1,5 @@
+# Real inventory and variables of the stand: addresses stay out of Git (SRS 4.1.11).
+inventory/hosts.yml
+inventory/group_vars/*.yml
+!inventory/group_vars/*.example
+*.vault

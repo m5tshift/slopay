@@ -1,0 +1,78 @@
+---
+- name: Check required variables
+  ansible.builtin.assert:
+    that:
+      - lb_vip | length > 0
+      - lb_interface | length > 0
+      - lb_backends | length > 0
+      - lb_vrrp_password | length > 0
+      - lb_vrrp_password | length <= 8
+      - groups['lb'] | length == 2
+      - (lb_check_weight | abs) > ((groups['lb'] | map('extract', hostvars, 'lb_keepalived_priority') | max)
+        - (groups['lb'] | map('extract', hostvars, 'lb_keepalived_priority') | min))
+    fail_msg: >-
+      Set lb_vip, lb_interface, lb_backends; export WEIGATE_LB_VRRP_PASSWORD (1 to 8 characters, VRRP PASS limit);
+      the group lb has two hosts; abs(lb_check_weight) exceeds the priority difference of the hosts.
+  vars:
+    lb_vrrp_password: "{{ lookup('ansible.builtin.env', 'WEIGATE_LB_VRRP_PASSWORD') }}"
+  no_log: true
+
+- name: Install packages
+  ansible.builtin.apt:
+    name:
+      - haproxy
+      - keepalived
+      - procps
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Allow HAProxy to bind the VIP while it is on the peer
+  ansible.builtin.template:
+    src: sysctl-99-weigate-lb.conf.j2
+    dest: /etc/sysctl.d/99-weigate-lb.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply sysctl
+
+- name: Flush handlers so the sysctl applies before the services start
+  ansible.builtin.meta: flush_handlers
+
+- name: Configure HAProxy
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: "0644"
+    validate: haproxy -c -f %s
+  notify: Reload haproxy
+
+- name: Create the Keepalived script user
+  ansible.builtin.user:
+    name: keepalived_script
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Configure Keepalived
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: "0600"
+  vars:
+    lb_vrrp_password: "{{ lookup('ansible.builtin.env', 'WEIGATE_LB_VRRP_PASSWORD') }}"
+  no_log: true
+  notify: Restart keepalived
+
+- name: Enable and start services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - haproxy
+    - keepalived
