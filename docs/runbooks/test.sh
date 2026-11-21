@@ -87,5 +87,20 @@ for d in services/*/Dockerfile testkit/*/Dockerfile; do
   in_doc "\`$c\`"
 done
 
+# Alert runbooks: one file per alert of SRS 4.5.4, named after the alert; relative links resolve.
+srs="$root/docs/SRS.md"
+# shellcheck disable=SC2016  # backticks are literal markdown
+alerts="$(awk '/^4\.5\.4\./{f=1} /^4\.5\.5\./{f=0} f' "$srs" | grep -E '^\| `' | cut -d'|' -f2 | grep -oE '`[A-Za-z0-9]+`' | tr -d '`')"
+[ -n "$alerts" ] || { echo "runbook-check: no alerts found in SRS 4.5.4" >&2; fail=1; }
+for a in $alerts; do
+  [ -f "$root/docs/runbooks/$a.md" ] || { echo "runbook-check: no runbook for alert $a" >&2; fail=1; continue; }
+  grep -q "($a.md)" "$root/docs/runbooks/README.md" || { echo "runbook-check: $a not listed in README.md" >&2; fail=1; }
+done
+for f in "$root"/docs/runbooks/*.md; do
+  while read -r l; do
+    [ -f "$(dirname "$f")/$l" ] || { echo "runbook-check: ${f#"$root"/}: broken link $l" >&2; fail=1; }
+  done < <(grep -oE '\]\([^)#:]+\.md\)' "$f" | sed -E 's/^\]\(//; s/\)$//' || true)
+done
+
 if [ "$fail" = 0 ]; then echo "runbook-check: ok"; fi
 exit "$fail"
