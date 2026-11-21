@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Sets image.tag in services/<component>/values.yaml of a slopay-gitops checkout (SRS CI-5.2) and prints
 # the names of the updated components. The rest of the file, comments included, is left as is.
+# A component without services/<component>/values.yaml is not deployed on the stand and is skipped.
 # A component whose current tag is a later commit of slopay than <tag> is skipped, so a run of an older
 # commit that finishes last does not roll the tag back.
 #   bump-gitops-tags.sh <gitops-dir> <slopay-dir> <tag> <component>...
@@ -23,8 +24,8 @@ fi
 for c in "$@"; do
   f="$gitops/services/$c/values.yaml"
   if [ ! -f "$f" ]; then
-    echo "bump-gitops-tags: $f not found" >&2
-    exit 1
+    echo "bump-gitops-tags: $c is not deployed on the stand; skipping" >&2
+    continue
   fi
   current="$(yq '.image.tag' "$f")"
   if [ "$current" = "$tag" ]; then continue; fi
