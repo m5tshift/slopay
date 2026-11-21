@@ -1,0 +1,141 @@
+# Image build after merge (SRS CI-5.2) on the minimal stand (SRS 6.4): GitHub-hosted runners, images in GHCR,
+# the tag in slopay-gitops updated with a deploy key. ARC, Zot and OCI charts come later (#75, #76).
+# Only components affected by the push are rebuilt (AGENTS.md, "Сборка образов"); a manual run rebuilds all.
+name: build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  detect:
+    name: detect
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      components: ${{ steps.changed.outputs.components }}
+      tag: ${{ steps.changed.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Changed components
+        id: changed
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then
+            components="$(.github/scripts/changed-components.sh --all)"
+          else
+            components="$(.github/scripts/changed-components.sh "$BEFORE" "$GITHUB_SHA")"
+          fi
+          echo "components: $components"
+          echo "components=$components" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: build (${{ matrix.component }})
+    needs: detect
+    if: needs.detect.outputs.components != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        component: ${{ fromJSON(needs.detect.outputs.components) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Dockerfile
+        id: dockerfile
+        env:
+          COMPONENT: ${{ matrix.component }}
+        run: |
+          for d in services testkit tools; do
+            if [ -f "$d/$COMPONENT/Dockerfile" ]; then
+              echo "path=$d/$COMPONENT/Dockerfile" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+          echo "no Dockerfile for $COMPONENT" >&2
+          exit 1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
+      # The stand runs on amd64, the default platform of the runner.
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+        with:
+          context: .
+          file: ${{ steps.dockerfile.outputs.path }}
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ghcr.io/${{ github.repository }}/${{ matrix.component }}:${{ needs.detect.outputs.tag }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+
+  # Pushes straight to main of slopay-gitops: the ruleset lets deploy keys bypass the PR rule,
+  # and image.tag is changed only here (slopay-gitops AGENTS.md). Runs when every build succeeded.
+  gitops:
+    name: gitops
+    needs: [detect, build]
+    if: needs.detect.outputs.components != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      # Full history: a run of an older commit must not roll a tag back (bump-gitops-tags.sh).
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ github.repository_owner }}/slopay-gitops
+          ref: main
+          path: .gitops
+          ssh-key: ${{ secrets.GITOPS_DEPLOY_KEY }}
+      - name: Update image tags
+        env:
+          COMPONENTS: ${{ needs.detect.outputs.components }}
+          TAG: ${{ needs.detect.outputs.tag }}
+        run: |
+          mapfile -t components < <(jq -r '.[]' <<< "$COMPONENTS")
+          git -C .gitops config user.name "github-actions[bot]"
+          git -C .gitops config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Another run may push in between: start again from the fresh main.
+          for attempt in 1 2 3; do
+            git -C .gitops fetch -q origin main
+            git -C .gitops reset -q --hard origin/main
+            updated="$(.github/scripts/bump-gitops-tags.sh .gitops . "$TAG" "${components[@]}" | paste -sd, -)"
+            if [ -z "$updated" ]; then
+              echo "slopay-gitops is up to date"
+              exit 0
+            fi
+            git -C .gitops commit -qam "chore(gitops): ${updated} image ${TAG}"
+            if git -C .gitops push -q origin HEAD:main; then
+              echo "slopay-gitops: ${updated} -> ${TAG}"
+              exit 0
+            fi
+            echo "push failed (attempt $attempt), retrying"
+            sleep $((attempt * 5))
+          done
+          exit 1
