@@ -48,7 +48,7 @@ function Test-StandConfig {
         if ($vm.PSObject.Properties['iso']) {
             $iso = $vm.iso
             if ($iso -is [bool]) {
-                if ($iso -and [string]::IsNullOrWhiteSpace([string]$Config.isoPath)) {
+                if ($iso -and ('isoPath' -notin $props -or [string]::IsNullOrWhiteSpace([string]$Config.isoPath))) {
                     $errors.Add("${name}: 'iso' is true but 'isoPath' is not set")
                 }
             }
