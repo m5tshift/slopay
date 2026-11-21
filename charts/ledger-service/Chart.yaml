@@ -2,7 +2,7 @@ apiVersion: v2
 name: ledger-service
 description: SLOPay ledger-service - double-entry ledger of receipts and the platform fee, statements (SRS 4.1.3)
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "0.1.0"
 dependencies:
   - name: slopay-lib

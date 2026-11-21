@@ -28,6 +28,18 @@ postgres:
     secret: postgres
     key: password
 
+# Calls reconciliation-service -> ledger-service (SRS 4.1.9): 2 s timeout, one retry, outlier detection.
+# Off by default: the minimal stand has no Istio CRDs; slopay-gitops enables them.
+istio:
+  destinationRule:
+    enabled: false
+  virtualService:
+    enabled: false
+    timeout: 2s
+    retries:
+      attempts: 1
+      perTryTimeout: 2s
+
 env:
   KAFKA_CONSUMER_GROUP: ledger-service
   # SRS 4.1.3: platform fee 0.5 % of every receipt, in basis points.

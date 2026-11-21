@@ -1,0 +1,64 @@
+# reconciliation-service on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in slopay-gitops.
+image:
+  repository: zot.example.internal/slopay/reconciliation-service
+  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  tag: dev
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+# Only the Lease holder runs the reconciliation; the other replicas keep the projection (SRS 4.1.3).
+leader:
+  enabled: true
+
+kafka:
+  enabled: true
+  brokers:
+    - slopay-kafka-bootstrap.kafka.svc:9092
+
+secrets:
+  # Password of the service's MongoDB user: /var/run/secrets/slopay/mongodb/password.
+  - name: mongodb
+
+# Reports and the projection of invoice.events (SRS 4.1.8).
+mongodb:
+  enabled: true
+  uri: mongodb://mongodb-rs0.data.svc:27017/?replicaSet=rs0
+  username: reconciliation-service
+  database: reconciliation
+  authSource: reconciliation
+  password:
+    secret: mongodb
+    key: password
+
+env:
+  # Reads invoice.events into the projection of invoices; the topic must keep at least ADDRESS_LOOKBACK.
+  KAFKA_CONSUMER_GROUP: reconciliation-service
+  # Anvil on the stand; the same chain and N as chain-watcher and invoice-service.
+  NODE_URL: http://anvil.chain.svc:8545
+  CHAIN_ID: "31337"
+  CONFIRMATIONS: "7"
+  NODE_TIMEOUT: 5s
+  NODE_BREAKER_FAILURE_THRESHOLD: "5"
+  NODE_BREAKER_OPEN_TIMEOUT: 15s
+  NODE_BREAKER_HALF_OPEN_MAX: "1"
+  RPC_BATCH_SIZE: "100"
+  # Timeout, retry and outlier detection of this call are in the mesh resources of ledger-service
+  # (SRS 4.1.9, ADR 0003); the client timeout only bounds a call without a sidecar. A failed call postpones
+  # the run to the next one.
+  LEDGER_URL: http://ledger-service.apps.svc:8080
+  LEDGER_TIMEOUT: 2s
+  # UC-08: every 10 minutes, the addresses of the last 7 days; SRS 4.1.4: tracking window 24 h.
+  RUN_INTERVAL: 10m
+  RUN_TIMEOUT: 5m
+  SETTLE_DELAY: 15s
+  ADDRESS_LOOKBACK: 168h
+  TRACKING_WINDOW: 24h
+  PROJECTION_TTL: 192h
+  REPORT_TTL: 720h
+  LOG_LEVEL: info
