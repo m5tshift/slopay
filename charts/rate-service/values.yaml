@@ -47,7 +47,7 @@ istio:
       perTryTimeout: 500ms
 
 env:
-  # Only the mock mode exists so far; the exchanges mode is a separate task.
+  # mock or exchanges (public APIs of Coinbase and OKX, limits SOURCE_LIMIT_*; needs egress to them).
   RATE_SOURCE_MODE: mock
   RATE_MOCK_URL: http://rate-mock.apps.svc:8080
   SOURCE_TIMEOUT: 2s

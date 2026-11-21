@@ -33,6 +33,12 @@ type Store interface {
 	Put(ctx context.Context, pair rate.Pair, s rate.Snapshot) error
 }
 
+// Limiter is the outgoing rate limit of the sources (limiter.Limiter): it takes a token of the bucket
+// named after the source.
+type Limiter interface {
+	Allow(ctx context.Context, source string) bool
+}
+
 // Config holds the dependencies and the numbers of SRS 4.1.7 and 4.1.9.
 type Config struct {
 	Fetcher   source.Fetcher
@@ -40,6 +46,8 @@ type Config struct {
 	Publisher Publisher
 	Store     Store
 	Cache     *rate.Cache
+	// Limiter limits the requests to the sources; nil means no limit (the mock mode).
+	Limiter Limiter
 	// Interval is the polling period (5s).
 	Interval time.Duration
 	// USDTMaxAge is how long a USDT/USD rate converts OKX prices (1h).
@@ -66,6 +74,7 @@ const (
 	resultOK       = "ok"
 	resultError    = "error"
 	resultRejected = "rejected" // the breaker of the source is open
+	resultLimited  = "limited"  // no token in the outgoing limit of the source: the request is not sent
 )
 
 // Poller polls the sources. Run it only on the leader.
@@ -105,7 +114,7 @@ func New(cfg Config) (*Poller, error) {
 	}
 	var err error
 	if p.requests, err = m.Int64Counter("slopay_rate_source_requests",
-		metric.WithDescription("Quote requests to the rate sources by result: ok, error, rejected (breaker open)")); err != nil {
+		metric.WithDescription("Quote requests to the rate sources by result: ok, error, rejected (breaker open), limited (outgoing rate limit)")); err != nil {
 		return nil, err
 	}
 	pairAttr := metric.WithAttributes(attribute.String("pair", string(rate.ETHUSD)))
@@ -275,6 +284,11 @@ func (p *Poller) fetch(ctx context.Context, rq request) (rate.Quote, bool) {
 	attrs := func(result string) metric.MeasurementOption {
 		return metric.WithAttributes(attribute.String("source", string(rq.src)), attribute.String("pair", string(rq.pair)),
 			attribute.String("result", result))
+	}
+	if p.cfg.Limiter != nil && !p.cfg.Limiter.Allow(ctx, string(rq.src)) {
+		p.requests.Add(ctx, 1, attrs(resultLimited))
+		p.log.WarnContext(ctx, "outgoing rate limit reached, request skipped", "source", rq.src, "pair", rq.pair)
+		return rate.Quote{}, false
 	}
 	done, err := p.cfg.Breakers[rq.src].Allow()
 	if err != nil {

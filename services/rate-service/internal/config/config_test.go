@@ -73,7 +73,9 @@ func TestErrors(t *testing.T) {
 			"KAFKA_BROKERS is required"},
 		{"no valkey", map[string]string{"VALKEY_ADDRS": ""}, "VALKEY_ADDRS is required"},
 		{"no mock url", map[string]string{"RATE_MOCK_URL": ""}, "RATE_MOCK_URL is required"},
-		{"exchanges", map[string]string{"RATE_SOURCE_MODE": "exchanges"}, "not implemented"},
+		{"bad limit requests", map[string]string{"RATE_SOURCE_MODE": "exchanges", "SOURCE_LIMIT_OKX_REQUESTS": "0"}, "SOURCE_LIMIT_OKX_REQUESTS must be an integer"},
+		{"bad limit window", map[string]string{"RATE_SOURCE_MODE": "exchanges", "SOURCE_LIMIT_COINBASE_WINDOW": "fast"}, "SOURCE_LIMIT_COINBASE_WINDOW"},
+		{"unusable limit", map[string]string{"RATE_SOURCE_MODE": "exchanges", "SOURCE_LIMIT_COINBASE_REQUESTS": "100000"}, "not a usable limit"},
 		{"bad mode", map[string]string{"RATE_SOURCE_MODE": "auto"}, "must be mock or exchanges"},
 		{"lease without pod", map[string]string{"LEADER_LEASE_NAME": "rate-service"}, "POD_NAME and POD_NAMESPACE"},
 		{"bad breaker", map[string]string{"SOURCE_BREAKER_OPEN_TIMEOUT": "soon"}, "SOURCE_BREAKER_OPEN_TIMEOUT"},
@@ -95,5 +97,48 @@ func TestErrors(t *testing.T) {
 				t.Errorf("error %v, want %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestExchangesMode(t *testing.T) {
+	setRequired(t)
+	t.Setenv("RATE_SOURCE_MODE", "exchanges")
+	t.Setenv("RATE_MOCK_URL", "") // not needed in this mode
+	c, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.SourceMode != ModeExchanges || c.CoinbaseURL != "https://api.exchange.coinbase.com" || c.OKXURL != "https://www.okx.com" {
+		t.Errorf("exchanges: %+v", c)
+	}
+	if l := c.Limits[rate.Coinbase]; l.Capacity != 10 || l.Window != time.Second {
+		t.Errorf("coinbase limit: %+v", l)
+	}
+	if l := c.Limits[rate.OKX]; l.Capacity != 20 || l.Window != 2*time.Second {
+		t.Errorf("okx limit: %+v", l)
+	}
+
+	t.Setenv("COINBASE_URL", "http://coinbase-egress:8080")
+	t.Setenv("OKX_URL", "http://okx-egress:8080")
+	t.Setenv("SOURCE_LIMIT_OKX_REQUESTS", "5")
+	t.Setenv("SOURCE_LIMIT_OKX_WINDOW", "10s")
+	c, err = FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.CoinbaseURL != "http://coinbase-egress:8080" || c.OKXURL != "http://okx-egress:8080" ||
+		c.Limits[rate.OKX].Capacity != 5 || c.Limits[rate.OKX].Window != 10*time.Second {
+		t.Errorf("overrides: %+v", c)
+	}
+}
+
+func TestMockModeHasNoLimits(t *testing.T) {
+	setRequired(t)
+	c, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Limits) != 0 {
+		t.Errorf("limits in mock mode: %+v", c.Limits)
 	}
 }

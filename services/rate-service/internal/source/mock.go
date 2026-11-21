@@ -1,5 +1,5 @@
 // Package source fetches quotes from the rate sources. The mock mode reads rate-mock
-// (contracts/openapi/rate-mock.yaml); the exchanges mode is a separate task.
+// (contracts/openapi/rate-mock.yaml); the exchanges mode reads the public APIs of Coinbase and OKX.
 package source
 
 import (
