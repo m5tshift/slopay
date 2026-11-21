@@ -34,16 +34,25 @@ func newAddress(t *testing.T) string {
 	return "0x" + hex.EncodeToString(b)
 }
 
-// sendETH transfers wei to the address; Anvil mines it at once. It returns the transaction and its block.
+// sendETH transfers wei to the address and returns the transaction and its block. Anvil may answer
+// eth_sendTransaction before the block is visible, so the receipt is polled: a missing one is null.
 func sendETH(t *testing.T, to string, wei int64) (string, uint64) {
 	t.Helper()
 	var tx string
 	rpcCall(t, &tx, "eth_sendTransaction", map[string]any{"from": payer, "to": to, "value": (*hexutil.Big)(big.NewInt(wei))})
-	var r struct {
-		BlockNumber hexutil.Uint64 `json:"blockNumber"`
-	}
-	rpcCall(t, &r, "eth_getTransactionReceipt", tx)
-	return tx, uint64(r.BlockNumber)
+	var n uint64
+	eventually(t, "receipt of "+tx, func() bool {
+		var r *struct {
+			BlockNumber hexutil.Uint64 `json:"blockNumber"`
+		}
+		rpcCall(t, &r, "eth_getTransactionReceipt", tx)
+		if r == nil {
+			return false
+		}
+		n = uint64(r.BlockNumber)
+		return true
+	})
+	return tx, n
 }
 
 // createInvoice publishes invoice.created of an ETH invoice for the address, written at the given time.
