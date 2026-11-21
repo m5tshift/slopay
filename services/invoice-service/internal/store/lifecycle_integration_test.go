@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -254,13 +255,16 @@ func TestLifecycleOverKafka(t *testing.T) {
 	}
 }
 
+var chainRuns atomic.Int64
+
 // TestLifecycleStore runs the engine on PostgreSQL directly: concurrent transfers to one invoice under the
 // shared chain lock, a redelivered block, a reorg, and the NUMERIC(78,0) round trip of large amounts.
 func TestLifecycleStore(t *testing.T) {
 	ctx := ctxT(t)
 	h, mid := newHarness(t)
 	inv := lcInvoice(t, h, mid, "store")
-	const chainID = 31338
+	// A chain of its own per run: chain_state outlives the test, so a repeat (-count) would start on a known head.
+	chainID := 40000 + chainRuns.Add(1)
 	e := newEngine(t, h, chainID)
 	t0 := time.Now().Add(-time.Minute)
 	const base = 1000
