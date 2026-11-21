@@ -1,0 +1,4 @@
+# Full stand (SRS 6.1). Copy to terraform.tfvars (kept out of Git) and edit.
+kubeconfig_path  = "~/.weigate/kubeconfig-admin"
+install_cilium   = true
+k8s_service_host = "192.0.2.11" # control plane address (cluster_endpoint of infra/terraform/talos)

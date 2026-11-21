@@ -31,10 +31,11 @@ charts/
   <component>/           чарт сервиса или тестового компонента поверх weigate-lib
 infra/
   talos/                 патчи машинной конфигурации Talos; подставляет infra/terraform/talos
-  bootstrap/             скрипт минимального стенда: неймспейсы, ArgoCD, root Application (до Terraform, #53)
+  bootstrap/             скрипт минимального стенда: неймспейсы, ArgoCD, root Application (при слое Terraform platform не запускается)
   stand-secrets/         скрипт секретов минимального стенда (до OpenBao + ESO, #63)
   terraform/             слои Terraform с отдельными state (SRS INF-2.1, ADR 0008)
     hyperv/              VM, vSwitch, VHDX Hyper-V (провайдер taliesins/hyperv)
+    platform/            Cilium, неймспейсы, ArgoCD, root Application (провайдеры kubernetes, helm)
     talos/               schematic, ISO, установка и конфигурация Talos (провайдер siderolabs/talos)
   ansible/roles/strimzi/ генерация оператора и CR Kafka в weigate-gitops (SRS INF-2.3)
   ansible/roles/lb/      HAProxy + Keepalived на VM lb-1, lb-2 (SRS 4.1.8)
