@@ -146,6 +146,8 @@ jobs:
     env:
       PSSCRIPTANALYZER_VERSION: 1.24.0
       PESTER_VERSION: 5.7.1
+      ACTIONLINT_VERSION: 1.7.12
+      ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -166,3 +168,14 @@ jobs:
         run: make bootstrap-check
       - name: Stand secrets (shellcheck, script on a fake kubectl)
         run: make stand-secrets-check
+      - name: Install actionlint
+        run: |
+          curl -sSfL -o actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  actionlint.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf actionlint.tar.gz -C "$RUNNER_TEMP/bin" actionlint
+          rm actionlint.tar.gz
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: CI (actionlint, image build scripts on fixtures)
+        run: make ci-check

@@ -83,6 +83,7 @@ make infra-test         # Pester для infra/hyperv, нужен pwsh
 make talos-check        # infra/talos: gen.sh --render на примере env, talosctl не нужен
 make bootstrap-check    # infra/bootstrap: shellcheck, helm template Argo CD, проверка health-check и RBAC агента
 make stand-secrets-check # infra/stand-secrets: shellcheck и скрипт на поддельных kubectl и cast, кластер не нужен
+make ci-check           # .github: actionlint и сухой прогон скриптов сборки образов на фикстурах
 make precommit          # gitleaks и базовые проверки; один раз: pre-commit install
 ```
 
@@ -123,13 +124,20 @@ CI пересобирает только то, что изменилось:
 | Изменён путь | Что пересобирается |
 |---|---|
 | `services/<service>/**`, `testkit/<name>/**`, `tools/<name>/**` | только этот компонент |
-| `pkg/**`, `go.mod`, `go.sum` | все компоненты на Go |
-| `contracts/**` | компоненты, у которых код сгенерирован из изменённого контракта |
+| `pkg/**`, `go.mod`, `go.sum`, `.dockerignore`, `.github/workflows/build.yml` | все компоненты на Go |
+| `contracts/openapi/**` | компоненты, у которых код сгенерирован из изменённого контракта |
+| `contracts/schemas.go`, `contracts/schemas/**` | компоненты, чей `Dockerfile` копирует схемы событий |
 | `charts/<component>/**`, `charts/slopay-lib/**` | чарт компонента или все чарты |
 
 Чарты публикуются в Zot как OCI-артефакты (SRS CI-5.3). Новая версия чарта выходит, когда в PR меняется
 `version` в `Chart.yaml`. После сборки CI обновляет в `slopay-gitops` тег образа, а при выходе новой версии
 чарта — и её.
+
+На минимальном стенде (SRS 6.4) образы собирает `.github/workflows/build.yml` на раннерах GitHub и публикует
+в GHCR (`ghcr.io/m5tshift/slopay/<component>`, пакеты публичные). Затем он пушит новый тег в `main`
+репозитория `slopay-gitops` deploy key из секрета репозитория `GITOPS_DEPLOY_KEY`. Список компонентов
+определяет `.github/scripts/changed-components.sh`, ручной запуск workflow пересобирает всё. Сборка
+на self-hosted раннерах, Zot, OCI-чарты и ключ из OpenBao — #75, #76.
 
 ## Порядок работы
 
