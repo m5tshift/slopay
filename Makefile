@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check precommit
 
 build:
 	go build ./...
@@ -61,6 +61,17 @@ infra-test:
 	@if [ ! -d infra/hyperv ]; then echo "infra-test: no infra/hyperv/, skipping"; exit 0; fi; \
 	if ! command -v pwsh >/dev/null; then echo "infra-test: pwsh not installed, skipping"; exit 0; fi; \
 	pwsh -NoProfile -File infra/hyperv/Invoke-Checks.ps1 -Check Test
+
+# infra/talos: gen.sh syntax and patch rendering on the example values; needs neither talosctl nor a cluster.
+talos-check:
+	@if [ ! -d infra/talos ]; then echo "talos-check: no infra/talos/, skipping"; exit 0; fi; \
+	set -e; bash -n infra/talos/gen.sh; \
+	tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; \
+	sed 's/CHANGE_ME/v0.0.0/' infra/talos/env.example > "$$tmp/env"; \
+	ENV_FILE="$$tmp/env" OUT_DIR="$$tmp/out" infra/talos/gen.sh --render; \
+	grep -q 'talos-cp-1' "$$tmp/out/patches/controlplane.yaml"; \
+	grep -q 'physical: true' "$$tmp/out/patches/worker.yaml"; \
+	grep -q 'kind: UserVolumeConfig' "$$tmp/out/patches/worker-data-volume.yaml"
 
 # gitleaks and basic checks; once per clone: pre-commit install
 precommit:

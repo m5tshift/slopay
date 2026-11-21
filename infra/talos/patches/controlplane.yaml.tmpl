@@ -1,0 +1,19 @@
+# Machine config patch for talos-cp-1. Rendered by gen.sh (envsubst).
+# Network stays at the Talos default: flannel and kube-proxy (SRS 6.4).
+# Workloads are not scheduled on the control plane (allowSchedulingOnControlPlanes stays false).
+machine:
+  install:
+    disk: ${INSTALL_DISK}
+  network:
+    hostname: talos-cp-1
+    nameservers:
+      - ${DNS}
+    interfaces:
+      - deviceSelector:
+          physical: true
+        dhcp: false
+        addresses:
+          - ${CP_IP}/${PREFIXLEN}
+        routes:
+          - network: 0.0.0.0/0
+            gateway: ${GATEWAY}

@@ -160,3 +160,5 @@ jobs:
         run: make psa
       - name: PowerShell tests (Pester)
         run: make infra-test
+      - name: Talos patches render
+        run: make talos-check
