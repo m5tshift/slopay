@@ -15,7 +15,7 @@ ledger-service` (SRS 4.1.2). Синхронны также внешние выз
 |---|---|---|---|
 | `invoice-service → rate-service` | Mesh (Istio) | `DestinationRule` outlier detection, timeout 500 мс, 1 retry | Новые счета → `503`, существующие обрабатываются |
 | `rate-service → биржи` | Приложение | Circuit Breaker на каждую биржу | Курс берётся с оставшейся биржи. Если недоступны обе, используется последний курс, пока он не старше 60 с |
-| `chain-watcher → нода` | Mesh (Service для Anvil, `ServiceEntry` для Sepolia) + приложение | Outlier detection, backoff | Чтение приостанавливается. После восстановления — продолжение с курсора без пропуска блоков |
+| `chain-watcher → нода` | Mesh (Service для Anvil) + приложение | Outlier detection, backoff | Чтение приостанавливается. После восстановления — продолжение с курсора без пропуска блоков |
 | `webhook-service → мерчант` | Приложение + mesh для `merchant-mock` | Circuit Breaker на endpoint, retry-топики, DLQ | Остальные мерчанты не затронуты |
 | `reconciliation-service → ledger-service` | Mesh (Istio) | Outlier detection, timeout 2 с, 1 retry | Запуск сверки откладывается до следующего по расписанию, обработка платежей не затронута |
 
@@ -47,3 +47,7 @@ ledger-service` (SRS 4.1.2). Синхронны также внешние выз
 ## Статус
 
 Принято, 15.11.2026.
+
+## Изменения
+
+Внешняя тестовая сеть исключена, нода — только Anvil (#172).

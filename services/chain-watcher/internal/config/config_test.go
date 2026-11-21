@@ -48,8 +48,8 @@ func TestDefaults(t *testing.T) {
 func TestOverrides(t *testing.T) {
 	setRequired(t)
 	t.Setenv("HTTP_ADDR", ":9090")
-	t.Setenv("NODE_URL", "https://sepolia.example.org/rpc")
-	t.Setenv("CHAIN_ID", "11155111")
+	t.Setenv("NODE_URL", "https://node.example.org/rpc")
+	t.Setenv("CHAIN_ID", "1337")
 	t.Setenv("CHAIN_START_BLOCK", "0")
 	t.Setenv("WINDOW_SIZE", "128")
 	t.Setenv("REORG_MAX_DEPTH", "12")
@@ -61,7 +61,7 @@ func TestOverrides(t *testing.T) {
 	t.Setenv("LEADER_LEASE_NAME", "chain-watcher")
 	t.Setenv("POD_NAME", "chain-watcher-0")
 	t.Setenv("POD_NAMESPACE", "apps")
-	t.Setenv("KAFKA_CONSUMER_GROUP", "chain-watcher-sepolia")
+	t.Setenv("KAFKA_CONSUMER_GROUP", "chain-watcher-alt")
 	t.Setenv("VALKEY_TIMEOUT", "250ms")
 	t.Setenv("TRACKING_WINDOW", "48h")
 	t.Setenv("PROJECTION_REBUILD_WINDOW", "50h")
@@ -70,13 +70,13 @@ func TestOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.HTTPAddr != ":9090" || c.ChainID != 11155111 || c.StartBlock == nil || *c.StartBlock != 0 ||
+	if c.HTTPAddr != ":9090" || c.ChainID != 1337 || c.StartBlock == nil || *c.StartBlock != 0 ||
 		c.WindowSize != 128 || c.MaxReorgDepth != 12 || c.NodeTimeout != 2*time.Second ||
 		c.PollInterval != 12*time.Second || c.BackoffInitial != time.Second || c.BackoffMax != time.Minute ||
 		c.NodeBreaker.FailureThreshold != 3 || c.LeaderLease != "chain-watcher" || c.PodName != "chain-watcher-0" {
 		t.Errorf("overrides: %+v", c)
 	}
-	if c.ConsumerGroup != "chain-watcher-sepolia" || c.ValkeyTimeout != 250*time.Millisecond ||
+	if c.ConsumerGroup != "chain-watcher-alt" || c.ValkeyTimeout != 250*time.Millisecond ||
 		c.TrackingWindow != 48*time.Hour || c.RebuildWindow != 50*time.Hour || c.RescanClockSkew != time.Minute {
 		t.Errorf("tracking overrides: %+v", c)
 	}

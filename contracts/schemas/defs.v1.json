@@ -38,7 +38,7 @@
       "pattern": "^0x[0-9a-f]{64}$"
     },
     "chainId": {
-      "description": "EIP-155 chain ID (31337 for Anvil, 11155111 for Sepolia).",
+      "description": "EIP-155 chain ID (31337 for Anvil).",
       "type": "integer",
       "minimum": 1
     },

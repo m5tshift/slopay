@@ -50,7 +50,7 @@ valkey:
 env:
   # Reads invoice.events into the projection of tracked addresses.
   KAFKA_CONSUMER_GROUP: chain-watcher
-  # Anvil on the stand (SRS 4.1.3); Sepolia would be another deployment with its own CHAIN_ID.
+  # Anvil on the stand (SRS 4.1.3).
   NODE_URL: http://anvil.chain.svc:8545
   CHAIN_ID: "31337"
   NODE_TIMEOUT: 5s
