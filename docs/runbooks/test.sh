@@ -13,11 +13,11 @@ need() { # need <description> <file> <fixed string>
 in_doc() { need "runbook" "$doc" "$1"; }
 
 # Files and scripts the runbook runs exist and are named in it.
-for f in infra/hyperv/New-StandVMs.ps1 infra/hyperv/Remove-StandVMs.ps1 infra/hyperv/stand.minimal.json.example \
+for f in infra/terraform/hyperv/minimal.tfvars.example infra/terraform/hyperv/full.tfvars.example \
+  infra/terraform/hyperv/variables.tf infra/terraform/hyperv/outputs.tf \
   infra/talos/gen.sh infra/talos/env.example infra/bootstrap/bootstrap.sh infra/stand-secrets/stand-secrets.sh; do
   [ -e "$root/$f" ] || { echo "runbook-check: $f does not exist" >&2; fail=1; }
   case "$f" in
-    infra/hyperv/*.ps1) in_doc "$(basename "$f")" ;;
     infra/bootstrap/*.sh | infra/stand-secrets/*.sh) in_doc "$f" ;;
   esac
 done
@@ -28,10 +28,17 @@ need "bootstrap subcommand" "$root/infra/bootstrap/bootstrap.sh" 'agent-kubeconf
 in_doc '--dry-run'
 need "stand-secrets flag" "$root/infra/stand-secrets/stand-secrets.sh" '--dry-run'
 in_doc './gen.sh'
-in_doc '-RemoveDisks'
-need "Remove-StandVMs parameter" "$root/infra/hyperv/Remove-StandVMs.ps1" 'RemoveDisks'
-need "Remove-StandVMs parameter" "$root/infra/hyperv/Remove-StandVMs.ps1" 'Name'
-need "New-StandVMs parameter" "$root/infra/hyperv/New-StandVMs.ps1" 'ConfigPath'
+in_doc 'minimal.tfvars.example'
+in_doc 'iso_urls'
+in_doc 'winrm_host'
+in_doc 'winrm_password'
+in_doc 'Enable-PSRemoting'
+in_doc 'output vm_macs'
+need "hyperv outputs" "$root/infra/terraform/hyperv/outputs.tf" 'output "vm_macs"'
+for v in iso_urls winrm_host winrm_password; do
+  need "hyperv variables" "$root/infra/terraform/hyperv/variables.tf" "variable \"$v\""
+done
+need "hyperv README" "$root/infra/terraform/hyperv/README.md" '5986'
 
 # Variables of env.example are the ones named in the runbook.
 for v in CP_IP W_IP PREFIXLEN GATEWAY DNS INSTALL_DISK TALOS_VERSION K8S_VERSION; do
@@ -41,7 +48,7 @@ done
 
 # VM names and generated files.
 for n in talos-cp-1 talos-w-1; do
-  need "stand.minimal" "$root/infra/hyperv/stand.minimal.json.example" "$n"
+  need "minimal.tfvars" "$root/infra/terraform/hyperv/minimal.tfvars.example" "$n"
   in_doc "$n"
 done
 in_doc 'generated/kubeconfig-admin'

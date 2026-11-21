@@ -1,7 +1,7 @@
 # infra/talos: конфигурация минимального стенда
 
 Конфигурация Talos для двух VM минимального стенда (SRS 6.4, INF-1.3): `talos-cp-1` и `talos-w-1`
-(имена и размеры — `infra/hyperv/stand.minimal.json.example`). Агент только пишет код, все команды
+(имена и размеры — `infra/terraform/hyperv/minimal.tfvars.example`). Агент только пишет код, все команды
 `talosctl` запускает пользователь.
 
 Сеть остаётся по умолчанию: flannel и kube-proxy. Cilium без kube-proxy и зеркало Zot — отдельная задача
@@ -36,7 +36,7 @@
 
 ## Порядок для пользователя
 
-1. VM созданы (`infra/hyperv`) и загружены с ISO Talos. Узел в режиме обслуживания отвечает на `--insecure`.
+1. VM созданы (`infra/terraform/hyperv`) и загружены с ISO Talos. Узел в режиме обслуживания отвечает на `--insecure`.
 2. Проверить имена дисков (в `env` — `INSTALL_DISK`, второй диск воркера выбирается автоматически):
    ```sh
    talosctl get disks --insecure -n <CP_IP или W_IP>

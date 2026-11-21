@@ -31,7 +31,6 @@ charts/
   slopay-lib/            library chart
   <component>/           чарт сервиса, тестового компонента или holmes-bridge поверх slopay-lib
 infra/
-  hyperv/                PowerShell-скрипты VM (до #156, заменяет terraform/hyperv)
   talos/                 патчи конфигурации; gen.sh и generated/ — до #157, заменяет terraform/talos
   bootstrap/             скрипт минимального стенда: неймспейсы, ArgoCD, root Application (до Terraform, #53)
   stand-secrets/         скрипт секретов минимального стенда (до OpenBao + ESO, #63)
@@ -79,10 +78,8 @@ make lint               # golangci-lint run
 make test               # go test -race ./...: unit и property-based
 make test-integration   # go test -race -tags integration ./...: Testcontainers, нужен Docker
 make helm-lint          # helm lint и helm template для charts/*
-make tf-validate        # terraform validate в слоях infra/terraform (в т.ч. hyperv и talos; доработка в #156, #157)
+make tf-validate        # init -backend=false, validate и terraform test (mock_provider) в каждом слое infra/terraform
 make ansible-lint       # ansible-lint infra/ansible
-make psa                # PSScriptAnalyzer для infra/hyperv, нужен pwsh (до #156)
-make infra-test         # Pester для infra/hyperv, нужен pwsh (до #156)
 make talos-check        # infra/talos: gen.sh --render на примере env, talosctl не нужен (до #157)
 make bootstrap-check    # infra/bootstrap: shellcheck, helm template Argo CD, проверка health-check и RBAC агента
 make stand-secrets-check # infra/stand-secrets: shellcheck и скрипт на поддельных kubectl и cast, кластер не нужен

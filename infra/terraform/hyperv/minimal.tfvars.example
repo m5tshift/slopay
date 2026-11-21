@@ -1,0 +1,18 @@
+# Minimal stand (SRS 6.4). Copy to terraform.tfvars (kept out of Git) and edit.
+# winrm_host and winrm_password are set only in the untracked *.tfvars file:
+#   winrm_host     = "<name or address of the stand PC>"
+#   winrm_password = "<password of the WinRM account>"
+
+net_adapter_name = "Ethernet"
+
+vms = {
+  "talos-cp-1" = { vcpu = 2, ram_gb = 3, disks = [20], mac = "020000000001" }
+  "talos-w-1"  = { vcpu = 6, ram_gb = 14, disks = [20, 50], mac = "020000000002" }
+}
+
+# Per-node Image Factory ISO URLs (node address is baked in via extraKernelArgs, ADR 0008).
+# Until #157 they are entered by hand.
+iso_urls = {
+  "talos-cp-1" = "https://factory.talos.dev/image/<schematic-id-cp-1>/<talos-version>/metal-amd64.iso"
+  "talos-w-1"  = "https://factory.talos.dev/image/<schematic-id-w-1>/<talos-version>/metal-amd64.iso"
+}
