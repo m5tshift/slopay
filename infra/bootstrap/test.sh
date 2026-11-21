@@ -27,8 +27,8 @@ fail() { echo "test: $*" >&2; exit 1; }
   || fail "dex is rendered"
 ! grep -qi bitnami "$tmp/rendered.yaml" || fail "bitnami in rendered chart"
 
-[ "$(yq -N '.metadata.name' "$dir/namespaces.yaml" | sort | tr '\n' ' ')" = "apps argocd chain data kafka local-path-storage " ] \
-  || fail "namespaces differ from apps/project.yaml destinations"
+[ "$(yq -N '.metadata.name' "$dir/namespaces.yaml" | sort | tr '\n' ' ')" = "apps argocd cert-manager chain ci data istio-system kafka karpenter local-path-storage observability registry secrets " ] \
+  || fail "namespaces differ from SRS 4.4"
 
 ! yq -N 'select(.kind == "Role") | .rules[].verbs[]' "$dir/agent-rbac.yaml" | grep -qvxE 'get|list|watch' \
   || fail "agent role is not read-only"

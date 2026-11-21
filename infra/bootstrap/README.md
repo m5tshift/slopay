@@ -6,7 +6,7 @@ Bootstrap минимального стенда (SRS 6.4, INF-2.2). Скрипт
 | Файл | Назначение |
 |---|---|
 | `bootstrap.sh` | неймспейсы, ArgoCD, root Application, RBAC агента; подкоманда `agent-kubeconfig` |
-| `namespaces.yaml` | `argocd`, `local-path-storage`, `kafka`, `data`, `chain`, `apps` (назначения `apps/project.yaml` в `weigate-gitops`) |
+| `namespaces.yaml` | все неймспейсы SRS 4.4: `argocd`, `local-path-storage`, `istio-system`, `kafka`, `data`, `chain`, `secrets`, `cert-manager`, `karpenter`, `registry`, `observability`, `apps`, `ci` |
 | `argocd-values.yaml` | values чарта `argo-cd`: dex, notifications и ApplicationSet выключены, `server.insecure`, requests и limits, Lua health-check для `argoproj.io/Application` |
 | `agent-rbac.yaml` | ServiceAccount `agent-reader` в `apps`: только `get`, `list`, `watch`, без Secrets и ConfigMaps, без ClusterRole |
 | `test.sh` | проверки без кластера (`make bootstrap-check`) |
@@ -59,4 +59,4 @@ KUBECONFIG=<путь вне репозитория>/agent.kubeconfig kubectl -n 
 
 `make bootstrap-check` (шаг в job `infra`): `shellcheck`, `bash -n`, `helm template` ArgoCD с `argocd-values.yaml`
 (нужен доступ к репозиторию чартов, кластер не нужен), проверка, что в `argocd-cm` есть health-check Application,
-dex выключен, неймспейсы совпадают с назначениями проекта, роль агента только читает и не видит Secrets и ConfigMaps.
+dex выключен, набор неймспейсов совпадает с SRS 4.4, роль агента только читает и не видит Secrets и ConfigMaps.
