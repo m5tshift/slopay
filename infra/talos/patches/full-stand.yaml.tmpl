@@ -1,0 +1,16 @@
+# Machine config patch for every node of the full stand. Rendered by infra/terraform/talos (templatefile).
+# Cilium replaces flannel and kube-proxy (SRS INF-1.1a); Zot is the registry mirror (SRS INF-1.4).
+cluster:
+  network:
+    cni:
+      name: none
+  proxy:
+    disabled: true
+machine:
+  registries:
+    mirrors:
+%{ for host in mirror_hosts ~}
+      ${host}:
+        endpoints:
+          - ${zot_endpoint}
+%{ endfor ~}

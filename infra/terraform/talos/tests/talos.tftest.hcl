@@ -169,3 +169,45 @@ run "bad_talos_version" {
   }
   expect_failures = [var.talos_version]
 }
+
+run "full_stand" {
+  command = apply
+  variables {
+    nodes = {
+      "talos-cp-1" = { role = "controlplane", ip = "192.0.2.11" }
+      "talos-w-1"  = { role = "worker", ip = "192.0.2.12" }
+      "talos-w-2"  = { role = "worker", ip = "192.0.2.13" }
+      "talos-w-3"  = { role = "worker", ip = "192.0.2.14" }
+    }
+    full_stand   = true
+    zot_endpoint = "http://192.0.2.12:30500"
+  }
+
+  assert {
+    condition = alltrue([
+      for k, n in var.nodes : (
+        yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).cluster.network.cni.name == "none" &&
+        yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).cluster.proxy.disabled == true &&
+        toset(keys(yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors)) == toset(["docker.io", "ghcr.io", "quay.io", "registry.k8s.io"]) &&
+        yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors["ghcr.io"].endpoints[0] == "http://192.0.2.12:30500"
+      )
+    ])
+    error_message = "full stand: no CNI and kube-proxy, Zot mirrors on every node"
+  }
+  assert {
+    condition = alltrue([
+      for k, n in var.nodes : n.role == "worker" ?
+      yamldecode(data.talos_machine_configuration.node[k].config_patches[2]).name == "data" :
+      length(data.talos_machine_configuration.node[k].config_patches) == 2
+    ])
+    error_message = "full stand: data volume on workers only"
+  }
+}
+
+run "full_stand_without_zot" {
+  command = plan
+  variables {
+    full_stand = true
+  }
+  expect_failures = [var.zot_endpoint]
+}

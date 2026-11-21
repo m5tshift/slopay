@@ -84,3 +84,25 @@ variable "config_dir" {
   description = "Directory outside the repository for kubeconfig-admin and talosconfig (for example ~/.weigate)."
   type        = string
 }
+
+variable "full_stand" {
+  description = "Full stand: no flannel and kube-proxy (Cilium is installed later) and Zot as registry mirror."
+  type        = bool
+  default     = false
+}
+
+variable "zot_endpoint" {
+  description = "Zot NodePort address for registries.mirrors, for example http://192.0.2.12:30500 (worker address)."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = !var.full_stand || can(regex("^http://[^/]+$", var.zot_endpoint))
+    error_message = "With full_stand, zot_endpoint must look like http://<address>:<port>."
+  }
+}
+
+variable "registry_mirror_hosts" {
+  type    = list(string)
+  default = ["docker.io", "ghcr.io", "quay.io", "registry.k8s.io"]
+}
