@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check bootstrap-check stand-secrets-check ci-check precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check bootstrap-check stand-secrets-check runbook-check ci-check precommit
 
 build:
 	go build ./...
@@ -91,6 +91,15 @@ stand-secrets-check:
 	elif [ -n "$$CI" ]; then echo "stand-secrets-check: shellcheck is required in CI"; exit 1; \
 	else echo "stand-secrets-check: shellcheck not installed, skipping it"; fi; \
 	infra/stand-secrets/test.sh
+
+# docs/runbooks: commands and paths of the deploy runbook match infra/ and .github/; needs grep only.
+runbook-check:
+	@if [ ! -x docs/runbooks/test.sh ]; then echo "runbook-check: no docs/runbooks/test.sh, skipping"; exit 0; fi; \
+	set -e; \
+	if command -v shellcheck >/dev/null; then shellcheck docs/runbooks/test.sh; \
+	elif [ -n "$$CI" ]; then echo "runbook-check: shellcheck is required in CI"; exit 1; \
+	else echo "runbook-check: shellcheck not installed, skipping it"; fi; \
+	docs/runbooks/test.sh
 
 # .github: actionlint (with shellcheck of run: blocks) and dry runs of the image build scripts; needs git and yq.
 ci-check:

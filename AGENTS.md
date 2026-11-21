@@ -83,6 +83,7 @@ make infra-test         # Pester для infra/hyperv, нужен pwsh
 make talos-check        # infra/talos: gen.sh --render на примере env, talosctl не нужен
 make bootstrap-check    # infra/bootstrap: shellcheck, helm template Argo CD, проверка health-check и RBAC агента
 make stand-secrets-check # infra/stand-secrets: shellcheck и скрипт на поддельных kubectl и cast, кластер не нужен
+make runbook-check      # docs/runbooks: команды и пути runbook развёртывания совпадают с infra/ и .github/
 make ci-check           # .github: actionlint и сухой прогон скриптов сборки образов на фикстурах
 make precommit          # gitleaks и базовые проверки; один раз: pre-commit install
 ```
