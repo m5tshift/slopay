@@ -26,6 +26,7 @@ import (
 	"github.com/m5tshift/slopay/services/invoice-service/internal/cache"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/config"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/invoice"
+	"github.com/m5tshift/slopay/services/invoice-service/internal/jwks"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/lifecycle"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/projection"
 	"github.com/m5tshift/slopay/services/invoice-service/internal/rates"
@@ -149,8 +150,12 @@ func run(log *slog.Logger) error {
 	health.AddReadiness("postgresql", pg.Ready)
 	mux := http.NewServeMux()
 	telemetry.Register(mux, health, tel)
+	keys := jwks.New(cfg.JWKSURL, jwks.Config{
+		Client:          &http.Client{Timeout: cfg.JWKSTimeout},
+		RefreshInterval: cfg.JWKSRefresh, MinInterval: cfg.JWKSMinInterval, Logger: log,
+	})
 	if err := api.Register(mux, api.Options{
-		Service: svc, JWTIssuer: cfg.JWTIssuer, RetryAfter: cfg.RateRetryAfter, Logger: log,
+		Service: svc, JWTIssuer: cfg.JWTIssuer, Keys: keys, RetryAfter: cfg.RateRetryAfter, Logger: log,
 	}); err != nil {
 		return err
 	}

@@ -54,6 +54,12 @@ env:
   # SRS 4.1.7: status cache TTL 30 s.
   STATUS_CACHE_TTL: 30s
   VALKEY_TIMEOUT: 100ms
-  # iss of the merchant-service JWT; the gateway verifies the signature (SRS 4.1.10).
+  # iss of the merchant-service JWT (SRS 4.1.10).
   JWT_ISSUER: slopay-merchant-service
+  # The service verifies the JWT signature itself against this JWKS (also behind the Istio gateway).
+  # The set is cached; an unknown kid reloads it at most once per JWKS_MIN_INTERVAL.
+  JWKS_URL: http://merchant-service.apps.svc:8080/.well-known/jwks.json
+  JWKS_TIMEOUT: 2s
+  JWKS_REFRESH: 5m
+  JWKS_MIN_INTERVAL: 10s
   LOG_LEVEL: info

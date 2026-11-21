@@ -78,6 +78,12 @@ type env struct {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
+	return newEnvKeys(t, testKeys)
+}
+
+// newEnvKeys is newEnv with the given key resolver; the tokens of the env are signed by testKey.
+func newEnvKeys(t *testing.T, keys KeyResolver) *env {
+	t.Helper()
 	e := &env{
 		mux: http.NewServeMux(), store: invoice.NewMemStore(), rates: invoicetest.NewRates("3694.25", t0.Add(-3*time.Second)),
 		cache: invoicetest.NewCache(), logs: &bytes.Buffer{}, merchant: uuid.New(),
@@ -89,7 +95,7 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := Register(e.mux, Options{Service: svc, JWTIssuer: issuer, RetryAfter: 5 * time.Second, Logger: log,
+	if err := Register(e.mux, Options{Service: svc, JWTIssuer: issuer, Keys: keys, RetryAfter: 5 * time.Second, Logger: log,
 		Now: func() time.Time { return t0 }}); err != nil {
 		t.Fatal(err)
 	}
@@ -109,10 +115,10 @@ func segment(t *testing.T, v any) string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// token builds a JWT as the gateway passes it on; the signature is not checked by the service.
+// token builds a JWT signed by the test merchant-service key.
 func token(t *testing.T, claims map[string]any) string {
 	t.Helper()
-	return segment(t, map[string]string{"alg": "ES256", "typ": "JWT"}) + "." + segment(t, claims) + ".c2lnbmF0dXJl"
+	return signToken(t, testKey, testKID, claims)
 }
 
 type resp struct {
@@ -481,7 +487,7 @@ func TestAuthentication(t *testing.T) {
 		}
 		return c
 	}
-	header := segment(t, map[string]string{"alg": "ES256"})
+	header := segment(t, map[string]string{"alg": "ES256", "kid": testKID})
 	cases := map[string]string{
 		"expired":        token(t, with("exp", t0.Unix())),
 		"no exp":         token(t, with("exp", nil)),
@@ -492,6 +498,7 @@ func TestAuthentication(t *testing.T) {
 		"alg none":       segment(t, map[string]string{"alg": "none"}) + "." + segment(t, valid) + ".",
 		"no alg":         segment(t, map[string]string{"typ": "JWT"}) + "." + segment(t, valid) + ".c2ln",
 		"no signature":   header + "." + segment(t, valid) + ".",
+		"short sig":      header + "." + segment(t, valid) + ".c2ln",
 		"two parts":      header + "." + segment(t, valid),
 		"bad header":     "!!." + segment(t, valid) + ".c2ln",
 		"bad claims":     header + ".!!.c2ln",
@@ -521,7 +528,7 @@ func TestAuthentication(t *testing.T) {
 	}
 
 	// Without a configured issuer any iss is accepted.
-	if _, err := merchantFromToken(token(t, with("iss", "other")), "", t0); err != nil {
+	if _, err := merchantFromToken(context.Background(), token(t, with("iss", "other")), "", t0, testKeys); err != nil {
 		t.Errorf("no issuer configured: %v", err)
 	}
 }
@@ -582,7 +589,7 @@ func TestInternalErrors(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	logs := &bytes.Buffer{}
-	if err := Register(mux, Options{Service: svc, JWTIssuer: issuer, Logger: slog.New(slog.NewJSONHandler(logs, nil)),
+	if err := Register(mux, Options{Service: svc, JWTIssuer: issuer, Keys: testKeys, Logger: slog.New(slog.NewJSONHandler(logs, nil)),
 		Now: func() time.Time { return t0 }}); err != nil {
 		t.Fatal(err)
 	}
