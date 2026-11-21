@@ -76,6 +76,8 @@ make test-integration   # go test -race -tags integration ./...: Testcontainers,
 make helm-lint          # helm lint и helm template для charts/*
 make tf-validate        # terraform validate в infra/terraform
 make ansible-lint       # ansible-lint infra/ansible
+make psa                # PSScriptAnalyzer для infra/hyperv, нужен pwsh
+make infra-test         # Pester для infra/hyperv, нужен pwsh
 make precommit          # gitleaks и базовые проверки; один раз: pre-commit install
 ```
 

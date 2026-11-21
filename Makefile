@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test precommit
 
 build:
 	go build ./...
@@ -49,6 +49,18 @@ tf-validate:
 ansible-lint:
 	@if [ ! -d infra/ansible ]; then echo "ansible-lint: no infra/ansible/, skipping"; exit 0; fi; \
 	ansible-lint infra/ansible
+
+# PowerShell scripts in infra/hyperv: PSScriptAnalyzer and Pester, neither needs Hyper-V.
+# Skipped without pwsh; modules: Install-Module PSScriptAnalyzer, Pester (versions pinned in pr.yml).
+psa:
+	@if [ ! -d infra/hyperv ]; then echo "psa: no infra/hyperv/, skipping"; exit 0; fi; \
+	if ! command -v pwsh >/dev/null; then echo "psa: pwsh not installed, skipping"; exit 0; fi; \
+	pwsh -NoProfile -File infra/hyperv/Invoke-Checks.ps1 -Check Lint
+
+infra-test:
+	@if [ ! -d infra/hyperv ]; then echo "infra-test: no infra/hyperv/, skipping"; exit 0; fi; \
+	if ! command -v pwsh >/dev/null; then echo "infra-test: pwsh not installed, skipping"; exit 0; fi; \
+	pwsh -NoProfile -File infra/hyperv/Invoke-Checks.ps1 -Check Test
 
 # gitleaks and basic checks; once per clone: pre-commit install
 precommit:
