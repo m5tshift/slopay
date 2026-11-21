@@ -40,8 +40,8 @@
    Job `gitops` пишет тег `<7 знаков SHA>` в `services/<component>/values.yaml` репозитория `slopay-gitops`.
 
 Проверка: все job workflow `build` зелёные; в `slopay-gitops` есть коммит `chore(gitops): … image <тег>`;
-в списке пакетов семь: `chain-watcher`, `invoice-service`, `merchant-service`, `rate-service`, `payer-sim`,
-`rate-mock`, `merchant-mock`, все Public.
+в списке пакетов восемь: `chain-watcher`, `invoice-service`, `merchant-service`, `ledger-service`, `rate-service`,
+`payer-sim`, `rate-mock`, `merchant-mock`, все Public.
 
 ## Шаги
 

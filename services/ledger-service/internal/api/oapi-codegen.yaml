@@ -1,0 +1,10 @@
+# oapi-codegen configuration: types and a strict net/http server from the ledger-service contract.
+package: api
+output: api.gen.go
+generate:
+  models: true
+  std-http-server: true
+  strict-server: true
+  embedded-spec: false
+output-options:
+  skip-prune: true
