@@ -10,7 +10,7 @@ function ConvertTo-StandByte {
 }
 
 function Test-StandConfig {
-    <# Returns a list of validation errors; empty means the config is valid. #>
+    <# Returns validation errors; no output means the config is valid. Wrap calls in @(). #>
     [CmdletBinding()]
     [OutputType([string[]])]
     param([Parameter(Mandatory)][AllowNull()]$Config)
@@ -18,11 +18,13 @@ function Test-StandConfig {
     $errors = [System.Collections.Generic.List[string]]::new()
     $props = if ($null -ne $Config) { $Config.PSObject.Properties.Name } else { @() }
     foreach ($key in 'switchName', 'netAdapterName', 'vmPath', 'vhdPath', 'vms') {
-        if ($key -notin $props -or [string]::IsNullOrWhiteSpace([string]$Config.$key)) {
+        $missing = $key -notin $props -or $null -eq $Config.$key
+        if (-not $missing -and $key -ne 'vms') { $missing = [string]::IsNullOrWhiteSpace([string]$Config.$key) }
+        if ($missing) {
             $errors.Add("missing '$key'")
         }
     }
-    if ($errors.Count -gt 0) { return , $errors.ToArray() }
+    if ($errors.Count -gt 0) { return $errors.ToArray() }
 
     $vms = @($Config.vms)
     if ($vms.Count -eq 0) { $errors.Add("'vms' is empty") }
@@ -55,7 +57,7 @@ function Test-StandConfig {
             }
         }
     }
-    return , $errors.ToArray()
+    return $errors.ToArray()
 }
 
 function Read-StandConfig {
@@ -121,7 +123,7 @@ function Get-StandVmDiff {
         elseif ($i -ge $want.Count) { & $add "Disk[$i]" $null $have[$i] $false }
         elseif ($want[$i] -ne $have[$i]) { & $add "Disk[$i]" $want[$i] $have[$i] $false }
     }
-    return , $diffs.ToArray()
+    return $diffs.ToArray()
 }
 
 function Get-StandVmState {
