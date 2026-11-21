@@ -31,11 +31,13 @@ charts/
   slopay-lib/            library chart
   <component>/           чарт сервиса, тестового компонента или holmes-bridge поверх slopay-lib
 infra/
-  hyperv/                PowerShell-скрипты VM
-  talos/                 патчи конфигурации (generated/ — вне git)
+  hyperv/                PowerShell-скрипты VM (до #156, заменяет terraform/hyperv)
+  talos/                 патчи конфигурации; gen.sh и generated/ — до #157, заменяет terraform/talos
   bootstrap/             скрипт минимального стенда: неймспейсы, ArgoCD, root Application (до Terraform, #53)
   stand-secrets/         скрипт секретов минимального стенда (до OpenBao + ESO, #63)
-  terraform/             bootstrap-слой (SRS INF-2.1)
+  terraform/             слои Terraform с отдельными state (SRS INF-2.1, ADR 0008)
+    hyperv/              VM, vSwitch, VHDX Hyper-V (провайдер taliesins/hyperv)
+    talos/               schematic, ISO, установка и конфигурация Talos (провайдер siderolabs/talos)
   ansible/roles/strimzi/ генерация оператора и CR Kafka в slopay-gitops (SRS INF-2.3)
   ansible/roles/lb/      HAProxy + Keepalived на VM lb-1, lb-2 (SRS 4.1.8)
   karpenter-kwok/        сборка Karpenter с провайдером KWOK (SRS INF-1.2)
@@ -77,11 +79,11 @@ make lint               # golangci-lint run
 make test               # go test -race ./...: unit и property-based
 make test-integration   # go test -race -tags integration ./...: Testcontainers, нужен Docker
 make helm-lint          # helm lint и helm template для charts/*
-make tf-validate        # terraform validate в infra/terraform
+make tf-validate        # terraform validate в слоях infra/terraform (в т.ч. hyperv и talos; доработка в #156, #157)
 make ansible-lint       # ansible-lint infra/ansible
-make psa                # PSScriptAnalyzer для infra/hyperv, нужен pwsh
-make infra-test         # Pester для infra/hyperv, нужен pwsh
-make talos-check        # infra/talos: gen.sh --render на примере env, talosctl не нужен
+make psa                # PSScriptAnalyzer для infra/hyperv, нужен pwsh (до #156)
+make infra-test         # Pester для infra/hyperv, нужен pwsh (до #156)
+make talos-check        # infra/talos: gen.sh --render на примере env, talosctl не нужен (до #157)
 make bootstrap-check    # infra/bootstrap: shellcheck, helm template Argo CD, проверка health-check и RBAC агента
 make stand-secrets-check # infra/stand-secrets: shellcheck и скрипт на поддельных kubectl и cast, кластер не нужен
 make runbook-check      # docs/runbooks: команды и пути runbook развёртывания совпадают с infra/ и .github/
@@ -201,7 +203,7 @@ CI пересобирает только то, что изменилось:
 Никогда не коммить (SRS 4.1.11): значения секретов, `kubeconfig`, `talosconfig`, машинные конфигурации
 Talos (`controlplane.yaml`, `worker.yaml`, `secrets.yaml`), `.env`, `terraform.tfstate`, `*.tfvars`,
 SSH-ключи (в том числе deploy key), вывод `bao operator init`, ключи API, токены. В репозитории — только
-шаблоны (`*.example`) и ссылки на секреты OpenBao.
+шаблоны (`*.example`) и ссылки на секреты OpenBao. State слоя Talos содержит ключи CA кластера (ADR 0008).
 
 - Перед коммитом проверяй `git diff --staged`; gitleaks в pre-commit и CI.
 - Workflow GitHub Actions: явные минимальные `permissions:`, сторонние actions закреплены по SHA коммита,
@@ -218,7 +220,8 @@ SSH-ключи (в том числе deploy key), вывод `bao operator init`
 - Изменения выше bootstrap-слоя — только через Git и ArgoCD. `kubectl apply`, `helm install` и правка
   ресурсов вручную запрещены.
 - Bootstrap-слой (VM Hyper-V, Talos, Terraform, init и unseal OpenBao, VM `lb-1` и `lb-2`) агент только
-  описывает кодом и runbook. Применяет его пользователь.
+  описывает кодом и runbook. Применяет его пользователь, в том числе `terraform apply` слоёв `hyperv`
+  и `talos`. `talosctl` остаётся для диагностики.
 - У агента kubeconfig только на чтение в неймспейсе `apps`: логи, события, describe. `talosconfig`
   и админский kubeconfig агенту не нужны.
 - Во время окна заморозки (SRS 6.3) изменения идут только в ветки, без выкатки.

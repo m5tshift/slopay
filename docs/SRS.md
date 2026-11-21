@@ -304,12 +304,12 @@ Valkey работает как кэш без персистентности, п�
 
 | ID | Требование | Реализация | Приоритет |
 |---|---|---|---|
-| INF-1.1 | Кластер на стенде: 1 control plane + 3 worker в VM Hyper-V (раздел 6) | Talos Linux: установка с ISO из Image Factory, конфигурация через `talosctl` | Must |
+| INF-1.1 | Кластер на стенде: 1 control plane + 3 worker в VM Hyper-V (раздел 6) | Talos Linux: установка с ISO из Image Factory, конфигурация Terraform (провайдер `siderolabs/talos`); `talosctl` — для диагностики | Must |
 | INF-1.1a | Cilium + Hubble | В Talos отключить flannel и kube-proxy. Для Istio: `cni.exclusive=false`, при kube-proxy replacement — `socketLB.hostNamespaceOnly=true` | Must |
 | INF-1.2 | Автомасштабирование узлов | Karpenter с провайдером KWOK: решения о добавлении и удалении узлов настоящие, сами узлы имитируются. Karpenter с kwok-провайдером собирается из исходников и публикуется в Zot. Имитируемые узлы несут taint, toleration к нему есть только у демонстрационной нагрузки: поды Системы на них не размещаются | Should |
 | INF-1.3 | Постоянные тома (Kafka, БД, наблюдаемость, Zot, S3) | Local PV на отдельном диске рабочих узлов (local-path-provisioner), диск подключается через конфигурацию Talos. Под с данными привязан к своему узлу; отказоустойчивость обеспечивает репликация самих компонентов: Kafka RF = 3; PostgreSQL — 2 инстанса; MongoDB — replica set из 3 узлов; ClickHouse — 1 инстанс, витрины восстанавливаются из Kafka; Valkey — 1 инстанс (кэш) | Must |
 | INF-1.4 | Доступ узлов к локальному registry | Zot опубликован через NodePort и прописан как зеркало в конфигурации Talos (`registries.mirrors`). Образы bootstrap-слоя узлы тянут из внешних реестров | Must |
-| INF-2.1 | Terraform: установка Cilium и ArgoCD, неймспейсы, ServiceAccount, настройка OpenBao | Провайдеры `kubernetes`, `helm`, `vault` (для OpenBao). Применяется в две фазы. Фаза 1: Cilium, неймспейсы, ArgoCD; затем ArgoCD разворачивает OpenBao, оператор выполняет init и unseal по runbook. Фаза 2: Terraform настраивает в OpenBao движки, политики и Kubernetes auth. State хранится локально, вне Git. Значения секретов генерирует OpenBao, а не Terraform, поэтому в state они не попадают | Must |
+| INF-2.1 | Terraform: установка Cilium и ArgoCD, неймспейсы, ServiceAccount, настройка OpenBao | Провайдеры `kubernetes`, `helm`, `vault` (для OpenBao). Слои Terraform с отдельными state: VM (`infra/terraform/hyperv`), Talos (`infra/terraform/talos`), фаза 1, фаза 2. State слоя Talos содержит секреты кластера (CA, токены) и хранится только локально, вне Git. Применяется в две фазы. Фаза 1: Cilium, неймспейсы, ArgoCD; затем ArgoCD разворачивает OpenBao, оператор выполняет init и unseal по runbook. Фаза 2: Terraform настраивает в OpenBao движки, политики и Kubernetes auth. State всех слоёв хранится локально, вне Git. Значения секретов приложений и OpenBao генерирует OpenBao, а не Terraform, поэтому в state они не попадают | Must |
 | INF-2.2 | ArgoCD, App of Apps, auto-sync + self-heal | Единственный источник правды выше bootstrap-слоя. Bootstrap-слой: Talos, Cilium, неймспейсы, ArgoCD и конфигурация OpenBao (INF-2.1) | Must |
 | INF-2.3 | Ansible role: Strimzi + `Kafka`, `KafkaNodePool`, `KafkaTopic` | Роль генерирует в GitOps-репозиторий манифесты оператора Strimzi и CR; применяет их ArgoCD. Напрямую в кластер роль ничего не устанавливает | Must |
 | INF-2.4 | Хранилище секретов: OpenBao + External Secrets Operator | ESO синхронизирует секреты из OpenBao в Kubernetes. Учётные данные PostgreSQL — статические роли database secrets engine с ротацией пароля раз в 24 ч. OpenBao меняет пароль в базе сразу, а в под он попадает с задержкой, поэтому интервал обновления ESO — не больше 1 мин, а сервис при ошибке аутентификации перечитывает пароль из смонтированного секрета и повторяет подключение с backoff до 2 мин, без рестарта. Уже открытые соединения продолжают работать. Это окно в показатели NFR не входит. Пока OpenBao запечатан, ротация не идёт и действующие пароли остаются рабочими. Unseal на стенде ручной, по runbook | Must |
@@ -405,18 +405,19 @@ Valkey работает как кэш без персистентности, п�
 - VM второго поколения. Память статическая: Dynamic Memory отключена, чтобы Kubernetes видел стабильный объём.
 - Secure Boot отключён.
 - Диски — динамические VHDX на SSD, фактически занято будет меньше 250 ГБ.
-- VM создаются идемпотентным PowerShell-скриптом (`New-VM`) из репозитория. Talos ставится с ISO из Talos Image Factory и настраивается через `talosctl apply-config`.
+- VM, External vSwitch и VHDX создаёт Terraform (провайдер `taliesins/hyperv`, WinRM к ПК стенда). Talos ставится с ISO из Talos Image Factory и настраивается Terraform (провайдер `siderolabs/talos`); `talosctl` остаётся для диагностики.
 - У VM задано автоматическое включение при старте Windows.
 
 **Сеть:**
 - External Virtual Switch на Ethernet-адаптере. VM получают адреса в домашней сети, VIP доступен с рабочей машины.
-- У VM статические адреса вне диапазона DHCP роутера; VIP — свободный адрес в той же подсети.
+- У VM статические адреса вне диапазона DHCP роутера; VIP — свободный адрес в той же подсети. Адрес узла задан в конфигурации Talos и в параметре ядра `ip=` из ISO этого узла, поэтому от DHCP и настроек роутера не зависит (ADR 0008).
 - Keepalived работает в режиме unicast: VRRP не зависит от поддержки multicast домашним оборудованием. MAC Address Spoofing в Hyper-V не нужен, если не используется `use_vmac`.
 
 **Подготовка Windows:**
 - обновления Windows приостановлены;
 - сон и гибернация отключены;
-- WSL2 и Docker Desktop остановлены или ограничены через `.wslconfig`: по умолчанию WSL2 может занять до половины RAM хоста.
+- WSL2 и Docker Desktop остановлены или ограничены через `.wslconfig`: по умолчанию WSL2 может занять до половины RAM хоста;
+- включён WinRM для Terraform (HTTPS-слушатель, учётная запись администратора).
 
 6.2. **Бюджет памяти рабочих узлов** (ориентировочно; рабочим узлам выделено 22,5 ГБ, постоянная нагрузка занимает их целиком):
 
