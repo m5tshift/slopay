@@ -1,0 +1,14 @@
+---
+- name: Reload haproxy
+  ansible.builtin.service:
+    name: haproxy
+    state: reloaded
+
+- name: Restart keepalived
+  ansible.builtin.service:
+    name: keepalived
+    state: restarted
+
+- name: Apply sysctl
+  ansible.builtin.command: sysctl --system
+  changed_when: true

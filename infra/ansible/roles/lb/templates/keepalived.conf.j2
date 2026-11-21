@@ -1,0 +1,42 @@
+# Managed by Ansible (role lb).
+global_defs {
+    enable_script_security
+    script_user keepalived_script
+}
+
+vrrp_script chk_haproxy {
+    script "/usr/bin/pidof haproxy"
+    interval {{ lb_check_interval }}
+    timeout 2
+    fall {{ lb_check_fall }}
+    rise {{ lb_check_rise }}
+    weight {{ lb_check_weight }}
+}
+
+vrrp_instance VI_LB {
+    # Both hosts start as BACKUP with nopreempt: a returning host does not take the VIP back.
+    state BACKUP
+    nopreempt
+    interface {{ lb_interface }}
+    virtual_router_id {{ lb_virtual_router_id }}
+    priority {{ lb_keepalived_priority }}
+    advert_int {{ lb_advert_int }}
+    unicast_src_ip {{ ansible_host }}
+    unicast_peer {
+{% for h in groups['lb'] if h != inventory_hostname %}
+        {{ hostvars[h].ansible_host }}
+{% endfor %}
+    }
+    authentication {
+        auth_type PASS
+        auth_pass {{ lb_vrrp_password }}
+    }
+    virtual_ipaddress {
+        {{ lb_vip }}/{{ lb_vip_prefix }} dev {{ lb_interface }}
+    }
+    vrrp_garp_master_delay 1
+    vrrp_garp_master_repeat 3
+    track_script {
+        chk_haproxy
+    }
+}

@@ -1,0 +1,11 @@
+---
+# Copy to lb.yml (kept out of Git) and replace the placeholders.
+lb_vip: "<free address in the stand subnet>"
+lb_vip_prefix: 24
+lb_interface: eth0
+lb_https_nodeport: 30443
+lb_backends:
+  - { name: talos-w-1, address: "<address of talos-w-1>" }
+  - { name: talos-w-2, address: "<address of talos-w-2>" }
+  - { name: talos-w-3, address: "<address of talos-w-3>" }
+# The VRRP password is not stored here: export WEIGATE_LB_VRRP_PASSWORD (at most 8 characters).

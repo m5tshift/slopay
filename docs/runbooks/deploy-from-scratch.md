@@ -187,6 +187,18 @@ KUBECONFIG=<путь вне репозитория>/agent.kubeconfig kubectl -n 
 Токен действует `TOKEN_DURATION` (по умолчанию 168 часов); после истечения команду повторяют. Файл в git не
 попадает (`*kubeconfig` в `.gitignore`). Админский kubeconfig, `talosconfig` и `secrets.yaml` агенту не отдаются.
 
+### 8. Балансировщик (только полная конфигурация, `infra/ansible/roles/lb`)
+
+Выполняется после того, как Istio Gateway в `weigate-gitops` принимает PROXY protocol v2 на NodePort `30443`.
+
+1. Установить Debian 13 на `lb-1` и `lb-2` с ISO из `extra_iso_urls`: статический адрес вне DHCP, SSH, `python3`, пользователь с `sudo`.
+2. В `infra/ansible` скопировать `inventory/hosts.yml.example` в `inventory/hosts.yml` и
+   `inventory/group_vars/lb.yml.example` в `inventory/group_vars/lb.yml`, подставить адреса, VIP и интерфейс (в git не попадают).
+3. `export WEIGATE_LB_VRRP_PASSWORD=<не более 8 символов>`.
+4. Из `infra/ansible`: `ansible-playbook lb.yml --check --diff`, затем `ansible-playbook lb.yml`.
+5. Проверка переключения: на хосте с VIP `sudo systemctl stop haproxy`; VIP появляется на втором хосте за ≤ 5 с
+   (`ping <VIP>` с рабочей машины), затем `sudo systemctl start haproxy`.
+
 ## Проверка стенда
 
 1. Все Application `Synced` и `Healthy`:

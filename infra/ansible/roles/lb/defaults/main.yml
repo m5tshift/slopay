@@ -1,0 +1,23 @@
+---
+# lb_vip, lb_interface, lb_backends are required (see group_vars/lb.yml.example).
+lb_vip: ""
+lb_vip_prefix: 24
+lb_interface: ""
+lb_backends: []
+
+# NodePort of the Istio Ingress Gateway (HTTPS only, SRS 4.1.10).
+lb_https_nodeport: 30443
+lb_frontend_https_port: 443
+
+lb_health_check_inter: 2s
+lb_health_check_fall: 3
+lb_health_check_rise: 2
+
+lb_virtual_router_id: 51
+lb_advert_int: 1
+lb_keepalived_priority: 100
+# HAProxy check failure lowers the priority by this value; it must exceed the priority difference of the hosts.
+lb_check_weight: -60
+lb_check_interval: 1
+lb_check_fall: 2
+lb_check_rise: 2

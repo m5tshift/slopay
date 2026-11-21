@@ -1,0 +1,27 @@
+# Managed by Ansible (role lb). L4: TCP is passed to the Istio Ingress Gateway without decryption.
+global
+    log /dev/log local0
+    maxconn 4096
+    user haproxy
+    group haproxy
+    daemon
+
+defaults
+    log global
+    mode tcp
+    option tcplog
+    timeout connect 3s
+    timeout client 60s
+    timeout server 60s
+
+frontend fe_https
+    bind {{ lb_vip }}:{{ lb_frontend_https_port }}
+    default_backend be_ingress_https
+
+backend be_ingress_https
+    balance roundrobin
+    option tcp-check
+    default-server inter {{ lb_health_check_inter }} fall {{ lb_health_check_fall }} rise {{ lb_health_check_rise }} send-proxy-v2 check-send-proxy
+{% for b in lb_backends %}
+    server {{ b.name }} {{ b.address }}:{{ lb_https_nodeport }} check
+{% endfor %}

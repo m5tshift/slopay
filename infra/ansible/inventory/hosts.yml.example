@@ -1,0 +1,12 @@
+---
+# Copy to hosts.yml (kept out of Git) and replace the placeholders.
+all:
+  children:
+    lb:
+      hosts:
+        lb-1:
+          ansible_host: "<address of lb-1>"
+          lb_keepalived_priority: 150
+        lb-2:
+          ansible_host: "<address of lb-2>"
+          lb_keepalived_priority: 100
