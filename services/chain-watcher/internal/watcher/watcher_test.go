@@ -36,12 +36,15 @@ type fakeNode struct {
 	override  map[uint64]chain.Header // HeaderByNumber answers this header once
 	headCalls int
 
-	txs        map[string][]chain.Tx    // transfers by block hash
-	failed     map[string]bool          // reverted transactions
-	receipts   map[string]chain.Receipt // receipts answered instead of the real ones
-	lost       map[string]bool          // transactions without a receipt
-	blockCalls int                      // BlockByNumber calls
-	hdrCalls   int                      // HeaderByNumber calls
+	txs        map[string][]chain.Tx            // transfers by block hash
+	failed     map[string]bool                  // reverted transactions
+	receipts   map[string]chain.Receipt         // receipts answered instead of the real ones
+	lost       map[string]bool                  // transactions without a receipt
+	blockCalls int                              // BlockByNumber calls
+	logs       map[string][]chain.TokenTransfer // token Transfer logs by block hash
+	logCalls   int                              // TransferLogs calls
+	logErr     error                            // TransferLogs fails with it
+	hdrCalls   int                              // HeaderByNumber calls
 }
 
 func mkHeader(n uint64, tag, parent string) chain.Header {
@@ -51,7 +54,7 @@ func mkHeader(n uint64, tag, parent string) chain.Header {
 func newNode(blocks uint64) *fakeNode {
 	f := &fakeNode{id: chainID, notFound: map[uint64]bool{}, override: map[uint64]chain.Header{},
 		txs: map[string][]chain.Tx{}, failed: map[string]bool{}, receipts: map[string]chain.Receipt{},
-		lost: map[string]bool{}}
+		lost: map[string]bool{}, logs: map[string][]chain.TokenTransfer{}}
 	f.extend(blocks, "a")
 	return f
 }
@@ -146,6 +149,30 @@ func (f *fakeNode) Receipt(_ context.Context, tx string) (chain.Receipt, error) 
 		}
 	}
 	return chain.Receipt{}, chain.ErrNotFound
+}
+
+func (f *fakeNode) TransferLogs(_ context.Context, blockHash string, _ []string) ([]chain.TokenTransfer, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.logCalls++
+	if f.logErr != nil {
+		return nil, f.logErr
+	}
+	if !slices.ContainsFunc(f.canonical, func(h chain.Header) bool { return h.Hash == blockHash }) {
+		return nil, chain.ErrNotFound
+	}
+	return slices.Clone(f.logs[blockHash]), nil
+}
+
+// payToken adds a Transfer log of the token contract to the canonical block n and returns the transaction hash.
+func (f *fakeNode) payToken(n uint64, contract, to string, amount int64) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	h := f.canonical[n].Hash
+	l := chain.TokenTransfer{BlockHash: h, TxHash: fmt.Sprintf("txt-%s-%d", h, len(f.logs[h])),
+		LogIndex: uint(len(f.logs[h])), Contract: contract, From: "0xpayer", To: to, Amount: big.NewInt(amount)}
+	f.logs[h] = append(f.logs[h], l)
+	return l.TxHash
 }
 
 // pay adds a transfer to the canonical block n and returns its hash.
@@ -243,6 +270,7 @@ type event struct {
 type recPublisher struct {
 	mu     sync.Mutex
 	events []event
+	full   []chain.Transfer // transfers as published
 	err    error
 }
 
@@ -278,7 +306,12 @@ func (p *recPublisher) PublishTransfer(_ context.Context, id uint64, t chain.Tra
 	if p.err != nil {
 		return p.err
 	}
-	p.events = append(p.events, event{"transfer", t.Block.Number, t.Tx.Hash})
+	hash := t.Tx.Hash
+	if t.Log != nil {
+		hash = fmt.Sprintf("%s:%d", t.Log.TxHash, t.Log.LogIndex)
+	}
+	p.full = append(p.full, t)
+	p.events = append(p.events, event{"transfer", t.Block.Number, hash})
 	return nil
 }
 
@@ -529,6 +562,9 @@ func TestNewValidates(t *testing.T) {
 		"no poll":          func(c *Config) { c.PollInterval = 0 },
 		"no backoff":       func(c *Config) { c.BackoffInitial = 0 },
 		"backoff max":      func(c *Config) { c.BackoffMax = time.Millisecond },
+		"duplicate token": func(c *Config) {
+			c.Tokens = []chain.Token{{Address: usdt, Decimals: 6}, {Address: usdt, Decimals: 6}}
+		},
 	} {
 		cfg := base
 		cfg.Meter = nil

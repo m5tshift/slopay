@@ -37,6 +37,7 @@ type reorgData struct {
 
 type asset struct {
 	Kind     string `json:"kind"`
+	Contract string `json:"contract,omitempty"`
 	Decimals int    `json:"decimals"`
 }
 
@@ -77,7 +78,22 @@ func Reorg(chainID, fromBlock uint64, orphan string) (kafka.Event, error) {
 // Transfer builds chain.transfer of a native ETH transfer: logIndex null, asset ETH with 18 decimals. The ID is
 // the idempotency key of the contract, <blockHash>:<txHash>:, so a transfer published again, after a restart or
 // by a rescan, is deduplicated by consumers; after a reorg the same txHash in another block gets another ID.
+//
+// An ERC-20 transfer (t.Log set) carries logIndex, the token contract and the amount in minimal token units,
+// and its ID is <blockHash>:<txHash>:<logIndex>: one transaction can hold several Transfer logs.
 func Transfer(chainID uint64, t chain.Transfer) (kafka.Event, error) {
+	if l := t.Log; l != nil {
+		if l.Amount == nil {
+			return kafka.Event{}, fmt.Errorf("events: token transfer %s:%d without an amount", l.TxHash, l.LogIndex)
+		}
+		ev, err := kafka.NewEvent(EventSource, TypeTransfer, l.To, 1, transferData{
+			ChainID: chainID, BlockNumber: t.Block.Number, BlockHash: t.Block.Hash, BlockTimestamp: t.Block.Timestamp,
+			TxHash: l.TxHash, LogIndex: &l.LogIndex, From: l.From, To: l.To, Amount: l.Amount.String(),
+			Asset: asset{Kind: "ERC20", Contract: l.Contract, Decimals: t.Token.Decimals},
+		})
+		ev.ID = fmt.Sprintf("%s:%s:%d", t.Block.Hash, l.TxHash, l.LogIndex)
+		return ev, err
+	}
 	if t.Tx.Value == nil {
 		return kafka.Event{}, fmt.Errorf("events: transfer %s without a value", t.Tx.Hash)
 	}

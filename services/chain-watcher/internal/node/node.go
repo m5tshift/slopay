@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/m5tshift/weigate/services/chain-watcher/internal/chain"
@@ -184,4 +185,56 @@ func (c *Client) Receipt(ctx context.Context, txHash string) (chain.Receipt, err
 		return chain.Receipt{}, fmt.Errorf("node: receipt %s: blockHash or status missing", txHash)
 	}
 	return chain.Receipt{BlockHash: strings.ToLower(r.BlockHash.Hex()), Success: *r.Status == 1}, nil
+}
+
+// transferTopic is the topic 0 of Transfer(address,address,uint256).
+var transferTopic = crypto.Keccak256Hash([]byte("Transfer(address,address,uint256)"))
+
+type rpcLog struct {
+	Address   *common.Address `json:"address"`
+	Topics    []common.Hash   `json:"topics"`
+	Data      hexutil.Bytes   `json:"data"`
+	BlockHash *common.Hash    `json:"blockHash"`
+	TxHash    *common.Hash    `json:"transactionHash"`
+	LogIndex  *hexutil.Uint   `json:"logIndex"`
+	Removed   bool            `json:"removed"`
+}
+
+// TransferLogs returns the ERC-20 Transfer logs of the contracts in the block with the hash blockHash
+// (eth_getLogs with the blockHash filter, so the answer is of that block or an error), in log order. A log of
+// another shape is left out: an ERC-721 Transfer has four topics and no data, a removed log is not canonical.
+// chain.ErrNotFound means the node does not know the block, for example after a reorg replaced it.
+func (c *Client) TransferLogs(ctx context.Context, blockHash string, contracts []string) ([]chain.TokenTransfer, error) {
+	addrs := make([]common.Address, 0, len(contracts))
+	for _, a := range contracts {
+		addrs = append(addrs, common.HexToAddress(a))
+	}
+	var logs []rpcLog
+	err := c.call(ctx, &logs, "eth_getLogs", map[string]any{
+		"blockHash": common.HexToHash(blockHash), "address": addrs, "topics": []any{[]common.Hash{transferTopic}},
+	})
+	if err != nil {
+		// Anvil answers "unknown block", geth "block not found".
+		if msg := strings.ToLower(err.Error()); strings.Contains(msg, "not found") || strings.Contains(msg, "unknown block") {
+			return nil, fmt.Errorf("%w: %w", chain.ErrNotFound, err)
+		}
+		return nil, err
+	}
+	var out []chain.TokenTransfer
+	for i, l := range logs {
+		if l.Address == nil || l.BlockHash == nil || l.TxHash == nil || l.LogIndex == nil {
+			return nil, fmt.Errorf("node: logs of block %s: log %d: address, blockHash, transactionHash or logIndex missing", blockHash, i)
+		}
+		if l.Removed || len(l.Topics) != 3 || l.Topics[0] != transferTopic || len(l.Data) != 32 {
+			continue
+		}
+		out = append(out, chain.TokenTransfer{
+			BlockHash: strings.ToLower(l.BlockHash.Hex()), TxHash: strings.ToLower(l.TxHash.Hex()),
+			LogIndex: uint(*l.LogIndex), Contract: strings.ToLower(l.Address.Hex()),
+			From:   strings.ToLower(common.BytesToAddress(l.Topics[1].Bytes()).Hex()),
+			To:     strings.ToLower(common.BytesToAddress(l.Topics[2].Bytes()).Hex()),
+			Amount: new(big.Int).SetBytes(l.Data),
+		})
+	}
+	return out, nil
 }

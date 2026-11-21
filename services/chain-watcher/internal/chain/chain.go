@@ -75,10 +75,31 @@ type Receipt struct {
 	Success   bool
 }
 
-// Transfer is a native ETH transfer to a tracked address (chain.transfer with logIndex null).
+// Token is an ERC-20 contract whose Transfer logs are read. Address is lower-case hex with 0x.
+type Token struct {
+	Address  string
+	Decimals int
+}
+
+// TokenTransfer is a Transfer(address,address,uint256) log of an ERC-20 contract, amount in minimal token units.
+type TokenTransfer struct {
+	BlockHash string
+	TxHash    string
+	LogIndex  uint
+	Contract  string
+	From      string
+	To        string
+	Amount    *big.Int
+}
+
+// Transfer is a transfer to a tracked address: a native ETH transaction (Tx, logIndex null) or an ERC-20
+// Transfer log (Token and Log).
 type Transfer struct {
 	Block Header
 	Tx    Tx
+	// Log is set for an ERC-20 transfer; Token is its contract.
+	Log   *TokenTransfer
+	Token Token
 }
 
 // State is the reading state of one chain. Window holds the last processed headers in ascending,
