@@ -42,6 +42,7 @@ infra/
 tests/acceptance/        приёмочные испытания (SRS раздел 8)
   results/<id>.json      результаты прогонов
   protocol.md            протокол испытаний: отчёт Locust, результат сверки, скриншоты в screenshots/
+tests/e2e/               сквозной тест среза на Testcontainers (build tag e2e)
 .github/workflows/       CI
 ```
 
