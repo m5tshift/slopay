@@ -22,6 +22,7 @@ type Rates struct {
 	quote invoice.Quote
 	err   error
 	calls atomic.Int64
+	pair  string
 }
 
 // NewRates returns a source answering price quoted at quotedAt with age 0.
@@ -39,11 +40,19 @@ func (r *Rates) Set(q invoice.Quote, err error) {
 // Calls is the number of Rate calls.
 func (r *Rates) Calls() int64 { return r.calls.Load() }
 
+// Pair is the pair of the last Rate call.
+func (r *Rates) Pair() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.pair
+}
+
 // Rate implements invoice.RateSource.
-func (r *Rates) Rate(context.Context, string) (invoice.Quote, error) {
+func (r *Rates) Rate(_ context.Context, pair string) (invoice.Quote, error) {
 	r.calls.Add(1)
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.pair = pair
 	return r.quote, r.err
 }
 

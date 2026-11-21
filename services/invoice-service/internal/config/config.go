@@ -8,6 +8,7 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -41,6 +42,11 @@ type Config struct {
 	RateMaxAge time.Duration
 	// RateRetryAfter is Retry-After of 503 when rate-service suggested none (RATE_RETRY_AFTER, default 5s).
 	RateRetryAfter time.Duration
+	// USDTContract is the address of the test USDT contract in lower case (USDT_CONTRACT, FR-10). Empty:
+	// USDT invoices are refused.
+	USDTContract string
+	// USDTDecimals is the decimals of the token (USDT_DECIMALS, default 6).
+	USDTDecimals int
 	// InvoiceTTL is the lifetime of an invoice (INVOICE_TTL, SRS 4.1.4: 15m).
 	InvoiceTTL time.Duration
 
@@ -117,6 +123,13 @@ func FromEnv() (Config, error) {
 	}
 	c.RateRetryAfter, err = duration("RATE_RETRY_AFTER", 5*time.Second)
 	errs = append(errs, err)
+	c.USDTContract = strings.ToLower(os.Getenv("USDT_CONTRACT"))
+	if c.USDTContract != "" && !usdtAddress.MatchString(c.USDTContract) {
+		errs = append(errs, errors.New("USDT_CONTRACT must be a 0x-prefixed 20-byte hex address"))
+	}
+	d, err := nonNegative("USDT_DECIMALS", 6, 77)
+	errs = append(errs, err)
+	c.USDTDecimals = int(d)
 	c.InvoiceTTL, err = duration("INVOICE_TTL", 15*time.Minute)
 	errs = append(errs, err)
 
@@ -148,6 +161,21 @@ func FromEnv() (Config, error) {
 	c.BarrierPoll, err = duration("BARRIER_POLL", 50*time.Millisecond)
 	errs = append(errs, err)
 	return c, errors.Join(errs...)
+}
+
+var usdtAddress = regexp.MustCompile(`^0x[0-9a-f]{40}$`)
+
+// nonNegative reads an integer from 0 up to limit.
+func nonNegative(name string, def, limit int64) (int64, error) {
+	v := os.Getenv(name)
+	if v == "" {
+		return def, nil
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || n < 0 || n > limit {
+		return def, fmt.Errorf("%s must be an integer from 0 to %d", name, limit)
+	}
+	return n, nil
 }
 
 func envOr(name, def string) string {

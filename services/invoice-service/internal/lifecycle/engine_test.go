@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"math/big"
+	"strings"
 	"testing"
 	"time"
 
@@ -421,5 +422,40 @@ func TestHandlers(t *testing.T) {
 	cancel()
 	if err := transfers(cctx, blockEvent(t, EventTransfer, transferEv(0, 100, time.Minute, 1000, 9))); err == nil {
 		t.Fatal("cancelled retry returned nil")
+	}
+}
+
+// An invoice in USDT counts only the Transfer logs of its token (FR-10): ETH and another token are skipped,
+// the token transfer pays it, and the amount is in token base units.
+func TestEngineUSDTInvoice(t *testing.T) {
+	h := newHarness(t)
+	usdt := invoice.Asset{Kind: invoice.KindERC20, Contract: "0x5fbdb2315678afecb367f032d93f642f64180aa3", Decimals: 6}
+	rec := newRecord(10_000_000)
+	rec.Asset = usdt
+	h.store.AddInvoice(rec)
+	h.head(0, 99, 0)
+	token := func(tx int, asset invoice.Asset, amount int64) TransferEvent {
+		te := transferEv(0, 100, time.Minute, amount, tx)
+		li := int64(tx)
+		te.LogIndex, te.Asset = &li, asset
+		return te
+	}
+	other := invoice.Asset{Kind: invoice.KindERC20, Contract: "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512", Decimals: 6}
+	h.transfer(transferEv(0, 100, time.Minute, 10_000_000, 1)) // ETH
+	h.transfer(token(2, other, 10_000_000))                    // another token
+	h.head(0, 100, time.Minute)
+	h.wantTypes()
+	if _, ts := h.store.Record(testID); len(ts) != 0 {
+		t.Fatalf("foreign transfers stored: %+v", ts)
+	}
+	ok := token(3, usdt, 10_000_000)
+	ok.Asset.Contract = strings.ToUpper(ok.Asset.Contract[:2]) + ok.Asset.Contract[2:] // normalised to lower case
+	h.transfer(ok)
+	h.head(0, 101, 2*time.Minute)
+	h.wantTypes(EventDetected, EventConfirming)
+	h.head(0, 106, 3*time.Minute)
+	h.wantTypes(EventDetected, EventConfirming, EventPaid)
+	if got, _ := h.store.Record(testID); got.Status != invoice.StatusPaid || got.Received.String() != "10000000" {
+		t.Fatalf("%+v", got)
 	}
 }
