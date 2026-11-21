@@ -79,7 +79,7 @@ func setup(t *testing.T, amount *big.Int, to common.Address, shares payer.Shares
 		}
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		fmt.Fprintf(w, `{"address":%q,"amount":%q,"asset":"ETH"}`, to.Hex(), amount.String())
+		fmt.Fprintf(w, `{"address":%q,"amount":%q,"asset":{"kind":"ETH","decimals":18}}`, to.Hex(), amount.String())
 	}))
 	t.Cleanup(srv.Close)
 	p, err := payer.New(ctx, payer.Config{

@@ -15,7 +15,8 @@ import (
 type Payment struct {
 	Address string
 	Amount  *big.Int
-	Asset   string
+	// Asset is the asset kind of the contract: ETH or ERC20.
+	Asset string
 }
 
 // Client calls invoice-service.
@@ -32,7 +33,10 @@ func NewClient(base string, h *http.Client) *Client {
 type page struct {
 	Address string `json:"address"`
 	Amount  string `json:"amount"`
-	Asset   string `json:"asset"`
+	// Asset is an object in the contract: {"kind": "ETH", "decimals": 18} or an ERC20 with its contract.
+	Asset struct {
+		Kind string `json:"kind"`
+	} `json:"asset"`
 }
 
 // Get returns the payment data of the invoice.
@@ -57,5 +61,5 @@ func (c *Client) Get(ctx context.Context, id string) (Payment, error) {
 	if !ok || amount.Sign() < 0 {
 		return Payment{}, fmt.Errorf("invalid amount %q", p.Amount)
 	}
-	return Payment{Address: p.Address, Amount: amount, Asset: p.Asset}, nil
+	return Payment{Address: p.Address, Amount: amount, Asset: p.Asset.Kind}, nil
 }
