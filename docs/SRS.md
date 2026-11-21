@@ -317,7 +317,7 @@ Valkey работает как кэш без персистентности, п�
 | INF-3.2 | HAProxy + Keepalived | 4.1.8 | Must |
 | INF-3.3 | Envoy RLS + Valkey | 4.1.8 | Must |
 
-Неймспейсы: `argocd`, `istio-system`, `kafka`, `data`, `chain` (Anvil), `secrets` (OpenBao, ESO), `cert-manager`, `karpenter`, `registry` (Zot), `observability` (включая Mailpit), `apps`, `ci`.
+Неймспейсы: `argocd`, `local-path-storage` (local-path-provisioner), `istio-system`, `kafka`, `data`, `chain` (Anvil), `secrets` (OpenBao, ESO), `cert-manager`, `karpenter`, `registry` (Zot), `observability` (включая Mailpit), `apps`, `ci`.
 
 ### 4.5. Наблюдаемость
 
