@@ -160,13 +160,17 @@ func (t *pgTx) PruneBlocks(ctx context.Context, below uint64) error {
 	return nil
 }
 
+// InvoiceByAddress locks the invoice row FOR UPDATE. The lock must come before AddTransfer: the foreign key
+// check of the transfer insert takes FOR KEY SHARE on the invoice, and two transfers to one invoice that
+// both hold it would each wait for the other to release it when Load asks for FOR UPDATE (SQLSTATE 40P01).
+// Taking the exclusive lock first serialises the transfers of one invoice and keeps one lock order.
 func (t *pgTx) InvoiceByAddress(ctx context.Context, address string) (uuid.UUID, invoice.Asset, bool, error) {
 	var (
 		id    uuid.UUID
 		asset invoice.Asset
 	)
 	err := t.tx.QueryRow(ctx, `SELECT id, asset_kind, COALESCE(asset_contract, ''), asset_decimals FROM invoices
-WHERE address = $1 ORDER BY created_at LIMIT 1`, address).Scan(&id, &asset.Kind, &asset.Contract, &asset.Decimals)
+WHERE address = $1 ORDER BY created_at LIMIT 1 FOR UPDATE`, address).Scan(&id, &asset.Kind, &asset.Contract, &asset.Decimals)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return uuid.Nil, invoice.Asset{}, false, nil
 	}
