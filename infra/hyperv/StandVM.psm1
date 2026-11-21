@@ -16,7 +16,7 @@ function Test-StandConfig {
     param([Parameter(Mandatory)][AllowNull()]$Config)
 
     $errors = [System.Collections.Generic.List[string]]::new()
-    $props = if ($null -ne $Config) { $Config.PSObject.Properties.Name } else { @() }
+    $props = @(if ($null -ne $Config) { $Config.PSObject.Properties.Name })
     foreach ($key in 'switchName', 'netAdapterName', 'vmPath', 'vhdPath', 'vms') {
         $missing = $key -notin $props -or $null -eq $Config.$key
         if (-not $missing -and $key -ne 'vms') { $missing = [string]::IsNullOrWhiteSpace([string]$Config.$key) }
@@ -40,7 +40,7 @@ function Test-StandConfig {
                 $errors.Add("${name}: '$field' must be a number > 0")
             }
         }
-        $disks = if ($vm.PSObject.Properties['disks']) { @($vm.disks) } else { @() }
+        $disks = @(if ($vm.PSObject.Properties['disks']) { $vm.disks })
         if ($disks.Count -eq 0) { $errors.Add("${name}: 'disks' is empty") }
         foreach ($d in $disks) {
             if (($d -isnot [int] -and $d -isnot [long] -and $d -isnot [double]) -or $d -le 0) { $errors.Add("${name}: disk size must be a number > 0") }
