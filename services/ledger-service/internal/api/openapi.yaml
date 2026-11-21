@@ -1,0 +1,348 @@
+openapi: 3.0.3
+info:
+  title: ledger-service API
+  version: 1.0.0
+  description: |
+    Internal statement API of ledger-service (SRS 4.1.2, 4.1.3; FR-12). The only caller is
+    reconciliation-service: it checks the actual content of the ledger, not the stream of its events, and compares
+    it with balances read from the chain. The API is not published on the gateway; calls are authenticated by mesh
+    mTLS `STRICT` and allowed by a NetworkPolicy, so there is no application-level authentication.
+
+    **Caller resilience** (SRS 4.1.9): Istio outlier detection, timeout 2 s, 1 retry. On failure the run is postponed
+    to the next scheduled one; payment processing is not affected.
+
+    **Postings.** One posting per transfer that reached N confirmations (debit `address:<address>`, credit
+    `merchant:<merchantId>:received`), also for `invoice.late_transfer`. The idempotency key is
+    `blockHash + txHash + logIndex`. The platform fee is 0.5 % of the posted amount, rounded down, in the asset of
+    the transfer. There are no reversing postings.
+
+    **Money.** Amounts are integers in minimal units of the asset (wei, token base units) as decimal strings.
+    A statement is built per asset; amounts of different assets are never summed.
+
+    **Pagination.** Keyset: pass `nextCursor` of the previous page as `cursor`. Entries are ordered by `postedAt`
+    ascending, ties by posting id, so a page is stable while new postings are appended. Totals cover the whole
+    requested period, not only the page.
+servers:
+  - url: http://ledger-service.apps.svc.cluster.local
+    description: In-cluster service
+
+tags:
+  - name: statements
+
+paths:
+  /internal/merchants/{merchantId}/statement:
+    get:
+      tags: [statements]
+      operationId: getMerchantStatement
+      summary: Statement of a merchant for a period
+      description: |
+        Postings of the merchant with `postedAt` in `[from, to)` and the totals per asset: the received amount and
+        the accrued fee (the merchant debt to the platform).
+      parameters:
+        - $ref: '#/components/parameters/MerchantId'
+        - name: from
+          in: query
+          required: true
+          description: Start of the period, inclusive.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          description: End of the period, exclusive. Must be later than `from`.
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of the statement.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantStatement'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          description: No such merchant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: not_found
+                message: Merchant not found
+
+  /internal/addresses/statement:
+    get:
+      tags: [statements]
+      operationId: getAddressesStatement
+      summary: Statement by invoice addresses
+      description: |
+        For each requested address: the totals of postings debited to it, per asset. Reconciliation compares them
+        with the chain balance of the address. An address without postings is returned with empty `totals`.
+        The result does not depend on the period: it covers the whole life of the address.
+      parameters:
+        - name: address
+          in: query
+          required: true
+          description: Invoice addresses, lower-case hex. Repeat the parameter for several addresses.
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 100
+            uniqueItems: true
+            items:
+              $ref: '#/components/schemas/Address'
+          style: form
+          explode: true
+      responses:
+        '200':
+          description: One item per requested address, in the request order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressesStatement'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /internal/addresses/{address}/postings:
+    get:
+      tags: [statements]
+      operationId: listAddressPostings
+      summary: Postings of one address
+      description: |
+        Postings debited to the address, for a detailed comparison with the transfers of the chain when the totals
+        of the address differ.
+      parameters:
+        - name: address
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Address'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A page of postings.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostingPage'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+components:
+  parameters:
+    MerchantId:
+      name: merchantId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 200
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque page cursor from `nextCursor`.
+      schema:
+        type: string
+        maxLength: 512
+
+  responses:
+    ValidationError:
+      description: The request is invalid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            code: validation_failed
+            message: Request validation failed
+
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+
+    Address:
+      type: string
+      pattern: '^0x[0-9a-f]{40}$'
+      example: '0x71c7656ec7ab88b098defb751b7401b5f6d8976f'
+
+    Hash:
+      type: string
+      pattern: '^0x[0-9a-f]{64}$'
+
+    Amount:
+      type: string
+      pattern: '^(0|[1-9][0-9]{0,77})$'
+      description: Integer amount in minimal units of the asset as a decimal string.
+      example: '5412000000000000'
+
+    Asset:
+      oneOf:
+        - type: object
+          required: [kind, decimals]
+          properties:
+            kind:
+              type: string
+              enum: [ETH]
+            decimals:
+              type: integer
+              enum: [18]
+        - type: object
+          required: [kind, contract, decimals]
+          properties:
+            kind:
+              type: string
+              enum: [ERC20]
+            contract:
+              type: string
+              pattern: '^0x[0-9a-f]{40}$'
+            decimals:
+              type: integer
+              minimum: 0
+              maximum: 77
+
+    Transfer:
+      type: object
+      required: [blockNumber, blockHash, txHash, logIndex, amount, asset]
+      properties:
+        blockNumber:
+          type: integer
+          minimum: 0
+        blockHash:
+          $ref: '#/components/schemas/Hash'
+        txHash:
+          $ref: '#/components/schemas/Hash'
+        logIndex:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Index of the Transfer log for ERC-20; null for a native ETH transfer.
+        amount:
+          $ref: '#/components/schemas/Amount'
+        asset:
+          $ref: '#/components/schemas/Asset'
+
+    Posting:
+      type: object
+      required: [postingId, merchantId, invoiceId, address, transfer, debitAccount, creditAccount, fee, postedAt]
+      properties:
+        postingId:
+          type: string
+          description: 'Equals the `ledger.receipt_posted` event id: `receipt:<blockHash>:<txHash>:<logIndex or empty>`.'
+        merchantId:
+          type: string
+          format: uuid
+        invoiceId:
+          type: string
+          format: uuid
+        address:
+          $ref: '#/components/schemas/Address'
+        transfer:
+          $ref: '#/components/schemas/Transfer'
+        debitAccount:
+          type: string
+          pattern: '^address:0x[0-9a-f]{40}$'
+        creditAccount:
+          type: string
+          pattern: '^merchant:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:received$'
+        fee:
+          allOf:
+            - $ref: '#/components/schemas/Amount'
+          description: Platform fee, 0.5 % of `transfer.amount` rounded down, in the asset of the transfer.
+        postedAt:
+          type: string
+          format: date-time
+
+    AssetTotals:
+      type: object
+      required: [asset, received, fee, postings]
+      properties:
+        asset:
+          $ref: '#/components/schemas/Asset'
+        received:
+          $ref: '#/components/schemas/Amount'
+        fee:
+          $ref: '#/components/schemas/Amount'
+        postings:
+          type: integer
+          minimum: 0
+
+    MerchantStatement:
+      type: object
+      required: [merchantId, from, to, totals, items]
+      properties:
+        merchantId:
+          type: string
+          format: uuid
+        from:
+          type: string
+          format: date-time
+        to:
+          type: string
+          format: date-time
+        totals:
+          type: array
+          description: Totals of the whole period per asset, regardless of the page.
+          items:
+            $ref: '#/components/schemas/AssetTotals'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Posting'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Cursor of the next page; null or absent on the last page.
+
+    AddressTotals:
+      type: object
+      required: [address, totals]
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        totals:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssetTotals'
+
+    AddressesStatement:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AddressTotals'
+
+    PostingPage:
+      type: object
+      required: [address, items]
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Posting'
+        nextCursor:
+          type: string
+          nullable: true

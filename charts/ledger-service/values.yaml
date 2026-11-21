@@ -1,0 +1,35 @@
+# ledger-service on slopay-lib (charts/slopay-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in slopay-gitops.
+image:
+  repository: zot.example.internal/slopay/ledger-service
+  # CI sets the short commit SHA in slopay-gitops; this placeholder only lets the chart render.
+  tag: dev
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+kafka:
+  enabled: true
+  brokers:
+    - slopay-kafka-bootstrap.kafka.svc:9092
+
+secrets:
+  # Password of the service's PostgreSQL user: /var/run/secrets/slopay/postgres/password.
+  - name: postgres
+
+postgres:
+  enabled: true
+  url: postgres://ledger-service@ledger-pg-rw.data.svc:5432/ledger
+  password:
+    secret: postgres
+    key: password
+
+env:
+  KAFKA_CONSUMER_GROUP: ledger-service
+  # SRS 4.1.3: platform fee 0.5 % of every receipt, in basis points.
+  FEE_BPS: "50"
+  LOG_LEVEL: info
