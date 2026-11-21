@@ -231,14 +231,25 @@ func (s *Server) RevokeApiKey(ctx context.Context, req RevokeApiKeyRequestObject
 	return RevokeApiKey204Response{}, nil
 }
 
-// notImplementedResponse is 501: webhook secrets are generated and stored in OpenBao by a separate task.
+// notImplementedResponse is 501: no secret store (OpenBao) is configured.
 type notImplementedResponse struct{}
 
 func (notImplementedResponse) VisitRotateWebhookSecretResponse(w http.ResponseWriter) error {
-	return writeJSON(w, http.StatusNotImplemented, Error{Code: codeNotDone, Message: "Webhook secret rotation is not available yet"})
+	return writeJSON(w, http.StatusNotImplemented, Error{Code: codeNotDone, Message: "Webhook secret rotation is not configured"})
 }
 
-// RotateWebhookSecret is not implemented yet: the secret lives in OpenBao KV.
-func (s *Server) RotateWebhookSecret(context.Context, RotateWebhookSecretRequestObject) (RotateWebhookSecretResponseObject, error) {
-	return notImplementedResponse{}, nil
+// RotateWebhookSecret writes a new secret version to OpenBao and publishes the new version. The secret is
+// shown once.
+func (s *Server) RotateWebhookSecret(ctx context.Context, _ RotateWebhookSecretRequestObject) (RotateWebhookSecretResponseObject, error) {
+	id, _ := merchantID(ctx)
+	rs, err := s.svc.RotateWebhookSecret(ctx, id)
+	switch {
+	case errors.Is(err, merchant.ErrRotationUnavailable):
+		return notImplementedResponse{}, nil
+	case errors.Is(err, merchant.ErrNotFound):
+		return RotateWebhookSecret401JSONResponse{unauthorized()}, nil
+	case err != nil:
+		return nil, err
+	}
+	return RotateWebhookSecret200JSONResponse{Version: rs.Version, Secret: rs.Secret}, nil
 }

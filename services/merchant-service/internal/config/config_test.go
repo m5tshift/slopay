@@ -10,6 +10,7 @@ var allVars = []string{
 	"HTTP_ADDR", "LOG_LEVEL", "KAFKA_BROKERS", "POSTGRES_URL", "POSTGRES_PASSWORD_FILE", "POSTGRES_MAX_CONNS",
 	"JWT_SIGNING_KEY_FILE", "JWT_ISSUER", "JWT_TTL", "JWKS_MAX_AGE", "API_KEY_ROTATION_GRACE",
 	"API_KEY_MAX_ACTIVE", "TOLERANCE_DEFAULT_BPS", "TOLERANCE_MAX_BPS",
+	"OPENBAO_ADDR", "OPENBAO_TOKEN_FILE", "OPENBAO_KV_MOUNT",
 }
 
 func setRequired(t *testing.T) {
@@ -40,6 +41,9 @@ func TestDefaults(t *testing.T) {
 		c.DefaultToleranceBps != 100 || c.MaxToleranceBps != 500 || c.JWKSMaxAge != 5*time.Minute {
 		t.Errorf("SRS defaults: %+v", c)
 	}
+	if c.OpenBaoAddr != "" || c.OpenBaoMount != "secret" {
+		t.Errorf("openbao defaults: %+v", c)
+	}
 	if c.Postgres.URL == "" || c.Postgres.PasswordFile == "" {
 		t.Errorf("postgres: %+v", c.Postgres)
 	}
@@ -63,20 +67,32 @@ func TestOverrides(t *testing.T) {
 	}
 }
 
+func TestOpenBao(t *testing.T) {
+	setRequired(t)
+	t.Setenv("OPENBAO_ADDR", "https://openbao:8200")
+	t.Setenv("OPENBAO_TOKEN_FILE", "/var/run/secrets/slopay/openbao/token")
+	t.Setenv("OPENBAO_KV_MOUNT", "kv")
+	c, err := FromEnv()
+	if err != nil || c.OpenBaoAddr != "https://openbao:8200" || c.OpenBaoTokenFile == "" || c.OpenBaoMount != "kv" {
+		t.Errorf("openbao: %+v %v", c, err)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	for name, tc := range map[string]struct {
 		env  map[string]string
 		want string
 	}{
-		"no brokers":       {map[string]string{"KAFKA_BROKERS": " , "}, "KAFKA_BROKERS is required"},
-		"no key file":      {map[string]string{"JWT_SIGNING_KEY_FILE": ""}, "JWT_SIGNING_KEY_FILE is required"},
-		"no postgres":      {map[string]string{"POSTGRES_URL": ""}, "POSTGRES_URL"},
-		"bad ttl":          {map[string]string{"JWT_TTL": "soon"}, "JWT_TTL must be a positive duration"},
-		"negative grace":   {map[string]string{"API_KEY_ROTATION_GRACE": "-1h"}, "API_KEY_ROTATION_GRACE"},
-		"zero keys":        {map[string]string{"API_KEY_MAX_ACTIVE": "0"}, "API_KEY_MAX_ACTIVE must be an integer >= 1"},
-		"bad tolerance":    {map[string]string{"TOLERANCE_DEFAULT_BPS": "x"}, "TOLERANCE_DEFAULT_BPS"},
-		"max over 5 %":     {map[string]string{"TOLERANCE_MAX_BPS": "501"}, "must not exceed 500"},
-		"default over max": {map[string]string{"TOLERANCE_MAX_BPS": "50"}, "TOLERANCE_DEFAULT_BPS must not exceed"},
+		"no brokers":            {map[string]string{"KAFKA_BROKERS": " , "}, "KAFKA_BROKERS is required"},
+		"no key file":           {map[string]string{"JWT_SIGNING_KEY_FILE": ""}, "JWT_SIGNING_KEY_FILE is required"},
+		"openbao without token": {map[string]string{"OPENBAO_ADDR": "https://openbao:8200"}, "OPENBAO_TOKEN_FILE is required"},
+		"no postgres":           {map[string]string{"POSTGRES_URL": ""}, "POSTGRES_URL"},
+		"bad ttl":               {map[string]string{"JWT_TTL": "soon"}, "JWT_TTL must be a positive duration"},
+		"negative grace":        {map[string]string{"API_KEY_ROTATION_GRACE": "-1h"}, "API_KEY_ROTATION_GRACE"},
+		"zero keys":             {map[string]string{"API_KEY_MAX_ACTIVE": "0"}, "API_KEY_MAX_ACTIVE must be an integer >= 1"},
+		"bad tolerance":         {map[string]string{"TOLERANCE_DEFAULT_BPS": "x"}, "TOLERANCE_DEFAULT_BPS"},
+		"max over 5 %":          {map[string]string{"TOLERANCE_MAX_BPS": "501"}, "must not exceed 500"},
+		"default over max":      {map[string]string{"TOLERANCE_MAX_BPS": "50"}, "TOLERANCE_DEFAULT_BPS must not exceed"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			setRequired(t)

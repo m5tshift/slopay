@@ -24,6 +24,7 @@
 | Хранилище | Что хранит | Схема |
 |---|---|---|
 | PostgreSQL | мерчанты, API-ключи (только SHA-256), outbox | [`migrations/`](migrations/), применяются при старте (goose) |
+| OpenBao KV v2 | секреты подписи вебхуков, по версии на путь | `webhook-secrets/<merchantId>/<версия>` |
 
 ## Конфигурация
 
@@ -39,9 +40,10 @@
 | `JWKS_MAX_AGE` | `Cache-Control: max-age` у JWKS | 5 мин |
 | `API_KEY_ROTATION_GRACE` | сколько работает старый ключ после выпуска нового | 24 ч (4.1.10) |
 | `API_KEY_MAX_ACTIVE` | активных ключей у мерчанта | 2 (4.1.10) |
+| `OPENBAO_ADDR`, `OPENBAO_TOKEN_FILE`, `OPENBAO_KV_MOUNT` | OpenBao для секретов вебхуков; файл токена читается при каждом запросе | не задан, `secret` |
 | `TOLERANCE_DEFAULT_BPS`, `TOLERANCE_MAX_BPS` | допуск оплаты по умолчанию и максимум, б. п. | 100 и 500 (4.1.4) |
 
-Секреты читаются из файлов: `/var/run/secrets/slopay/postgres/password`,
+Секреты читаются из файлов: `/var/run/secrets/slopay/postgres/password`, `/var/run/secrets/slopay/openbao/token`,
 `/var/run/secrets/slopay/jwt-signing/private.pem`. Файл ключа подписи перечитывается: после ротации
 новые токены подписываются новым ключом, прежний публичный ключ остаётся в JWKS на время `JWT_TTL`.
 
@@ -59,8 +61,13 @@ go generate ./services/merchant-service/...                       # internal/api
 ## Особые правила
 
 - Подпись JWT скрыта за интерфейсом `jwt.Signer`. Сейчас ключ берётся из смонтированного файла;
-  подпись через OpenBao Transit и секреты вебхуков — отдельная задача. До неё
-  `POST /api/v1/merchants/me/webhook-secret/rotate` отвечает `501`, `webhookSecretVersion` = 1.
+  подпись через OpenBao Transit — отдельная задача.
+- Ротация секрета вебхука (`POST /api/v1/merchants/me/webhook-secret/rotate`): под блокировкой строки
+  мерчанта сервис пишет новый секрет в OpenBao KV v2 (`<mount>/data/webhook-secrets/<merchantId>/<версия>`,
+  поля `secret` и `version`), затем повышает `webhookSecretVersion`, и событие `merchant.updated` уходит через
+  outbox. Версии лежат в отдельных путях, предыдущая остаётся читаемой на 24 ч. Сбой OpenBao — `500`, версия
+  не меняется. Секрет показывается один раз, в событие, логи и ошибки не попадает. Без `OPENBAO_ADDR`
+  эндпоинт отвечает `501`.
 - API-ключ показывается один раз (регистрация, выпуск); в базе только SHA-256. Ключи, JWT и присланные
   xpub/xprv в логи и ответы об ошибках не попадают.
 - Принимается только расширенный публичный ключ (`xpub`/`tpub`); приватный ключ отклоняется с `400`

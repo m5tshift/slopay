@@ -73,6 +73,7 @@ func contractRouter(t *testing.T) (*openapi3.T, routers.Router) {
 
 type env struct {
 	mux    *http.ServeMux
+	svc    *merchant.Service
 	store  *merchant.MemStore
 	signer *jwt.FileSigner
 	logs   *bytes.Buffer
@@ -110,6 +111,7 @@ func newEnv(t *testing.T) *env {
 	svc := merchant.NewService(e.store, merchant.Config{
 		KeyRotationGrace: 24 * time.Hour, MaxActiveKeys: 2, DefaultToleranceBps: 100, MaxToleranceBps: 500,
 	}, log)
+	e.svc = svc
 	err = Register(e.mux, Options{
 		Service: svc, Issuer: jwt.NewIssuer(signer, "slopay-merchant-service", 15*time.Minute),
 		Signer: signer, JWKSMaxAge: 5 * time.Minute, Logger: log,
@@ -173,7 +175,7 @@ func validateResponse(t *testing.T, method, path string, reqBody []byte, r resp)
 	contract.seen[route.Operation.OperationID] = true
 	contract.mu.Unlock()
 	if r.status == http.StatusNotImplemented && route.Operation.OperationID == "rotateWebhookSecret" {
-		return // webhook secrets are a separate task; the 501 is documented in AGENTS.md of the service
+		return // no secret store configured; the 501 is documented in AGENTS.md of the service
 	}
 	err = openapi3filter.ValidateResponse(context.Background(), &openapi3filter.ResponseValidationInput{
 		RequestValidationInput: &openapi3filter.RequestValidationInput{Request: req, PathParams: params, Route: route},
@@ -502,10 +504,70 @@ func TestRotateWebhookSecretNotImplemented(t *testing.T) {
 	}
 }
 
+type fakeSecrets struct {
+	got map[int]string
+	err error
+}
+
+func (f *fakeSecrets) PutWebhookSecret(_ context.Context, _ uuid.UUID, version int, secret string) error {
+	if f.err != nil {
+		return f.err
+	}
+	f.got[version] = secret
+	return nil
+}
+
+func TestRotateWebhookSecret(t *testing.T) {
+	e := newEnv(t)
+	fs := &fakeSecrets{got: map[int]string{}}
+	e.svc.WithSecrets(fs)
+	tok := e.token(t, e.register(t).ApiKey.Key)
+	const path = "/api/v1/merchants/me/webhook-secret/rotate"
+	var out struct {
+		Version int    `json:"version"`
+		Secret  string `json:"secret"`
+	}
+	r := e.do(t, http.MethodPost, path, tok, nil)
+	if r.status != http.StatusOK {
+		t.Fatalf("rotate: %d %s", r.status, r.body)
+	}
+	r.decode(t, &out)
+	if out.Version != 2 || out.Secret == "" || fs.got[2] != out.Secret {
+		t.Errorf("rotated: %+v stored %v", out, fs.got)
+	}
+	r = e.do(t, http.MethodGet, "/api/v1/merchants/me", tok, nil)
+	var m struct {
+		WebhookSecretVersion int `json:"webhookSecretVersion"`
+	}
+	r.decode(t, &m)
+	if m.WebhookSecretVersion != 2 {
+		t.Errorf("version = %d", m.WebhookSecretVersion)
+	}
+	if strings.Contains(e.logs.String(), out.Secret) {
+		t.Error("secret in logs")
+	}
+	// A failing store changes nothing and leaks nothing.
+	fs.err = errors.New("sealed")
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, path, nil)
+	req.Header.Set("Authorization", "Bearer "+tok)
+	rec := httptest.NewRecorder()
+	e.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "sealed") {
+		t.Errorf("store down: %d %s", rec.Code, rec.Body)
+	}
+	fs.err = nil
+	r = e.do(t, http.MethodPost, path, tok, nil)
+	r.decode(t, &out)
+	if r.status != http.StatusOK || out.Version != 3 {
+		t.Errorf("after failure: %d %+v", r.status, out)
+	}
+}
+
 func TestInternalError(t *testing.T) {
 	e := newEnv(t)
 	reg := e.register(t)
 	tok := e.token(t, reg.ApiKey.Key)
+	e.svc.WithSecrets(&fakeSecrets{got: map[int]string{}})
 	e.store.Err = errors.New("db down")
 	for _, tc := range []struct {
 		method, path string
@@ -519,6 +581,7 @@ func TestInternalError(t *testing.T) {
 		{http.MethodGet, "/api/v1/merchants/me/api-keys", nil},
 		{http.MethodPost, "/api/v1/merchants/me/api-keys", nil},
 		{http.MethodDelete, "/api/v1/merchants/me/api-keys/" + uuid.NewString(), nil},
+		{http.MethodPost, "/api/v1/merchants/me/webhook-secret/rotate", nil},
 	} {
 		req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.path, nil)
 		if tc.body != nil {
@@ -595,6 +658,7 @@ func TestContractCoverage(t *testing.T) {
 	TestWebhook(t)
 	TestAPIKeys(t)
 	TestRotateWebhookSecretNotImplemented(t)
+	TestRotateWebhookSecret(t)
 	doc, _ := contractRouter(t)
 	contract.mu.Lock()
 	defer contract.mu.Unlock()

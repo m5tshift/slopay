@@ -44,10 +44,11 @@ type Config struct {
 
 // Service implements the use cases UC-06 and UC-07.
 type Service struct {
-	store Store
-	cfg   Config
-	log   *slog.Logger
-	now   func() time.Time
+	store   Store
+	secrets SecretStore
+	cfg     Config
+	log     *slog.Logger
+	now     func() time.Time
 }
 
 // NewService returns a Service.
