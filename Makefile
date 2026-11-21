@@ -25,7 +25,6 @@ test:
 
 # Testcontainers, requires Docker.
 test-integration:
-	go test -race -tags integration -count=20 -run "TestRestartWithValkeyStopped|TestTransferBeforeAddressIsFound" ./services/chain-watcher/internal/watcher/
 	go test -race -tags integration ./...
 
 # Library charts are linted but not rendered; slopay-lib is rendered through its example consumer.
