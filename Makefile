@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check bootstrap-check stand-secrets-check runbook-check ci-check precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint psa infra-test talos-check bootstrap-check stand-secrets-check runbook-check ci-check erc20-test precommit
 
 build:
 	go build ./...
@@ -112,6 +112,17 @@ ci-check:
 	else echo "ci-check: shellcheck not installed, skipping it"; fi; \
 	.github/scripts/changed-components_test.sh; \
 	.github/scripts/bump-gitops-tags_test.sh
+
+# testkit/erc20: forge test; forge-std is fetched into the git-ignored lib/ on first run, needs foundry and network.
+erc20-test:
+	@set -e; \
+	if ! command -v forge >/dev/null; then \
+		if [ -n "$$CI" ]; then echo "erc20-test: forge is required in CI"; exit 1; fi; \
+		echo "erc20-test: forge not installed, skipping"; exit 0; \
+	fi; \
+	cd testkit/erc20; \
+	if [ ! -d lib/forge-std ]; then forge install --no-git foundry-rs/forge-std@v1.17.0; fi; \
+	forge test
 
 # gitleaks and basic checks; once per clone: pre-commit install
 precommit:
