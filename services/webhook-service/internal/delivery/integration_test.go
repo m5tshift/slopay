@@ -408,7 +408,7 @@ func TestIntegrationDLQReplay(t *testing.T) {
 	h.Register(mux)
 	post := func(body string) string {
 		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/internal/dlq/replay", strings.NewReader(body)))
+		mux.ServeHTTP(w, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/internal/dlq/replay", strings.NewReader(body)))
 		if w.Code != http.StatusOK {
 			t.Fatalf("replay: %d %s", w.Code, w.Body)
 		}

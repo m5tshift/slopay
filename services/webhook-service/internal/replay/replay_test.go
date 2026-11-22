@@ -57,7 +57,7 @@ func call(t *testing.T, h *Handler, body string) (int, map[string]any, http.Head
 	mux := http.NewServeMux()
 	h.Register(mux)
 	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/internal/dlq/replay", strings.NewReader(body)))
+	mux.ServeHTTP(w, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/internal/dlq/replay", strings.NewReader(body)))
 	var out map[string]any
 	_ = json.Unmarshal(w.Body.Bytes(), &out)
 	return w.Code, out, w.Header()
