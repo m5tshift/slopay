@@ -1,0 +1,3 @@
+openbao_addr = "http://127.0.0.1:8200"
+# kubernetes_host defaults to https://kubernetes.default.svc
+# vault_admin_passwords and the provider token come from the environment (see README).

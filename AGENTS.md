@@ -36,6 +36,7 @@ infra/
   terraform/             слои Terraform с отдельными state (SRS INF-2.1, ADR 0008)
     hyperv/              VM, vSwitch, VHDX Hyper-V (провайдер taliesins/hyperv)
     platform/            Cilium, неймспейсы, ArgoCD, root Application (провайдеры kubernetes, helm)
+    openbao/             KV v2, Kubernetes auth, Transit, database engine OpenBao (провайдер hashicorp/vault)
     talos/               schematic, ISO, установка и конфигурация Talos (провайдер siderolabs/talos)
   ansible/roles/strimzi/ генерация оператора и CR Kafka в weigate-gitops (SRS INF-2.3)
   ansible/roles/lb/      HAProxy + Keepalived на VM lb-1, lb-2 (SRS 4.1.8)
