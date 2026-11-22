@@ -333,8 +333,8 @@ github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7J
 github.com/onsi/gomega v1.10.1/go.mod h1:iN09h71vgCQne3DLsj+A5owkum+a2tYe+TOCB1ybHNo=
 github.com/onsi/gomega v1.17.0/go.mod h1:HnhC7FXeEQY45zxNK3PPoIUhzk/80Xly9PcubAlGdZY=
 github.com/onsi/gomega v1.19.0/go.mod h1:LY+I3pBVzYsTBU1AnDwOSxaYi9WoWiqgwooUqq9yPro=
-github.com/onsi/gomega v1.42.1 h1:iN1rCUX+44NZ1Dc97MPoeFYbFR0vh8zxoxMFwKdyZ6I=
-github.com/onsi/gomega v1.42.1/go.mod h1:REff/hsDsodHoKlWsP2mAPhu1+5/6hVYNf9rIEBpeSg=
+github.com/onsi/gomega v1.44.0 h1:eAiGl3Pw5jz5GQdDff0BcxYpAX1JxW8xD7mFUuwNfZQ=
+github.com/onsi/gomega v1.44.0/go.mod h1:e/C2HwaZ1DhvjzXXuFhcR7hY7Sh9pl7MmoWKEjzwcdA=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.1.1 h1:y0fUlFfIZhPF1W537XOLg0/fcx6zcHCJwooC2xJA040=
@@ -435,10 +435,10 @@ github.com/twmb/franz-go/pkg/kmsg v1.15.1 h1:3sj7ekbH33t73nsBcHS0wtp/PyMIViHLNIt
 github.com/twmb/franz-go/pkg/kmsg v1.15.1/go.mod h1:sGkGxKexpRLBThFHJLjjywcyfkK09qB/g+X+wFWZQ/A=
 github.com/urfave/cli/v2 v2.27.5 h1:WoHEJLdsXr6dDWoJgMq/CboDmyY/8HMMH1fTECbih+w=
 github.com/urfave/cli/v2 v2.27.5/go.mod h1:3Sevf16NykTbInEnD0yKkjDAeZDS0A6bzhBH5hrMvTQ=
-github.com/valkey-io/valkey-go v1.0.79 h1:dryzYka/oOkSMOcNmOTjQI8zfu/4bUzDZNnFW9NlqNM=
-github.com/valkey-io/valkey-go v1.0.79/go.mod h1:gvC/r2m3eW4Hbj0YnjogTzNtFdPSM/D+NCqen+5OABM=
-github.com/valkey-io/valkey-go/mock v1.0.79 h1:6oWOiUyoIVCSlt0KjaOvF5cEntEAW0McRX5B/UasDOA=
-github.com/valkey-io/valkey-go/mock v1.0.79/go.mod h1:/YYjs1rrpnWvTIi2uMtiUAUlA+YQXzf6/CZzVywRhgE=
+github.com/valkey-io/valkey-go v1.0.80 h1:nyjeE1W9RpUU1KcsApBLlzjisZMVmgTQBGmlsuC0vtE=
+github.com/valkey-io/valkey-go v1.0.80/go.mod h1:9M4jE0WGI4fBPijXwbmnO3T7hu5UCjI9ABx+jMCvekQ=
+github.com/valkey-io/valkey-go/mock v1.0.80 h1:YBs6a0VV/417eb31bt2VrO6VJxUDrTgRXCEVeqDoGiw=
+github.com/valkey-io/valkey-go/mock v1.0.80/go.mod h1:Q6J2nHWhEGXZVteLVQyLQRmOm6bLSfPOK0Weyytk4gE=
 github.com/vmware-labs/yaml-jsonpath v0.3.2 h1:/5QKeCBGdsInyDCyVNLbXyilb61MXGi9NP674f9Hobk=
 github.com/vmware-labs/yaml-jsonpath v0.3.2/go.mod h1:U6whw1z03QyqgWdgXxvVnQ90zN1BWz5V+51Ewf8k+rQ=
 github.com/wlynxg/anet v0.0.5 h1:J3VJGi1gvo0JwZ/P1/Yc/8p63SoW98B5dHkYDmpgvvU=
