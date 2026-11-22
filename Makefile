@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint ansible-test bootstrap-check stand-secrets-check karpenter-kwok-check runbook-check ci-check erc20-test policy precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint ansible-test bootstrap-check stand-secrets-check karpenter-kwok-check runbook-check ci-check erc20-test locust-test policy precommit
 
 build:
 	go build ./...
@@ -117,6 +117,15 @@ erc20-test:
 	cd testkit/erc20; \
 	if [ ! -d lib/forge-std ]; then forge install --no-git foundry-rs/forge-std@v1.17.0; fi; \
 	forge test
+
+# testkit/locust: short profile against a stub API; needs locust (pip install -r testkit/locust/requirements.txt).
+locust-test:
+	@set -e; \
+	if ! python3 -c 'import locust' 2>/dev/null; then \
+		if [ -n "$$CI" ]; then echo "locust-test: locust is required in CI"; exit 1; fi; \
+		echo "locust-test: locust not installed, skipping"; exit 0; \
+	fi; \
+	python3 -m unittest discover -v testkit/locust
 
 # No Bitnami images or charts in charts, Dockerfiles and infra.
 policy:
