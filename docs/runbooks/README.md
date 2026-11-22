@@ -1,6 +1,7 @@
 # Runbook
 
 - [Развёртывание с нуля](deploy-from-scratch.md)
+- [Unseal OpenBao после рестарта](openbao-unseal.md)
 
 ## Реакция на алерты (SRS 4.5.4)
 

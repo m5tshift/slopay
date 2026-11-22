@@ -199,6 +199,69 @@ KUBECONFIG=<путь вне репозитория>/agent.kubeconfig kubectl -n 
 5. Проверка переключения: на хосте с VIP `sudo systemctl stop haproxy`; VIP появляется на втором хосте за ≤ 5 с
    (`ping <VIP>` с рабочей машины), затем `sudo systemctl start haproxy`.
 
+## Путь с OpenBao: Terraform фаза 1, init и unseal, фаза 2
+
+Шаги 4 и 5 заменяются этим разделом, когда секреты хранит OpenBao (SRS INF-2.1, INF-2.4); `bootstrap.sh`
+и `stand-secrets.sh` при этом не запускаются: слой `platform` создаёт то же, что `bootstrap.sh`. Шаги 0–3, 6
+и 7 общие. Переход минимального стенда на полный (сервисы за ExternalSecret, Zot, `ledger-pg`) — #183.
+Цель всего развёртывания — не более 60 мин (NFR-12), от шага 1 до проверки стенда; прогон записывается
+в `tests/acceptance/results/deploy.json` (`minutes`).
+
+### 4а. Фаза 1: Cilium, неймспейсы, ArgoCD (`infra/terraform/platform`)
+
+```sh
+cd infra/terraform/platform
+cp minimal.tfvars.example terraform.tfvars    # полный стенд: full.tfvars.example; поправить kubeconfig_path (и k8s_service_host)
+terraform init
+terraform apply
+```
+
+`kubeconfig_path` указывает на `<config_dir>/kubeconfig-admin` из шага 3. Слой ставит ArgoCD и root Application
+на `weigate-gitops`, дальше синхронизация идёт по волнам (шаг 6). `install_cilium` и `k8s_service_host` нужны
+только на полном стенде.
+
+Проверка: `kubectl -n argocd get applications` показывает `root` и дочерние Application; на полном стенде
+`kubectl -n kube-system get pods -l k8s-app=cilium`.
+
+### 5а. Init и unseal OpenBao
+
+Application `openbao` (волна 1, неймспейс `secrets`) поднимает под `openbao-0` неинициализированным и запечатанным:
+
+```sh
+kubectl -n secrets get pod openbao-0
+kubectl -n secrets exec openbao-0 -- bao operator init > <путь вне репозитория>/openbao-init.txt
+```
+
+Вывод содержит пять ключей unseal и root-токен. Файл хранится вне репозитория, не коммитится и не попадает
+в логи и чаты; при потере ключей данные OpenBao недоступны. Распечатать хранилище нужно тремя из пяти ключей,
+команды и проверка — [openbao-unseal.md](openbao-unseal.md).
+
+Проверка: `kubectl -n secrets exec openbao-0 -- bao status` показывает `Initialized true`, `Sealed false`.
+
+### 6а. Фаза 2: настройка OpenBao (`infra/terraform/openbao`)
+
+Слой применяется, когда Application `cnpg-clusters` создал `merchant-pg` и `invoice-pg`, а `openbao` и
+`external-secrets` синхронизированы. Полный порядок — `infra/terraform/openbao/README.md`; кратко:
+
+1. Создать в `data` Secret `<кластер>-vault-admin` (тип `kubernetes.io/basic-auth`, пользователь `vault-admin`)
+   для `merchant-pg` и `invoice-pg`.
+2. Пробросить OpenBao: `kubectl -n secrets port-forward svc/openbao 8200:8200`.
+3. В окружении задать `VAULT_TOKEN` (root-токен из init) и `TF_VAR_vault_admin_passwords`, не записывая их в историю.
+4. ```sh
+   cd infra/terraform/openbao
+   cp terraform.tfvars.example terraform.tfvars
+   terraform init
+   terraform apply
+   ```
+5. Сразу после apply сменить пароли `vault-admin`:
+   `bao write -f database/rotate-root/merchant-pg` и `bao write -f database/rotate-root/invoice-pg`
+   (`BAO_ADDR=http://127.0.0.1:8200`, `BAO_TOKEN` — root-токен).
+6. Записать начальные значения KV (`bao kv put secret/<путь> ...`): `garage/core`, `garage/keys`, `grafana/admin`,
+   `alertmanager/telegram`.
+
+Проверка: `bao read database/static-creds/merchant-service` и `bao read transit/keys/merchant-jwt` отвечают;
+ClusterSecretStore `openbao` готов: `kubectl get clustersecretstore openbao`.
+
 ## Проверка стенда
 
 1. Все Application `Synced` и `Healthy`:

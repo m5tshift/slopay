@@ -87,6 +87,20 @@ for d in services/*/Dockerfile testkit/*/Dockerfile; do
   in_doc "\`$c\`"
 done
 
+# OpenBao path: layers, commands and the unseal runbook.
+for f in infra/terraform/platform/minimal.tfvars.example infra/terraform/openbao/terraform.tfvars.example \
+  infra/terraform/openbao/README.md docs/runbooks/openbao-unseal.md; do
+  [ -e "$root/$f" ] || { echo "runbook-check: $f does not exist" >&2; fail=1; }
+done
+in_doc 'infra/terraform/platform'
+in_doc 'infra/terraform/openbao'
+in_doc 'openbao-unseal.md'
+in_doc 'bao operator init'
+in_doc 'rotate-root/merchant-pg'
+need "openbao README" "$root/infra/terraform/openbao/README.md" 'rotate-root/merchant-pg'
+need "unseal runbook" "$root/docs/runbooks/openbao-unseal.md" 'bao operator unseal'
+need "README" "$root/docs/runbooks/README.md" '(openbao-unseal.md)'
+
 # Alert runbooks: one file per alert of SRS 4.5.4, named after the alert; relative links resolve.
 srs="$root/docs/SRS.md"
 # shellcheck disable=SC2016  # backticks are literal markdown
