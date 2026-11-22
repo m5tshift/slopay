@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint ansible-test bootstrap-check stand-secrets-check karpenter-kwok-check runbook-check ci-check erc20-test precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint ansible-test bootstrap-check stand-secrets-check karpenter-kwok-check runbook-check ci-check erc20-test policy precommit
 
 build:
 	go build ./...
@@ -117,6 +117,10 @@ erc20-test:
 	cd testkit/erc20; \
 	if [ ! -d lib/forge-std ]; then forge install --no-git foundry-rs/forge-std@v1.17.0; fi; \
 	forge test
+
+# No Bitnami images or charts in charts, Dockerfiles and infra.
+policy:
+	.github/scripts/policy.sh
 
 # gitleaks and basic checks; once per clone: pre-commit install
 precommit:
