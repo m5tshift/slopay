@@ -88,6 +88,7 @@ make runbook-check      # docs/runbooks: команды и пути runbook ра
 make ci-check           # .github: actionlint и сухой прогон скриптов сборки образов на фикстурах
 make erc20-test         # testkit/erc20: forge test (Foundry; forge-std ставится в lib/ при первом запуске)
 make locust-test        # testkit/locust: короткий профиль против заглушки API (нужен locust)
+make acceptance-test    # tests/acceptance: сбор результатов испытаний и расчёт status на граничных значениях
 make policy             # в чартах, Dockerfile и infra нет образов и чартов Bitnami
 make precommit          # gitleaks и базовые проверки; один раз: pre-commit install
 ```

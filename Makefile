@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint ansible-test bootstrap-check stand-secrets-check karpenter-kwok-check runbook-check ci-check erc20-test locust-test policy precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint ansible-test bootstrap-check stand-secrets-check karpenter-kwok-check runbook-check ci-check erc20-test locust-test acceptance-test policy precommit
 
 build:
 	go build ./...
@@ -126,6 +126,10 @@ locust-test:
 		echo "locust-test: locust not installed, skipping"; exit 0; \
 	fi; \
 	python3 -m unittest discover -v testkit/locust
+
+# tests/acceptance: collection of results and status calculation on boundary values (stdlib only).
+acceptance-test:
+	python3 -I -m unittest discover -s tests/acceptance
 
 # No Bitnami images or charts in charts, Dockerfiles and infra.
 policy:

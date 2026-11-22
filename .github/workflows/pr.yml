@@ -181,6 +181,8 @@ jobs:
       - run: pip install -r testkit/locust/requirements.txt
       - name: Locust profile (short run against a stub)
         run: make locust-test
+      - name: Acceptance results collector
+        run: make acceptance-test
 
   c4:
     name: c4

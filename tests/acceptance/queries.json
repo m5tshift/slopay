@@ -1,0 +1,5 @@
+{
+  "detect_p95_s": "histogram_quantile(0.95, sum by (le) (increase(weigate_chain_transfer_delay_seconds_bucket[{window}])))",
+  "rate_age_max_s": "max(max_over_time(weigate_rate_age_seconds[{window}]))",
+  "reconciliation_mismatches": "max(weigate_reconciliation_mismatches)"
+}
