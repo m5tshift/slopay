@@ -312,6 +312,52 @@ func TestWebhookServiceAPI(t *testing.T) {
 	}
 }
 
+// TestReportingServiceAPI checks the reporting-service contract against SRS 4.1.3 (FR-11): turnover and conversion
+// for a period, a merchant JWT on every operation, whole cents and no float money.
+func TestReportingServiceAPI(t *testing.T) {
+	doc, err := openapi3.NewLoader().LoadFromFile("openapi/reporting-service.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/api/v1/reports/turnover", "/api/v1/reports/conversion"} {
+		op := hasOp(t, doc, "GET", path)
+		if op == nil {
+			continue
+		}
+		if op.Security != nil {
+			t.Errorf("%s: security must come from the document, a merchant JWT", path)
+		}
+		req := map[string]bool{}
+		for _, p := range op.Parameters {
+			req[p.Value.Name] = p.Value.Required && p.Value.Schema.Value.Format == "date"
+		}
+		if !req["from"] || !req["to"] {
+			t.Errorf("%s: from and to must be required dates", path)
+		}
+		for _, code := range []string{"200", "400", "401", "503"} {
+			if op.Responses.Value(code) == nil {
+				t.Errorf("%s: no %s response", path, code)
+			}
+		}
+		if ra := op.Responses.Value("503").Value.Headers["Retry-After"]; ra == nil || !ra.Value.Required {
+			t.Errorf("%s: 503 must carry a required Retry-After header", path)
+		}
+	}
+	if len(doc.Security) != 1 || doc.Components.SecuritySchemes["bearerAuth"] == nil {
+		t.Error("reports need a bearer JWT")
+	}
+	cents := doc.Components.Schemas["TurnoverDay"].Value.Properties["turnoverUsdCents"].Value
+	if cents.Type == nil || !cents.Type.Is("integer") {
+		t.Error("turnoverUsdCents must be an integer number of cents")
+	}
+	conv := doc.Components.Schemas["ConversionDay"].Value
+	for _, f := range []string{"day", "createdInvoices", "paidInvoices", "conversion"} {
+		if !slices.Contains(conv.Required, f) {
+			t.Errorf("conversion day: %s is not required", f)
+		}
+	}
+}
+
 // TestMerchantWebhook checks the webhook contract against SRS 4.1.10 (FR-07): the body carries sequence,
 // the headers carry the timestamp, the HMAC-SHA256 signature and the secret version, and the string to sign
 // is spelled out.

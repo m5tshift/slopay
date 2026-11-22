@@ -40,8 +40,8 @@
    Job `gitops` пишет тег `<7 знаков SHA>` в `services/<component>/values.yaml` репозитория `weigate-gitops`.
 
 Проверка: все job workflow `build` зелёные; в `weigate-gitops` есть коммит `chore(gitops): … image <тег>`;
-в списке пакетов десять: `chain-watcher`, `invoice-service`, `merchant-service`, `ledger-service`,
-`reconciliation-service`, `rate-service`, `webhook-service`, `payer-sim`, `rate-mock`, `merchant-mock`, все Public.
+в списке пакетов одиннадцать: `chain-watcher`, `invoice-service`, `merchant-service`, `ledger-service`,
+`reconciliation-service`, `rate-service`, `webhook-service`, `reporting-service`, `payer-sim`, `rate-mock`, `merchant-mock`, все Public.
 
 ## Шаги
 

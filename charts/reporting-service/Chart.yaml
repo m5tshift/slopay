@@ -1,0 +1,10 @@
+apiVersion: v2
+name: reporting-service
+description: Weigate reporting-service - merchant reports on turnover and conversion from the ClickHouse views (SRS 4.1.3, FR-11)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: weigate-lib
+    version: 0.1.1
+    repository: file://../weigate-lib
