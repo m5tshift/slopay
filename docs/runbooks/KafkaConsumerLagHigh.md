@@ -14,7 +14,7 @@ Lag consumer-группы растёт 5 минут подряд, события
 - Логи компонента: `kubectl -n apps logs deploy/invoice-service --since=15m`.
 - События и состояние подов: `kubectl -n apps get pods`, `kubectl -n apps describe pod <pod>`, `kubectl -n apps get events --sort-by=.lastTimestamp`.
 - Какая группа и топик: метки алерта.
-- Состояние брокеров Strimzi: `kubectl -n apps get kafka,kafkatopic`.
+- Состояние брокеров Strimzi: `kubectl -n kafka get kafka,kafkatopic`.
 
 ## Действия
 

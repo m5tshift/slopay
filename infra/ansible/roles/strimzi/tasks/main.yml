@@ -1,0 +1,40 @@
+---
+- name: Check required variables
+  ansible.builtin.assert:
+    that:
+      - strimzi_gitops_dir | length > 0
+      - strimzi_profile in strimzi_profiles
+    fail_msg: Set strimzi_gitops_dir to a weigate-gitops clone; strimzi_profile is minimal or full.
+
+- name: Select the profile
+  ansible.builtin.set_fact:
+    strimzi_p: "{{ strimzi_profiles[strimzi_profile] }}"
+    strimzi_out: "{{ strimzi_gitops_dir }}/platform/strimzi"
+    strimzi_selected_topics: "{{ strimzi_topics | selectattr('profiles', 'contains', strimzi_profile) | list }}"
+
+- name: Remove the previous output so that stale files do not stay
+  ansible.builtin.file:
+    path: "{{ strimzi_out }}"
+    state: absent
+
+- name: Create output directories
+  ansible.builtin.file:
+    path: "{{ strimzi_out }}/{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - operator
+    - cluster
+
+- name: Generate manifests
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ strimzi_out }}/{{ item }}"
+    mode: "0644"
+  loop:
+    - operator/values.yaml
+    - cluster/kafka.yaml
+    - cluster/nodepool.yaml
+    - cluster/kafka-metrics.yaml
+    - cluster/topics.yaml
+    - cluster/kustomization.yaml

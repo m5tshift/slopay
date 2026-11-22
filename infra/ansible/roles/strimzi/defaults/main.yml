@@ -1,0 +1,42 @@
+---
+# Path to a clone of weigate-gitops; the role writes platform/strimzi/ there. Required.
+strimzi_gitops_dir: ""
+
+# minimal: one broker (SRS 6.4); full: three brokers, RF 3, min.insync.replicas 2 (SRS 4.1.5, 6.3).
+strimzi_profile: minimal
+
+strimzi_namespace: kafka
+strimzi_cluster_name: weigate
+strimzi_kafka_version: 4.3.2
+strimzi_storage_class: local-path
+strimzi_storage_size: 10Gi
+strimzi_heap: 768m
+strimzi_retention_ms: 604800000
+
+strimzi_profiles:
+  minimal:
+    replicas: 1
+    replication_factor: 1
+    min_isr: 1
+    memory: 1536Mi
+  full:
+    replicas: 3
+    replication_factor: 3
+    min_isr: 2
+    memory: 1152Mi
+
+# Topics of SRS 4.1.5. minimal lists the topics of the minimal stand, full lists all of them.
+# Compacted topics get no retention.ms: it does not apply to compaction.
+strimzi_topics:
+  - {name: chain.blocks, partitions: 1, compact: false, profiles: [minimal, full]}
+  - {name: chain.transfers, partitions: 6, compact: false, profiles: [minimal, full]}
+  - {name: invoice.events, partitions: 6, compact: false, profiles: [minimal, full]}
+  - {name: merchant.events, partitions: 3, compact: true, profiles: [minimal, full]}
+  - {name: ledger.events, partitions: 3, compact: false, profiles: [full]}
+  - {name: reconciliation.events, partitions: 1, compact: false, profiles: [full]}
+  - {name: rate.ticks, partitions: 3, compact: false, profiles: [minimal, full]}
+  - {name: rate.latest, partitions: 1, compact: true, profiles: [minimal, full]}
+  - {name: webhook.retry.1m, partitions: 3, compact: false, profiles: [full]}
+  - {name: webhook.retry.5m, partitions: 3, compact: false, profiles: [full]}
+  - {name: webhook.retry.30m, partitions: 3, compact: false, profiles: [full]}
+  - {name: webhook.dlq, partitions: 1, compact: false, profiles: [full]}

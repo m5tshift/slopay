@@ -1,0 +1,7 @@
+---
+- name: Generate Strimzi manifests into the weigate-gitops clone (SRS INF-2.3)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - strimzi
