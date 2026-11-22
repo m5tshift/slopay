@@ -23,7 +23,7 @@ require (
 	github.com/twmb/franz-go/pkg/kmsg v1.15.1
 	github.com/valkey-io/valkey-go v1.0.79
 	github.com/valkey-io/valkey-go/mock v1.0.79
-	go.mongodb.org/mongo-driver/v2 v2.10.0
+	go.mongodb.org/mongo-driver/v2 v2.10.1
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.47.0
