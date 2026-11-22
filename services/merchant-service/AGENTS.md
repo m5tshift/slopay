@@ -24,7 +24,8 @@
 | Хранилище | Что хранит | Схема |
 |---|---|---|
 | PostgreSQL | мерчанты, API-ключи (только SHA-256), outbox | [`migrations/`](migrations/), применяются при старте (goose) |
-| OpenBao KV v2 | секреты подписи вебхуков, по версии на путь | `webhook-secrets/<merchantId>/<версия>` |
+| OpenBao KV v2 | секреты подписи вебхуков, версия секрета — версия KV | `webhook/<merchantId>` |
+| OpenBao Transit | подпись JWT (ключ `merchant-jwt`, ECDSA P-256), приватный ключ не покидает OpenBao | `transit/sign/merchant-jwt`, `transit/keys/merchant-jwt` |
 
 ## Конфигурация
 
@@ -34,7 +35,9 @@
 | `LOG_LEVEL` | уровень логов | `info` |
 | `KAFKA_BROKERS` | брокеры через запятую, обязательно | — |
 | `POSTGRES_URL`, `POSTGRES_PASSWORD_FILE`, `POSTGRES_MAX_CONNS` | PostgreSQL (`storage.PostgresConfigFromEnv`) | — |
-| `JWT_SIGNING_KEY_FILE` | приватный ключ ECDSA P-256 в PEM (PKCS#8 или SEC1), обязательно | — |
+| `JWT_SIGNING_KEY_FILE` | приватный ключ ECDSA P-256 в PEM (PKCS#8 или SEC1): режим минимального стенда; обязателен, если не задан `JWT_TRANSIT_KEY` | — |
+| `JWT_TRANSIT_KEY` | имя ключа Transit (`merchant-jwt`): JWT подписывает OpenBao; исключает `JWT_SIGNING_KEY_FILE`, нужен `OPENBAO_ADDR` | не задан |
+| `OPENBAO_TRANSIT_MOUNT`, `TRANSIT_KEYS_REFRESH` | монтирование Transit; как долго кэшируются публичные ключи Transit | `transit`, 1 мин |
 | `JWT_ISSUER` | `iss` токена | `weigate-merchant-service` |
 | `JWT_TTL` | срок жизни JWT | 15 мин (4.1.10) |
 | `JWKS_MAX_AGE` | `Cache-Control: max-age` у JWKS | 5 мин |
@@ -46,6 +49,9 @@
 Секреты читаются из файлов: `/var/run/secrets/weigate/postgres/password`, `/var/run/secrets/weigate/openbao/token`,
 `/var/run/secrets/weigate/jwt-signing/private.pem`. Файл ключа подписи перечитывается: после ротации
 новые токены подписываются новым ключом, прежний публичный ключ остаётся в JWKS на время `JWT_TTL`.
+В режиме Transit JWKS строится из всех доступных версий публичного ключа Transit (текущая первой);
+`kid` — отпечаток ключа (RFC 7638). Новая версия ключа подхватывается при первой подписи ею или через
+`TRANSIT_KEYS_REFRESH`; лишние версии убирает оператор (`min_available_version` ключа).
 
 ## Команды
 
@@ -60,14 +66,18 @@ go generate ./services/merchant-service/...                       # internal/api
 
 ## Особые правила
 
-- Подпись JWT скрыта за интерфейсом `jwt.Signer`. Сейчас ключ берётся из смонтированного файла;
-  подпись через OpenBao Transit — отдельная задача.
-- Ротация секрета вебхука (`POST /api/v1/merchants/me/webhook-secret/rotate`): под блокировкой строки
-  мерчанта сервис пишет новый секрет в OpenBao KV v2 (`<mount>/data/webhook-secrets/<merchantId>/<версия>`,
-  поля `secret` и `version`), затем повышает `webhookSecretVersion`, и событие `merchant.updated` уходит через
-  outbox. Версии лежат в отдельных путях, предыдущая остаётся читаемой на 24 ч. Сбой OpenBao — `500`, версия
-  не меняется. Секрет показывается один раз, в событие, логи и ошибки не попадает. Без `OPENBAO_ADDR`
-  эндпоинт отвечает `501`.
+- Подпись JWT скрыта за интерфейсом `jwt.Signer`: `FileSigner` (ключ из смонтированного файла, минимальный
+  стенд) или `TransitSigner` (OpenBao Transit, `JWT_TRANSIT_KEY`). Токен OpenBao читается из файла при каждом
+  запросе; политика сервиса — подпись `merchant-jwt`, чтение его публичных ключей и запись `webhook/*`.
+- Секрет вебхука генерирует сервис (`whsec_…`, 256 бит) и пишет в OpenBao KV v2 по пути
+  `<mount>/data/webhook/<merchantId>` (поле `secret`); версия секрета — версия KV из ответа записи, она же
+  `webhookSecretVersion` в `merchant.updated`. Первая версия пишется при регистрации (мерчант её не видит,
+  секрет он получает при первой ротации); без OpenBao регистрация остаётся с версией 1 без секрета.
+  Ротация (`POST /api/v1/merchants/me/webhook-secret/rotate`): под блокировкой строки мерчанта сервис пишет
+  новый секрет, затем ставит `webhookSecretVersion` равным версии KV, событие уходит через outbox. Если
+  транзакция упала после записи, версия KV остаётся неопубликованной, следующая ротация даст большую
+  (пропуск допустим). Предыдущие версии читаемы (24 ч). Сбой OpenBao — `500`, версия не меняется. Секрет
+  показывается один раз, в событие, логи и ошибки не попадает. Без `OPENBAO_ADDR` эндпоинт отвечает `501`.
 - API-ключ показывается один раз (регистрация, выпуск); в базе только SHA-256. Ключи, JWT и присланные
   xpub/xprv в логи и ответы об ошибках не попадают.
 - Принимается только расширенный публичный ключ (`xpub`/`tpub`); приватный ключ отклоняется с `400`

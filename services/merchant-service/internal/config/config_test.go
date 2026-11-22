@@ -10,7 +10,7 @@ var allVars = []string{
 	"HTTP_ADDR", "LOG_LEVEL", "KAFKA_BROKERS", "POSTGRES_URL", "POSTGRES_PASSWORD_FILE", "POSTGRES_MAX_CONNS",
 	"JWT_SIGNING_KEY_FILE", "JWT_ISSUER", "JWT_TTL", "JWKS_MAX_AGE", "API_KEY_ROTATION_GRACE",
 	"API_KEY_MAX_ACTIVE", "TOLERANCE_DEFAULT_BPS", "TOLERANCE_MAX_BPS",
-	"OPENBAO_ADDR", "OPENBAO_TOKEN_FILE", "OPENBAO_KV_MOUNT",
+	"OPENBAO_ADDR", "OPENBAO_TOKEN_FILE", "OPENBAO_KV_MOUNT", "JWT_TRANSIT_KEY", "OPENBAO_TRANSIT_MOUNT", "TRANSIT_KEYS_REFRESH",
 }
 
 func setRequired(t *testing.T) {
@@ -78,13 +78,34 @@ func TestOpenBao(t *testing.T) {
 	}
 }
 
+func TestTransit(t *testing.T) {
+	setRequired(t)
+	t.Setenv("JWT_SIGNING_KEY_FILE", "")
+	t.Setenv("JWT_TRANSIT_KEY", "merchant-jwt")
+	t.Setenv("OPENBAO_ADDR", "https://openbao:8200")
+	t.Setenv("OPENBAO_TOKEN_FILE", "/var/run/secrets/weigate/openbao/token")
+	c, err := FromEnv()
+	if err != nil || c.JWTTransitKey != "merchant-jwt" || c.OpenBaoTransitMount != "transit" || c.TransitKeysRefresh != time.Minute {
+		t.Errorf("transit: %+v %v", c, err)
+	}
+	t.Setenv("OPENBAO_TRANSIT_MOUNT", "tr")
+	t.Setenv("TRANSIT_KEYS_REFRESH", "30s")
+	c, err = FromEnv()
+	if err != nil || c.OpenBaoTransitMount != "tr" || c.TransitKeysRefresh != 30*time.Second {
+		t.Errorf("transit overrides: %+v %v", c, err)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	for name, tc := range map[string]struct {
 		env  map[string]string
 		want string
 	}{
 		"no brokers":            {map[string]string{"KAFKA_BROKERS": " , "}, "KAFKA_BROKERS is required"},
-		"no key file":           {map[string]string{"JWT_SIGNING_KEY_FILE": ""}, "JWT_SIGNING_KEY_FILE is required"},
+		"no key file":           {map[string]string{"JWT_SIGNING_KEY_FILE": ""}, "JWT_SIGNING_KEY_FILE or JWT_TRANSIT_KEY is required"},
+		"file and transit":      {map[string]string{"JWT_TRANSIT_KEY": "k", "OPENBAO_ADDR": "https://o:8200", "OPENBAO_TOKEN_FILE": "/t"}, "mutually exclusive"},
+		"transit without addr":  {map[string]string{"JWT_SIGNING_KEY_FILE": "", "JWT_TRANSIT_KEY": "k"}, "JWT_TRANSIT_KEY requires OPENBAO_ADDR"},
+		"bad transit refresh":   {map[string]string{"TRANSIT_KEYS_REFRESH": "0"}, "TRANSIT_KEYS_REFRESH"},
 		"openbao without token": {map[string]string{"OPENBAO_ADDR": "https://openbao:8200"}, "OPENBAO_TOKEN_FILE is required"},
 		"no postgres":           {map[string]string{"POSTGRES_URL": ""}, "POSTGRES_URL"},
 		"bad ttl":               {map[string]string{"JWT_TTL": "soon"}, "JWT_TTL must be a positive duration"},

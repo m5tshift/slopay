@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,6 +30,7 @@ import (
 	"github.com/m5tshift/weigate/pkg/kafka"
 	"github.com/m5tshift/weigate/pkg/outbox"
 	"github.com/m5tshift/weigate/pkg/storage"
+	"github.com/m5tshift/weigate/services/merchant-service/internal/jwt"
 	"github.com/m5tshift/weigate/services/merchant-service/internal/merchant"
 	"github.com/m5tshift/weigate/services/merchant-service/internal/openbao"
 	"github.com/m5tshift/weigate/services/merchant-service/internal/xpubtest"
@@ -423,7 +425,7 @@ func startOpenBao(t *testing.T) (addr, token string) {
 
 func readSecret(t *testing.T, addr, token string, id uuid.UUID, version int) (secret string, v float64) {
 	t.Helper()
-	req, err := http.NewRequestWithContext(ctxT(t), http.MethodGet, addr+openbao.Path("secret", id, version), nil)
+	req, err := http.NewRequestWithContext(ctxT(t), http.MethodGet, fmt.Sprintf("%s%s?version=%d", addr, openbao.Path("secret", id), version), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -439,24 +441,27 @@ func readSecret(t *testing.T, addr, token string, id uuid.UUID, version int) (se
 	var out struct {
 		Data struct {
 			Data struct {
-				Secret  string  `json:"secret"`
-				Version float64 `json:"version"`
+				Secret string `json:"secret"`
 			} `json:"data"`
+			Metadata struct {
+				Version float64 `json:"version"`
+			} `json:"metadata"`
 		} `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		t.Fatal(err)
 	}
-	return out.Data.Data.Secret, out.Data.Data.Version
+	return out.Data.Data.Secret, out.Data.Metadata.Version
 }
 
-// TestWebhookSecretRotation checks the new version lands in OpenBao KV and in the outbox in one logical step,
-// that the old version stays readable and that an OpenBao failure leaves no trace in PostgreSQL.
+// TestWebhookSecretRotation checks the KV version of the new secret lands in the outbox as the secret
+// version, that the old version stays readable (registration wrote version 1) and that an OpenBao failure leaves no trace in PostgreSQL.
 func TestWebhookSecretRotation(t *testing.T) {
 	ctx := ctxT(t)
 	addr, token := startOpenBao(t)
+	// The service token may only write webhook secrets (and use the JWT key), as the Kubernetes auth role does.
 	tokenFile := filepath.Join(t.TempDir(), "token")
-	if err := os.WriteFile(tokenFile, []byte(token), 0o600); err != nil {
+	if err := os.WriteFile(tokenFile, []byte(scopedToken(t, addr, token)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	bao, err := openbao.New(openbao.Config{Addr: addr, TokenFile: tokenFile})
@@ -482,6 +487,13 @@ func TestWebhookSecretRotation(t *testing.T) {
 	}
 	if r1.Version != 2 || r2.Version != 3 {
 		t.Fatalf("versions %d %d", r1.Version, r2.Version)
+	}
+	if first, v := readSecret(t, addr, token, m.ID, 1); first == "" || v != 1 {
+		t.Errorf("registration secret: %q %v", first, v)
+	}
+	// The service token cannot read secrets back.
+	if code, _ := baoCall(t, addr, scopedToken(t, addr, token), http.MethodGet, openbao.Path("secret", m.ID), ""); code != http.StatusForbidden {
+		t.Errorf("read with the service token: %d", code)
 	}
 	for _, r := range []merchant.RotatedSecret{r1, r2} {
 		if got, v := readSecret(t, addr, token, m.ID, r.Version); got != r.Secret || int(v) != r.Version {
@@ -511,4 +523,127 @@ func TestWebhookSecretRotation(t *testing.T) {
 	if got.WebhookSecretVersion != 3 || got.Version != 4 || outboxCount(t, m.ID) != 3 {
 		t.Errorf("state after failure: %+v outbox=%d", got, outboxCount(t, m.ID))
 	}
+}
+
+// baoCall sends one request to the OpenBao API and returns the status and body.
+func baoCall(t *testing.T, addr, token, method, path, body string) (int, []byte) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(ctxT(t), method, addr+path, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Vault-Token", token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	out, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, out
+}
+
+func baoMust(t *testing.T, addr, token, method, path, body string) []byte {
+	t.Helper()
+	code, out := baoCall(t, addr, token, method, path, body)
+	if code/100 != 2 {
+		t.Fatalf("%s %s: %d %s", method, path, code, out)
+	}
+	return out
+}
+
+// scopedToken returns a token with the policy of the merchant-service role of infra/terraform/openbao:
+// writes of secret/data/webhook/*, signing with transit key merchant-jwt, reading its public keys.
+func scopedToken(t *testing.T, addr, root string) string {
+	t.Helper()
+	const policy = `path "secret/data/webhook/*" { capabilities = ["create", "update"] }
+path "transit/sign/merchant-jwt" { capabilities = ["update"] }
+path "transit/keys/merchant-jwt" { capabilities = ["read"] }`
+	pol, _ := json.Marshal(map[string]string{"policy": policy})
+	baoMust(t, addr, root, http.MethodPut, "/v1/sys/policies/acl/merchant-service", string(pol))
+	out := baoMust(t, addr, root, http.MethodPost, "/v1/auth/token/create", `{"policies":["merchant-service"]}`)
+	var resp struct {
+		Auth struct {
+			ClientToken string `json:"client_token"`
+		} `json:"auth"`
+	}
+	if err := json.Unmarshal(out, &resp); err != nil || resp.Auth.ClientToken == "" {
+		t.Fatalf("token create: %v %s", err, out)
+	}
+	return resp.Auth.ClientToken
+}
+
+// TestTransitSigning issues JWTs through Transit with a token that cannot export the key, and follows
+// a key rotation: tokens of the previous version still verify and both versions are in the JWKS.
+func TestTransitSigning(t *testing.T) {
+	ctx := ctxT(t)
+	addr, root := startOpenBao(t)
+	baoMust(t, addr, root, http.MethodPost, "/v1/sys/mounts/transit", `{"type":"transit"}`)
+	baoMust(t, addr, root, http.MethodPost, "/v1/transit/keys/merchant-jwt", `{"type":"ecdsa-p256"}`)
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	svcToken := scopedToken(t, addr, root)
+	if err := os.WriteFile(tokenFile, []byte(svcToken), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bao, err := openbao.New(openbao.Config{Addr: addr, TokenFile: tokenFile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := jwt.NewTransitSigner(ctx, bao.Transit("transit", "merchant-jwt"), time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	iss := jwt.NewIssuer(signer, "weigate-merchant-service", 15*time.Minute)
+	sub := uuid.NewString()
+	v1, err := iss.Issue(ctx, sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c, err := iss.Verify(ctx, v1); err != nil || c.Subject != sub {
+		t.Fatalf("verify v1: %+v %v", c, err)
+	}
+	// The private key is not exportable, with any token.
+	if code, _ := baoCall(t, addr, root, http.MethodGet, "/v1/transit/export/signing-key/merchant-jwt/latest", ""); code/100 == 2 {
+		t.Errorf("signing key is exportable: %d", code)
+	}
+
+	baoMust(t, addr, root, http.MethodPost, "/v1/transit/keys/merchant-jwt/rotate", "")
+	v2, err := iss.Issue(ctx, sub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys, err := signer.PublicKeys(ctx)
+	if err != nil || len(keys) != 2 {
+		t.Fatalf("keys: %d %v", len(keys), err)
+	}
+	for _, tok := range []string{v1, v2} {
+		if _, err := iss.Verify(ctx, tok); err != nil {
+			t.Errorf("verify after rotation: %v", err)
+		}
+	}
+	if kidOf(t, v1) == kidOf(t, v2) || kidOf(t, v2) != keys[0].KID {
+		t.Errorf("kids: %q %q, current %q", kidOf(t, v1), kidOf(t, v2), keys[0].KID)
+	}
+
+	// A token rejected by OpenBao: no signature, no leak.
+	if err := os.WriteFile(tokenFile, []byte("wrong"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := iss.Issue(ctx, sub); !errors.Is(err, openbao.ErrUnavailable) {
+		t.Errorf("rejected token: %v", err)
+	}
+}
+
+func kidOf(t *testing.T, token string) string {
+	t.Helper()
+	raw, err := base64.RawURLEncoding.DecodeString(strings.Split(token, ".")[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var h struct {
+		Kid string `json:"kid"`
+	}
+	if err := json.Unmarshal(raw, &h); err != nil {
+		t.Fatal(err)
+	}
+	return h.Kid
 }

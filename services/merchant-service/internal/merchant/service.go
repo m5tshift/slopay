@@ -87,6 +87,17 @@ func (s *Service) Register(ctx context.Context, name, email string) (Merchant, I
 		ID: uuid.New(), Name: name, Email: email,
 		ToleranceBps: s.cfg.DefaultToleranceBps, WebhookSecretVersion: 1, Version: 1, CreatedAt: s.now().UTC(),
 	}
+	if s.secrets != nil {
+		// The first secret version exists in the store from the start, so that every later version is the
+		// store's own version number. The merchant sees a secret only after the first rotation.
+		secret, err := GenerateSecret()
+		if err != nil {
+			return Merchant{}, IssuedKey{}, err
+		}
+		if m.WebhookSecretVersion, err = s.secrets.PutWebhookSecret(ctx, m.ID, secret); err != nil {
+			return Merchant{}, IssuedKey{}, err
+		}
+	}
 	issued, stored := s.newKey(m.ID)
 	if err := s.store.Create(ctx, m, stored); err != nil {
 		return Merchant{}, IssuedKey{}, err
