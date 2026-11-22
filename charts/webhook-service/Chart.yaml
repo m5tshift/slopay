@@ -1,0 +1,10 @@
+apiVersion: v2
+name: webhook-service
+description: Weigate webhook-service - signed webhooks to merchants with retry topics, DLQ and a Circuit Breaker per endpoint (SRS 4.1.3, 4.1.9, 4.1.10, FR-07)
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+dependencies:
+  - name: weigate-lib
+    version: 0.1.1
+    repository: file://../weigate-lib
