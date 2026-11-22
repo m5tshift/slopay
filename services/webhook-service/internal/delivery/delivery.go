@@ -193,6 +193,8 @@ type invoice struct {
 	invoiceID  string
 	merchantID string
 	paidAt     *time.Time
+	// replay marks a delivery taken from the DLQ: it is journaled under <event id>:dlq and is not scheduled again.
+	replay bool
 }
 
 func parseInvoice(ev kafka.Event) (invoice, error) {
@@ -219,7 +221,8 @@ func (d *Deliverer) Invoice(ctx context.Context, ev kafka.Event) error {
 		d.log.ErrorContext(ctx, "skipping invoice event", "event_id", ev.ID, "error", err)
 		return nil
 	}
-	return d.attempt(ctx, inv, 0)
+	_, err = d.attempt(ctx, inv, 0)
+	return err
 }
 
 // retryData is the data of webhook.retry (contracts/schemas/webhook.retry.v1.json).
@@ -269,42 +272,66 @@ func (d *Deliverer) Retry(ctx context.Context, ev kafka.Event) error {
 			return err
 		}
 	}
-	return d.attempt(ctx, inv, r.Attempt)
+	_, err = d.attempt(ctx, inv, r.Attempt)
+	return err
 }
 
-// attempt makes attempt number failed+1. Errors are those of the journal, the projection and Kafka: the caller
-// repeats the event. A failed delivery itself is not an error: it is scheduled.
-func (d *Deliverer) attempt(ctx context.Context, inv invoice, failed int) error {
+// Replay is one new attempt of a webhook taken from webhook.dlq (POST /internal/dlq/replay). It reports whether
+// the merchant answered 2xx. A failed replay is not scheduled again: the delivery stays in the DLQ. The attempt is
+// journaled under <event id>:dlq, so a repeated replay overwrites it.
+func (d *Deliverer) Replay(ctx context.Context, ev kafka.Event) (bool, error) {
+	var dl deadLetteredData
+	if err := json.Unmarshal(ev.Data, &dl); err != nil {
+		return false, fmt.Errorf("delivery: dead-lettered event %s: %w", ev.ID, err)
+	}
+	var inner kafka.Event
+	if err := json.Unmarshal(dl.Event, &inner); err != nil {
+		return false, fmt.Errorf("delivery: dead-lettered event %s: %w", ev.ID, err)
+	}
+	inv, err := parseInvoice(inner)
+	if err != nil {
+		return false, err
+	}
+	inv.replay = true
+	return d.attempt(ctx, inv, 0)
+}
+
+// attempt makes attempt number failed+1 and reports whether it was delivered. Errors are those of the journal, the
+// projection and Kafka: the caller repeats the event. A failed delivery itself is not an error: it is scheduled.
+func (d *Deliverer) attempt(ctx context.Context, inv invoice, failed int) (bool, error) {
 	no := failed + 1
 	at := d.cfg.Now()
 	rec := journal.Attempt{EventID: inv.ev.ID, EventType: inv.ev.Type, InvoiceID: inv.invoiceID,
 		MerchantID: inv.merchantID, Attempt: no, At: at.UTC()}
+	if inv.replay {
+		rec.EventID += ":dlq"
+	}
 
 	m, ok, err := d.cfg.Merchants.Get(ctx, inv.merchantID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !ok {
 		// merchant.updated may not be read yet: repeat later.
-		return d.fail(ctx, inv, rec, failure{Reason: "merchant is unknown", result: resultUnknownMerchant})
+		return false, d.fail(ctx, inv, rec, failure{Reason: "merchant is unknown", result: resultUnknownMerchant})
 	}
 	if m.WebhookURL == "" {
 		rec.Result, rec.Reason = journal.ResultSkipped, "merchant has no webhook URL"
 		d.count(ctx, inv, resultSkipped)
-		return d.cfg.Journal.Record(ctx, rec)
+		return false, d.cfg.Journal.Record(ctx, rec)
 	}
 	secret, err := d.cfg.Secrets.Secret(ctx, m.ID, m.SecretVersion)
 	if err != nil {
 		d.log.WarnContext(ctx, "webhook secret unavailable", "merchant_id", m.ID, "secret_version", m.SecretVersion, "error", err)
-		return d.fail(ctx, inv, rec, failure{Reason: "signing secret unavailable", result: resultNoSecret})
+		return false, d.fail(ctx, inv, rec, failure{Reason: "signing secret unavailable", result: resultNoSecret})
 	}
 	br, err := d.breaker(m.ID)
 	if err != nil {
-		return err
+		return false, err
 	}
 	done, err := br.Allow()
 	if err != nil {
-		return d.fail(ctx, inv, rec, failure{Reason: "circuit breaker is open", result: resultBreakerOpen})
+		return false, d.fail(ctx, inv, rec, failure{Reason: "circuit breaker is open", result: resultBreakerOpen})
 	}
 	rec.SecretVersion = m.SecretVersion
 	status, perr := d.post(ctx, m.WebhookURL, inv.body, secret, m.SecretVersion)
@@ -325,16 +352,16 @@ func (d *Deliverer) attempt(ctx context.Context, inv invoice, failed int) error 
 	}
 	d.duration.Record(ctx, elapsed.Seconds(), metric.WithAttributes(attribute.String("result", f.result)))
 	if !delivered {
-		return d.fail(ctx, inv, rec, f)
+		return false, d.fail(ctx, inv, rec, f)
 	}
 	rec.Result, rec.StatusCode = journal.ResultDelivered, &status
 	d.count(ctx, inv, resultDelivered)
-	if inv.ev.Type == eventPaid && inv.paidAt != nil {
+	if inv.ev.Type == eventPaid && inv.paidAt != nil && !inv.replay {
 		d.paidDelay.Record(ctx, d.cfg.Now().Sub(*inv.paidAt).Seconds())
 	}
 	d.log.InfoContext(ctx, "webhook delivered", "event_id", inv.ev.ID, "event_type", inv.ev.Type,
 		"invoice_id", inv.invoiceID, "merchant_id", m.ID, "attempt", no, "status", status)
-	return d.cfg.Journal.Record(ctx, rec)
+	return true, d.cfg.Journal.Record(ctx, rec)
 }
 
 // fail records the failed attempt and publishes the delivery to the next retry topic or, after the last one, to
@@ -347,6 +374,11 @@ func (d *Deliverer) fail(ctx context.Context, inv invoice, rec journal.Attempt, 
 	d.count(ctx, inv, f.result)
 	if err := d.cfg.Journal.Record(ctx, rec); err != nil {
 		return err
+	}
+	if inv.replay {
+		d.log.WarnContext(ctx, "webhook replay failed", "event_id", inv.ev.ID, "invoice_id", inv.invoiceID,
+			"merchant_id", inv.merchantID, "reason", f.Reason)
+		return nil
 	}
 	now := d.cfg.Now().UTC()
 	var (

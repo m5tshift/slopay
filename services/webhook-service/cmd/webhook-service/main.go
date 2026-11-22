@@ -25,6 +25,7 @@ import (
 	"github.com/m5tshift/weigate/services/webhook-service/internal/delivery"
 	"github.com/m5tshift/weigate/services/webhook-service/internal/journal"
 	"github.com/m5tshift/weigate/services/webhook-service/internal/merchants"
+	"github.com/m5tshift/weigate/services/webhook-service/internal/replay"
 	"github.com/m5tshift/weigate/services/webhook-service/internal/secrets"
 )
 
@@ -137,8 +138,21 @@ func run(log *slog.Logger) error {
 		IdleTimeout:       60 * time.Second,
 	}
 
+	// The operator API has its own port and is not published on the gateway.
+	adminMux := http.NewServeMux()
+	(&replay.Handler{
+		DLQ:       &replay.Reader{Brokers: cfg.KafkaBrokers, Topic: delivery.TopicDLQ, Codec: codec, Log: log},
+		Deliverer: deliverer, Journal: deliveries, Log: log,
+	}).Register(adminMux)
+	admin := &http.Server{
+		Addr:              cfg.AdminAddr,
+		Handler:           adminMux,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+
 	log.InfoContext(ctx, "starting", "consumer_group", cfg.ConsumerGroup, "delivery_timeout", cfg.DeliveryTimeout.String())
-	errc := make(chan error, len(consumers)+1)
+	errc := make(chan error, len(consumers)+2)
 	for _, c := range consumers {
 		loop, err := consume.New(codec, log, cfg.KafkaBrokers, c.group, []string{c.topic}, cfg.Concurrency, kgo.ClientID(serviceName))
 		if err != nil {
@@ -158,6 +172,13 @@ func run(log *slog.Logger) error {
 		}
 	}()
 
+	go func() {
+		log.InfoContext(ctx, "listening (internal)", "addr", cfg.AdminAddr)
+		if err := admin.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errc <- err
+		}
+	}()
+
 	select {
 	case <-ctx.Done():
 		log.Info("shutting down")
@@ -169,6 +190,9 @@ func run(log *slog.Logger) error {
 	defer cancel()
 	if serr := srv.Shutdown(sctx); serr != nil {
 		log.Error("http shutdown", "error", serr)
+	}
+	if serr := admin.Shutdown(sctx); serr != nil {
+		log.Error("admin http shutdown", "error", serr)
 	}
 	return err
 }

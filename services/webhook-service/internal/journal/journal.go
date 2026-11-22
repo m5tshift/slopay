@@ -101,3 +101,12 @@ func (s *Store) FirstAttempt(ctx context.Context, eventID string) (time.Time, bo
 	}
 	return a.At, true, nil
 }
+
+// Delivered reports whether an attempt of the event was answered with 2xx.
+func (s *Store) Delivered(ctx context.Context, eventID string) (bool, error) {
+	n, err := s.coll().CountDocuments(ctx, bson.D{{Key: "eventId", Value: eventID}, {Key: "result", Value: ResultDelivered}})
+	if err != nil {
+		return false, fmt.Errorf("journal: delivered %s: %w", eventID, err)
+	}
+	return n > 0, nil
+}

@@ -10,7 +10,7 @@
 
 | Вид | Что | Контракт |
 |---|---|---|
-| HTTP | только `/health/live`, `/health/ready`, `/metrics`; повтор из DLQ (`POST /internal/dlq/replay`) — #29 | [`contracts/openapi/webhook-service.yaml`](../../contracts/openapi/webhook-service.yaml) |
+| HTTP | `HTTP_ADDR`: `/health/live`, `/health/ready`, `/metrics`; `ADMIN_ADDR`: `POST /internal/dlq/replay` (повтор из DLQ) | [`contracts/openapi/webhook-service.yaml`](../../contracts/openapi/webhook-service.yaml) |
 | Публикует | `webhook.retry.1m`, `webhook.retry.5m`, `webhook.retry.30m` (`webhook.retry`), `webhook.dlq` (`webhook.dead_lettered`); ключ — `invoiceId` | [`contracts/asyncapi/webhook-service.yaml`](../../contracts/asyncapi/webhook-service.yaml) |
 | Потребляет | `invoice.events`: все `invoice.*`; группа `KAFKA_CONSUMER_GROUP` | [`contracts/asyncapi/invoice-service.yaml`](../../contracts/asyncapi/invoice-service.yaml) |
 | Потребляет | `merchant.events`: `merchant.updated`; группа `<KAFKA_CONSUMER_GROUP>-merchants` | [`contracts/asyncapi/merchant-service.yaml`](../../contracts/asyncapi/merchant-service.yaml) |
@@ -39,6 +39,7 @@
 | Переменная | Назначение | Значение по SRS |
 |---|---|---|
 | `HTTP_ADDR` | адрес HTTP | `:8080` |
+| `ADMIN_ADDR` | адрес внутреннего API оператора (`/internal/dlq/replay`), отдельный порт | `:8081` |
 | `LOG_LEVEL` | уровень логов | `info` |
 | `KAFKA_BROKERS` | брокеры через запятую, обязательно | — |
 | `KAFKA_CONSUMER_GROUP` | группа `invoice.events` и префикс остальных групп | `webhook-service` |
@@ -90,3 +91,19 @@ go test -race -tags integration ./services/webhook-service/...   # Testcontainer
 - Метрики: `weigate_webhook_deliveries{result,event_type}`, `weigate_webhook_delivery_duration{result}`,
   `weigate_webhook_scheduled{topic}`, `weigate_webhook_paid_delay` — от `paidAt` (блок N-го подтверждения)
   до доставленного `invoice.paid` (NFR-04).
+
+## Переотправка из DLQ
+
+`POST /internal/dlq/replay` слушает `ADMIN_ADDR`, на gateway не публикуется. Оператор вызывает его через port-forward:
+
+```sh
+kubectl -n apps port-forward deploy/webhook-service 8081:8081
+curl -X POST localhost:8081/internal/dlq/replay -H 'Content-Type: application/json' -d '{"merchantId":"<uuid>"}'
+```
+
+Тело — фильтры `invoiceId`, `merchantId` (пересечение) и `limit` (1–1000, по умолчанию 100); без фильтров берутся самые
+старые записи. Сервис читает `webhook.dlq` целиком без группы потребителей и для каждой записи делает одну новую
+попытку (подпись, `X-Weigate-Timestamp` и секрет текущие, тело и `event.id` прежние). Из топика Kafka запись удалить
+нельзя, поэтому «ушла из DLQ» значит: в журнале есть доставленная переотправка `<event.id>:dlq`, и следующий вызов её
+пропускает. Неудачная переотправка в журнал пишется как `failed`, запись остаётся в DLQ и не публикуется повторно,
+в retry-топики не попадает. Ответ — `selected`, `delivered`, `failed`; `503` с `Retry-After` — Kafka или MongoDB недоступны.

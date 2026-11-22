@@ -7,7 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -32,6 +34,7 @@ import (
 	"github.com/m5tshift/weigate/services/webhook-service/internal/dedup"
 	"github.com/m5tshift/weigate/services/webhook-service/internal/journal"
 	"github.com/m5tshift/weigate/services/webhook-service/internal/merchants"
+	"github.com/m5tshift/weigate/services/webhook-service/internal/replay"
 	"github.com/m5tshift/weigate/services/webhook-service/internal/secrets"
 )
 
@@ -44,13 +47,14 @@ const (
 // stack is the service wired as in cmd/webhook-service against Kafka, MongoDB, Valkey and OpenBao in containers.
 // The retry stages do not wait, so a failing endpoint reaches the DLQ within seconds.
 type stack struct {
-	t        *testing.T
-	brokers  []string
-	baoAddr  string
-	producer *kafka.Producer
-	mongo    *storage.Mongo
-	merchant *merchants.Store
-	codec    *kafka.Codec
+	t         *testing.T
+	brokers   []string
+	baoAddr   string
+	producer  *kafka.Producer
+	mongo     *storage.Mongo
+	merchant  *merchants.Store
+	codec     *kafka.Codec
+	deliverer *Deliverer
 }
 
 func start(t *testing.T, ctx context.Context, image string, opts ...testcontainers.ContainerCustomizer) testcontainers.Container {
@@ -140,6 +144,7 @@ func newStack(t *testing.T) *stack {
 	if err != nil {
 		t.Fatal(err)
 	}
+	s.deliverer = d
 	v, err := storage.OpenValkey(ctx, storage.ValkeyConfig{Addrs: []string{endpointOf(t, ctx, vc, "6379/tcp", "")}})
 	if err != nil {
 		t.Fatal(err)
@@ -377,5 +382,57 @@ func TestIntegrationSecretRotation(t *testing.T) {
 			t.Errorf("webhook %d: secret version %q", i+1, got)
 		}
 		verify(t, r, body, secret)
+	}
+}
+
+// A delivery that reached the DLQ is replayed through POST /internal/dlq/replay once the endpoint works: it is
+// delivered, journaled under <event id>:dlq, and the next call finds nothing to replay (FR-09).
+func TestIntegrationDLQReplay(t *testing.T) {
+	s := newStack(t)
+	bad, healthy := newEndpoint(t, http.StatusInternalServerError), newEndpoint(t, http.StatusNoContent)
+	a, b := uuid.NewString(), uuid.NewString()
+	s.writeSecret(a, "secret-a")
+	s.writeSecret(b, "secret-b")
+	s.merchantUpdated(a, 1, bad.srv.URL, 1)
+	s.merchantUpdated(b, 1, bad.srv.URL, 1)
+	evA, evB := s.invoice(a), s.invoice(b)
+	s.dlq(2)
+
+	// Merchant a fixes its endpoint; only its delivery is replayed.
+	s.merchantUpdated(a, 2, healthy.srv.URL, 1)
+	h := &replay.Handler{
+		DLQ:       &replay.Reader{Brokers: s.brokers, Topic: TopicDLQ, Codec: s.codec, Log: slog.Default()},
+		Deliverer: s.deliverer, Journal: journal.New(s.mongo, time.Hour), Log: slog.Default(),
+	}
+	mux := http.NewServeMux()
+	h.Register(mux)
+	post := func(body string) string {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/internal/dlq/replay", strings.NewReader(body)))
+		if w.Code != http.StatusOK {
+			t.Fatalf("replay: %d %s", w.Code, w.Body)
+		}
+		return strings.TrimSpace(w.Body.String())
+	}
+	if got := post(`{"merchantId":"` + a + `"}`); got != `{"selected":1,"delivered":1,"failed":0}` {
+		t.Errorf("replay of a: %s", got)
+	}
+	if healthy.count() != 1 {
+		t.Fatalf("healthy endpoint got %d webhooks, want 1", healthy.count())
+	}
+	r, body := healthy.request(0)
+	verify(t, r, body, "secret-a")
+	if got := s.results(evA.ID + ":dlq"); len(got) != 1 || got[0] != journal.ResultDelivered {
+		t.Errorf("journal of the replay: %v", got)
+	}
+	if got := post(`{"merchantId":"` + a + `"}`); got != `{"selected":0,"delivered":0,"failed":0}` {
+		t.Errorf("repeated replay of a: %s", got)
+	}
+	// Merchant b still fails: the delivery stays in the DLQ and is tried again by the next call.
+	if got := post(`{}`); got != `{"selected":1,"delivered":0,"failed":1}` {
+		t.Errorf("replay of b: %s", got)
+	}
+	if got := s.results(evB.ID + ":dlq"); len(got) != 1 || got[0] != journal.ResultFailed {
+		t.Errorf("journal of the failed replay: %v", got)
 	}
 }

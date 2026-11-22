@@ -19,6 +19,9 @@ import (
 type Config struct {
 	// HTTPAddr is the listen address of health and metrics (HTTP_ADDR, default :8080).
 	HTTPAddr string
+	// AdminAddr is the listen address of the internal operator API, POST /internal/dlq/replay (ADMIN_ADDR, default
+	// :8081). It is a separate port that is not published on the gateway.
+	AdminAddr string
 	// KafkaBrokers are the seed brokers (KAFKA_BROKERS, comma-separated, required).
 	KafkaBrokers []string
 	// ConsumerGroup is the group prefix (KAFKA_CONSUMER_GROUP, default webhook-service): invoice.events is read by
@@ -61,6 +64,7 @@ func FromEnv() (Config, error) {
 	var errs []error
 	c := Config{
 		HTTPAddr:         envOr("HTTP_ADDR", ":8080"),
+		AdminAddr:        envOr("ADMIN_ADDR", ":8081"),
 		ConsumerGroup:    envOr("KAFKA_CONSUMER_GROUP", "webhook-service"),
 		KafkaBrokers:     splitList(os.Getenv("KAFKA_BROKERS")),
 		OpenBaoAddr:      strings.TrimRight(os.Getenv("OPENBAO_ADDR"), "/"),
