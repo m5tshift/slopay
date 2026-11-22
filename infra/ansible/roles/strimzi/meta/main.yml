@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: weigate
+  description: Generates the Strimzi operator values and the Kafka, KafkaNodePool, KafkaTopic manifests for weigate-gitops
+  license: MIT
+  min_ansible_version: "2.16"
+  platforms:
+    - name: GenericUNIX
+      versions:
+        - all
+  galaxy_tags: []
+dependencies: []

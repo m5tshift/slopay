@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint bootstrap-check stand-secrets-check runbook-check ci-check erc20-test precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint ansible-test bootstrap-check stand-secrets-check runbook-check ci-check erc20-test precommit
 
 build:
 	go build ./...
@@ -52,6 +52,11 @@ tf-validate:
 ansible-lint:
 	@if [ ! -d infra/ansible ]; then echo "ansible-lint: no infra/ansible/, skipping"; exit 0; fi; \
 	ansible-lint infra/ansible
+
+# infra/ansible/roles/strimzi: both profiles generated into a temporary directory and checked. Needs ansible and yq; no cluster.
+ansible-test:
+	@if [ ! -f infra/ansible/roles/strimzi/tests/test.sh ]; then echo "ansible-test: no role tests, skipping"; exit 0; fi; \
+	infra/ansible/roles/strimzi/tests/test.sh
 
 # infra/bootstrap: shellcheck, helm template of Argo CD with the script's values, health-check and RBAC checks.
 # Needs helm and yq plus network access to the Argo CD chart repo; no cluster.

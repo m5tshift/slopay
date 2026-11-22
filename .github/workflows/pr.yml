@@ -136,6 +136,7 @@ jobs:
       - if: hashFiles('infra/ansible/**') != ''
         run: pip install ansible-lint==26.11.0
       - run: make ansible-lint
+      - run: make ansible-test
 
   # Shared job for infrastructure scripts. Add steps for new scripts (shellcheck, tests) here
   # instead of creating new jobs: the job name is a required status check.

@@ -81,6 +81,7 @@ make test-integration   # go test -race -tags integration ./...: Testcontainers,
 make helm-lint          # helm lint и helm template для charts/*
 make tf-validate        # init -backend=false, validate и terraform test (mock_provider) в каждом слое infra/terraform
 make ansible-lint       # ansible-lint infra/ansible
+make ansible-test       # роль strimzi: генерация обоих профилей во временный каталог и проверка (нужны ansible и yq)
 make bootstrap-check    # infra/bootstrap: shellcheck, helm template Argo CD, проверка health-check и RBAC агента
 make stand-secrets-check # infra/stand-secrets: shellcheck и скрипт на поддельных kubectl и cast, кластер не нужен
 make runbook-check      # docs/runbooks: команды и пути runbook развёртывания совпадают с infra/ и .github/
