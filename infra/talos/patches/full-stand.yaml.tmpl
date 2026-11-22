@@ -13,6 +13,6 @@ machine:
 %{ for host in mirror_hosts ~}
       ${host}:
         endpoints:
-          - url: ${zot_endpoint}/v2/${host}
-            overridePath: true
+          - ${zot_endpoint}/v2/${host}
+        overridePath: true
 %{ endfor ~}
