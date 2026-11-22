@@ -19,6 +19,17 @@
 В Structurizr DSL нет уровня Code, поэтому L4 описан компонентами с тегом `Code`: функции и типы пакета
 `lifecycle` (`Evaluate`, `Engine`, `Barrier`, `Config`, `NewEvent`).
 
+## Остальные документы
+
+| Файл | Содержание |
+|---|---|
+| [`sequences.md`](sequences.md) | Sequence-диаграммы: успешная оплата, недоплата, истечение и поздний платёж, реорганизация, повторная доставка вебхука |
+| [`er.md`](er.md) | ER-схемы PostgreSQL по миграциям `merchant-service`, `invoice-service`, `ledger-service` |
+| [`mongodb.md`](mongodb.md) | Схемы документов MongoDB `chain-watcher`, `webhook-service`, `reconciliation-service` |
+| [`events.md`](events.md) | Каталог событий: топик, ключ, схема, производитель, потребители |
+
+Соответствие этих документов коду и контрактам проверяет `go test ./docs/architecture/` (входит в `make test`).
+
 ## Проверка
 
 Валидность DSL проверяет job `c4` в `.github/workflows/pr.yml` (образ `structurizr/cli`, закреплён по digest).
