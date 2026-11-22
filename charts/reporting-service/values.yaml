@@ -1,0 +1,38 @@
+# reporting-service on weigate-lib (charts/weigate-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in weigate-gitops. ClickHouse exists only in the full profile (SRS 6.4).
+image:
+  repository: zot.example.internal/weigate/reporting-service
+  # CI sets the short commit SHA in weigate-gitops; this placeholder only lets the chart render.
+  tag: dev
+# SRS 6.2: one replica.
+replicaCount: 1
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+secrets:
+  # Password of the ClickHouse user reporting (read-only), key reporting of the Secret clickhouse-users:
+  # /var/run/secrets/weigate/clickhouse/password.
+  - name: clickhouse
+
+env:
+  # Native protocol of the CHI weigate (weigate-gitops platform/clickhouse/full).
+  CLICKHOUSE_ADDR: clickhouse-weigate.data.svc:9000
+  CLICKHOUSE_DATABASE: weigate
+  CLICKHOUSE_USERNAME: reporting
+  CLICKHOUSE_PASSWORD_FILE: /var/run/secrets/weigate/clickhouse/password
+  # iss of the merchant-service JWT (SRS 4.1.10); the signature is verified against its JWKS.
+  JWT_ISSUER: weigate-merchant-service
+  JWKS_URL: http://merchant-service.apps.svc:8080/.well-known/jwks.json
+  JWKS_TIMEOUT: 2s
+  JWKS_REFRESH: 5m
+  JWKS_MIN_INTERVAL: 10s
+  # Longest period of a report in days, timeout of one query, Retry-After of 503.
+  REPORT_MAX_DAYS: "92"
+  QUERY_TIMEOUT: 10s
+  RETRY_AFTER: 5s
+  LOG_LEVEL: info

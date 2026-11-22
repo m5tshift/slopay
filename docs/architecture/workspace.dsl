@@ -72,8 +72,8 @@ workspace "Weigate" "Шлюз криптоплатежей: счёт в USD, о�
             webhookService = container "webhook-service" "Подписанные HMAC вебхуки, ретраи с backoff, DLQ, Circuit Breaker на endpoint" "Go" {
                 tags "Service"
             }
-            reportingService = container "reporting-service" "Отчёты мерчанту по оборотам и конверсии. Планируется: кода пока нет" "Go" {
-                tags "Service" "Planned"
+            reportingService = container "reporting-service" "Отчёты мерчанту по оборотам и конверсии" "Go" {
+                tags "Service"
             }
 
             kafka = container "Kafka" "Топики событий, CloudEvents (JSON)" "Strimzi" {
