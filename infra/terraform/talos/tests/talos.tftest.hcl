@@ -189,7 +189,8 @@ run "full_stand" {
         yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).cluster.network.cni.name == "none" &&
         yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).cluster.proxy.disabled == true &&
         toset(keys(yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors)) == toset(["docker.io", "ghcr.io", "quay.io", "registry.k8s.io"]) &&
-        yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors["ghcr.io"].endpoints[0] == "http://192.0.2.12:30500"
+        yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors["ghcr.io"].endpoints[0] == "http://192.0.2.12:30500/v2/ghcr.io" &&
+        yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors["ghcr.io"].overridePath == true
       )
     ])
     error_message = "full stand: no CNI and kube-proxy, Zot mirrors on every node"
