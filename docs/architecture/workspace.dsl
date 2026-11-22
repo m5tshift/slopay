@@ -69,8 +69,8 @@ workspace "Weigate" "Шлюз криптоплатежей: счёт в USD, о�
             reconciliationService = container "reconciliation-service" "Периодическая сверка балансов адресов в блокчейне со счетами и проводками" "Go" {
                 tags "Service"
             }
-            webhookService = container "webhook-service" "Подписанные HMAC вебхуки, ретраи с backoff, DLQ, Circuit Breaker на endpoint. Планируется: кода пока нет" "Go" {
-                tags "Service" "Planned"
+            webhookService = container "webhook-service" "Подписанные HMAC вебхуки, ретраи с backoff, DLQ, Circuit Breaker на endpoint" "Go" {
+                tags "Service"
             }
             reportingService = container "reporting-service" "Отчёты мерчанту по оборотам и конверсии. Планируется: кода пока нет" "Go" {
                 tags "Service" "Planned"
@@ -82,7 +82,7 @@ workspace "Weigate" "Шлюз криптоплатежей: счёт в USD, о�
             postgres = container "PostgreSQL" "Данные merchant-, invoice- и ledger-service" "CloudNativePG" {
                 tags "Database" "Platform"
             }
-            mongo = container "MongoDB" "Данные chain-watcher и reconciliation-service; журнал доставок webhook-service (планируется)" "Percona Operator" {
+            mongo = container "MongoDB" "Данные chain-watcher и reconciliation-service; журнал доставок webhook-service" "Percona Operator" {
                 tags "Database" "Platform"
             }
             valkey = container "Valkey" "Кэши, последний курс, лимиты" "Valkey" {

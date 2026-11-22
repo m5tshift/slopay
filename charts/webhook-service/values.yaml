@@ -1,0 +1,69 @@
+# webhook-service on weigate-lib (charts/weigate-lib/README.md). The stand values (image tag, addresses,
+# ExternalSecret references) are set in weigate-gitops.
+image:
+  repository: zot.example.internal/weigate/webhook-service
+  # CI sets the short commit SHA in weigate-gitops; this placeholder only lets the chart render.
+  tag: dev
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 128Mi
+
+kafka:
+  enabled: true
+  brokers:
+    - weigate-kafka-bootstrap.kafka.svc:9092
+
+secrets:
+  # Password of the service's MongoDB user: /var/run/secrets/weigate/mongodb/password.
+  - name: mongodb
+  # Password of the service's Valkey ACL user: /var/run/secrets/weigate/valkey/password.
+  - name: valkey
+
+# Delivery journal and the projection of merchant.events (SRS 4.1.6).
+mongodb:
+  enabled: true
+  uri: mongodb://mongodb-rs0.data.svc:27017/?replicaSet=rs0
+  username: webhook-service
+  database: webhook_service
+  authSource: webhook_service
+  password:
+    secret: mongodb
+    key: password
+
+# Deduplication by event.id (SRS 4.1.7); without Valkey webhooks are delivered without it.
+valkey:
+  enabled: true
+  addrs:
+    - valkey.data.svc:6379
+  username: webhook-service
+  password:
+    secret: valkey
+    key: password
+
+# The webhook signing secrets are read from OpenBao KV v2 webhook/<merchantId> by version (SRS 4.1.10) with the
+# Kubernetes-auth role webhook-service of the Terraform layer openbao (read-only policy).
+openbao:
+  enabled: true
+  addr: http://openbao.secrets.svc:8200
+  role: webhook-service
+  env:
+    OPENBAO_KV_MOUNT: secret
+
+env:
+  # Group of invoice.events; merchant.events and the retry topics use <group>-merchants and <group>-<topic>.
+  KAFKA_CONSUMER_GROUP: webhook-service
+  # SRS 4.1.9, NFR-09: the breaker of an endpoint opens after 5 failures in a row for 30 s.
+  DELIVERY_TIMEOUT: 5s
+  ENDPOINT_BREAKER_FAILURE_THRESHOLD: "5"
+  ENDPOINT_BREAKER_OPEN_TIMEOUT: 30s
+  ENDPOINT_BREAKER_HALF_OPEN_MAX: "1"
+  DELIVERY_CONCURRENCY: "64"
+  # SRS 4.1.7: deduplication key 24 h; SRS 4.1.6: delivery journal 30 days.
+  DEDUP_TTL: 24h
+  JOURNAL_TTL: 720h
+  VALKEY_TIMEOUT: 100ms
+  LOG_LEVEL: info
