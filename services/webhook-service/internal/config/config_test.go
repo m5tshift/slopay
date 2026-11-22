@@ -24,7 +24,7 @@ func TestDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.HTTPAddr != ":8080" || len(c.KafkaBrokers) != 2 || c.ConsumerGroup != "webhook-service" ||
+	if c.HTTPAddr != ":8080" || c.AdminAddr != ":8081" || len(c.KafkaBrokers) != 2 || c.ConsumerGroup != "webhook-service" ||
 		c.Mongo.Database != "webhook_service" || len(c.Valkey.Addrs) != 1 || c.OpenBaoAddr != "http://openbao:8200" ||
 		c.OpenBaoMount != "secret" || c.OpenBaoTokenFile != "/run/secrets/openbao/token" {
 		t.Errorf("unexpected: %+v", c)
@@ -42,6 +42,7 @@ func TestDefaults(t *testing.T) {
 func TestOverrides(t *testing.T) {
 	setRequired(t)
 	t.Setenv("KAFKA_CONSUMER_GROUP", "wh")
+	t.Setenv("ADMIN_ADDR", ":9091")
 	t.Setenv("OPENBAO_KV_MOUNT", "kv")
 	t.Setenv("DELIVERY_TIMEOUT", "2s")
 	t.Setenv("DEDUP_TTL", "1h")
@@ -53,7 +54,7 @@ func TestOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.ConsumerGroup != "wh" || c.OpenBaoMount != "kv" || c.DeliveryTimeout != 2*time.Second || c.DedupTTL != time.Hour ||
+	if c.ConsumerGroup != "wh" || c.AdminAddr != ":9091" || c.OpenBaoMount != "kv" || c.DeliveryTimeout != 2*time.Second || c.DedupTTL != time.Hour ||
 		c.JournalTTL != 48*time.Hour || c.Concurrency != 4 || c.Breaker.FailureThreshold != 3 ||
 		c.Breaker.OpenTimeout != 10*time.Second {
 		t.Errorf("overrides: %+v", c)

@@ -772,3 +772,94 @@ func TestNewRequiresDependencies(t *testing.T) {
 		t.Error("expected an error")
 	}
 }
+
+// dlqEvent runs a delivery to the DLQ and returns the dead-lettered event.
+func dlqEvent(t *testing.T, e *env, ev kafka.Event) kafka.Event {
+	t.Helper()
+	if err := e.d.Invoice(context.Background(), ev); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 3 {
+		if err := e.d.Retry(context.Background(), e.pub.all()[i].ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out := e.pub.all()
+	if len(out) != 4 || out[3].topic != TopicDLQ {
+		t.Fatalf("published %d events", len(out))
+	}
+	return out[3].ev
+}
+
+func TestReplayDelivered(t *testing.T) {
+	e := newEnv(t, 100)
+	bad := newEndpoint(t, http.StatusServiceUnavailable)
+	e.merchant(merchantA, bad.srv.URL, 1, "whsec_a1")
+	ev := invoiceEvent(t, merchantA, "invoice.created", nil)
+	dlq := dlqEvent(t, e, ev)
+
+	good := newEndpoint(t, http.StatusNoContent)
+	e.merchant(merchantA, good.srv.URL, 1, "whsec_a1")
+	ok, err := e.d.Replay(context.Background(), dlq)
+	if err != nil || !ok {
+		t.Fatalf("replay: %v %v", ok, err)
+	}
+	r, body := good.request(0)
+	verify(t, r, body, "whsec_a1")
+	if want, _ := json.Marshal(ev); !bytes.Equal(body, want) {
+		t.Errorf("replayed body %s", body)
+	}
+	if a := e.journal.last(); a.EventID != ev.ID+":dlq" || a.Attempt != 1 || a.Result != journal.ResultDelivered {
+		t.Errorf("journal: %+v", a)
+	}
+	if len(e.pub.all()) != 4 {
+		t.Error("a delivered replay must publish nothing")
+	}
+}
+
+func TestReplayFailedStaysInDLQ(t *testing.T) {
+	e := newEnv(t, 100)
+	bad := newEndpoint(t, http.StatusServiceUnavailable)
+	e.merchant(merchantA, bad.srv.URL, 1, "whsec_a1")
+	dlq := dlqEvent(t, e, invoiceEvent(t, merchantA, "invoice.created", nil))
+
+	ok, err := e.d.Replay(context.Background(), dlq)
+	if err != nil || ok {
+		t.Fatalf("replay: %v %v", ok, err)
+	}
+	if bad.count() != 5 {
+		t.Errorf("attempts = %d, want 5", bad.count())
+	}
+	if a := e.journal.last(); a.Result != journal.ResultFailed || a.EventID != dlq.ID {
+		t.Errorf("journal: %+v", a)
+	}
+	if len(e.pub.all()) != 4 {
+		t.Error("a failed replay must publish nothing")
+	}
+}
+
+func TestReplayErrors(t *testing.T) {
+	e := newEnv(t, 100)
+	ctx := context.Background()
+	bad := kafka.Event{ID: "x:dlq", Data: []byte(`{"event":"nope"}`)}
+	for _, ev := range []kafka.Event{{ID: "x:dlq", Data: []byte(`nope`)}, bad, {ID: "x:dlq", Data: []byte(`{"event":{"data":{}}}`)}} {
+		if ok, err := e.d.Replay(ctx, ev); err == nil || ok {
+			t.Errorf("replay of %s: %v %v", ev.Data, ok, err)
+		}
+	}
+}
+
+func TestReplaySkippedWithoutURL(t *testing.T) {
+	e := newEnv(t, 100)
+	bad := newEndpoint(t, http.StatusServiceUnavailable)
+	e.merchant(merchantA, bad.srv.URL, 1, "whsec_a1")
+	dlq := dlqEvent(t, e, invoiceEvent(t, merchantA, "invoice.created", nil))
+
+	e.merchant(merchantA, "", 1, "whsec_a1")
+	if ok, err := e.d.Replay(context.Background(), dlq); err != nil || ok {
+		t.Fatalf("replay: %v %v", ok, err)
+	}
+	if a := e.journal.last(); a.Result != journal.ResultSkipped {
+		t.Errorf("journal: %+v", a)
+	}
+}
