@@ -87,6 +87,7 @@ make stand-secrets-check # infra/stand-secrets: shellcheck и скрипт на 
 make runbook-check      # docs/runbooks: команды и пути runbook развёртывания совпадают с infra/ и .github/
 make ci-check           # .github: actionlint и сухой прогон скриптов сборки образов на фикстурах
 make erc20-test         # testkit/erc20: forge test (Foundry; forge-std ставится в lib/ при первом запуске)
+make policy             # в чартах, Dockerfile и infra нет образов и чартов Bitnami
 make precommit          # gitleaks и базовые проверки; один раз: pre-commit install
 ```
 
