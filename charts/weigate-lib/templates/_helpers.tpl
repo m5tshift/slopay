@@ -66,6 +66,7 @@ Fails when the secret is not declared in .v.secrets.
 {{- include "weigate-lib.servicemonitor" $ctx }}
 {{- include "weigate-lib.role" $ctx }}
 {{- include "weigate-lib.externalsecrets" $ctx }}
+{{- include "weigate-lib.openbaoagent" $ctx }}
 {{- include "weigate-lib.destinationrule" $ctx }}
 {{- include "weigate-lib.virtualservice" $ctx }}
 {{- end -}}
@@ -80,6 +81,9 @@ Fails when the secret is not declared in .v.secrets.
 {{- $_ := required "resources.requests.memory is required (SRS 6.2)" $req.memory -}}
 {{- $_ := required "resources.limits.cpu is required (SRS 6.2)" $lim.cpu -}}
 {{- $_ := required "resources.limits.memory is required (SRS 6.2)" $lim.memory -}}
+{{- if .v.openbao.enabled -}}
+{{- $_ := required "openbao.addr is required when openbao.enabled" .v.openbao.addr -}}
+{{- end -}}
 {{- range .v.secrets -}}
 {{- $_ := required "secrets[].name is required" .name -}}
 {{- end -}}

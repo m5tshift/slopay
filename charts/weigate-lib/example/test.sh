@@ -38,6 +38,17 @@ done
 grep -qE 'name: [A-Z_]+_PASSWORD$' <<< "$all" && fail "password passed in an environment variable"
 grep -q 'subPath' <<< "$all" && fail "secrets must be mounted as directories, not subPath"
 
+# Token sidecar: native sidecar, token file, omitted secret and env key.
+ob=$(helm template example "$dir" -f "$dir/values-all.yaml" --set openbao.enabled=true --set openbao.addr=http://bao.test:8200 \
+	--set openbao.env.EXTRA_KEY=transit-key --set 'openbao.omitSecrets={valkey}' --set valkey.enabled=false --set env.DROP_ME=x --set 'openbao.omitEnv={DROP_ME}')
+for s in 'restartPolicy: Always' 'name: openbao-agent' 'automountServiceAccountToken: true' 'name: OPENBAO_ADDR' \
+	'value: "/var/run/secrets/weigate/openbao/token"' 'name: EXTRA_KEY' 'quay.io/openbao/openbao:2.7.3@sha256:'; do
+	grep -qF "$s" <<< "$ob" || fail "openbao: '$s' not rendered"
+done
+grep -q 'name: DROP_ME' <<< "$ob" && fail "openbao: omitEnv key rendered"
+grep -q 'name: secret-valkey' <<< "$ob" && fail "openbao: omitSecrets entry mounted"
+grep -q 'openbao-agent' <<< "$all" && fail "openbao resources rendered by default"
+
 # Invalid values must fail rendering with the expected message.
 must_fail() {
 	local want=$1 out; shift
@@ -51,6 +62,7 @@ must_fail 'postgres.password.secret "missing" is not declared in secrets' \
 	-f "$dir/values-all.yaml" --set postgres.password.secret=missing
 must_fail "set delay.percentage or abort.percentage" \
 	-f "$dir/values-all.yaml" --set istio.virtualService.fault.abort.percentage=0
+must_fail "openbao.addr is required" --set openbao.enabled=true
 must_fail "externalSecret.data is required" --set 'secrets[0].name=x' --set 'secrets[0].externalSecret.enabled=true'
 
 echo "weigate-lib test: ok"
