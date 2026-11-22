@@ -55,8 +55,20 @@ func (i *Issuer) TTL() time.Duration { return i.ttl }
 
 var b64 = base64.RawURLEncoding
 
-// Issue returns a signed token for the subject.
+// errKeyChanged means the signing key rotated between reading the kid and signing.
+var errKeyChanged = fmt.Errorf("%w: key changed while signing, retry", ErrKey)
+
+// Issue returns a signed token for the subject. When the key rotated meanwhile (the signer has already
+// learned the new key), the token is issued once more with the new kid.
 func (i *Issuer) Issue(ctx context.Context, subject string) (string, error) {
+	tok, err := i.issue(ctx, subject)
+	if errors.Is(err, errKeyChanged) {
+		tok, err = i.issue(ctx, subject)
+	}
+	return tok, err
+}
+
+func (i *Issuer) issue(ctx context.Context, subject string) (string, error) {
 	now := i.now()
 	claims := Claims{Issuer: i.issuer, Subject: subject, IssuedAt: now.Unix(), ExpiresAt: now.Add(i.ttl).Unix(), ID: uuid.NewString()}
 	keys, err := i.signer.PublicKeys(ctx)
@@ -81,7 +93,7 @@ func (i *Issuer) Issue(ctx context.Context, subject string) (string, error) {
 	}
 	if kid != keys[0].KID {
 		// The key rotated between reading the kid and signing: the header would name the wrong key.
-		return "", fmt.Errorf("%w: key changed while signing, retry", ErrKey)
+		return "", errKeyChanged
 	}
 	return input + "." + b64.EncodeToString(sig), nil
 }

@@ -78,8 +78,21 @@ func run(log *slog.Logger) error {
 		return err
 	}
 
-	// The previous signing key stays in the JWKS for a token lifetime after the key file is rotated.
-	signer, err := jwt.NewFileSigner(cfg.JWTKeyFile, cfg.JWTTTL)
+	var bao *openbao.Client
+	if cfg.OpenBaoAddr != "" {
+		bao, err = openbao.New(openbao.Config{Addr: cfg.OpenBaoAddr, TokenFile: cfg.OpenBaoTokenFile, Mount: cfg.OpenBaoMount})
+		if err != nil {
+			return err
+		}
+	}
+	var signer jwt.Signer
+	if cfg.JWTTransitKey != "" {
+		// The private key stays in OpenBao Transit; the JWKS lists its public key versions.
+		signer, err = jwt.NewTransitSigner(ctx, bao.Transit(cfg.OpenBaoTransitMount, cfg.JWTTransitKey), cfg.TransitKeysRefresh)
+	} else {
+		// The previous signing key stays in the JWKS for a token lifetime after the key file is rotated.
+		signer, err = jwt.NewFileSigner(cfg.JWTKeyFile, cfg.JWTTTL)
+	}
 	if err != nil {
 		return err
 	}
@@ -90,11 +103,7 @@ func run(log *slog.Logger) error {
 		DefaultToleranceBps: cfg.DefaultToleranceBps,
 		MaxToleranceBps:     cfg.MaxToleranceBps,
 	}, log)
-	if cfg.OpenBaoAddr != "" {
-		bao, err := openbao.New(openbao.Config{Addr: cfg.OpenBaoAddr, TokenFile: cfg.OpenBaoTokenFile, Mount: cfg.OpenBaoMount})
-		if err != nil {
-			return err
-		}
+	if bao != nil {
 		svc.WithSecrets(bao)
 	} else {
 		log.Warn("OPENBAO_ADDR is not set: webhook secret rotation is disabled")

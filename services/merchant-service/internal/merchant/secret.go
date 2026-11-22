@@ -16,10 +16,11 @@ const SecretPrefix = "whsec_"
 // ErrRotationUnavailable is returned when no secret store is configured.
 var ErrRotationUnavailable = errors.New("merchant: webhook secret store is not configured")
 
-// SecretStore keeps webhook signing secrets, one entry per merchant and version (OpenBao KV).
+// SecretStore keeps webhook signing secrets, one path per merchant with a version per write (OpenBao KV v2).
+// The returned version is the secret version published in merchant.updated; it grows with every write.
 // Implementations must not put the secret into returned errors.
 type SecretStore interface {
-	PutWebhookSecret(ctx context.Context, merchantID uuid.UUID, version int, secret string) error
+	PutWebhookSecret(ctx context.Context, merchantID uuid.UUID, secret string) (version int, err error)
 }
 
 // GenerateSecret returns a new 256-bit webhook secret.
@@ -43,11 +44,11 @@ func (s *Service) WithSecrets(st SecretStore) *Service {
 	return s
 }
 
-// RotateWebhookSecret writes the next secret version to the secret store and then raises
-// webhookSecretVersion, which publishes merchant.updated through the outbox (SRS 4.1.10). The merchant row is
-// locked meanwhile, so concurrent rotations get consecutive versions. If the secret store fails, nothing
-// changes; if the transaction fails after the write, the written version was never published and the next
-// rotation overwrites it.
+// RotateWebhookSecret writes a new secret to the secret store and then sets webhookSecretVersion to the
+// version the store returned (the KV version), which publishes merchant.updated through the outbox (SRS 4.1.10). The merchant row is
+// locked meanwhile, so concurrent rotations get increasing versions. If the secret store fails, nothing
+// changes; if the transaction fails after the write, that version was never published and the next
+// rotation gets a higher one.
 func (s *Service) RotateWebhookSecret(ctx context.Context, id uuid.UUID) (RotatedSecret, error) {
 	if s.secrets == nil {
 		return RotatedSecret{}, ErrRotationUnavailable
@@ -58,10 +59,14 @@ func (s *Service) RotateWebhookSecret(ctx context.Context, id uuid.UUID) (Rotate
 	}
 	var version int
 	_, err = s.store.Update(ctx, id, func(m *Merchant) error {
-		version = m.WebhookSecretVersion + 1
-		if err := s.secrets.PutWebhookSecret(ctx, id, version, secret); err != nil {
+		v, err := s.secrets.PutWebhookSecret(ctx, id, secret)
+		if err != nil {
 			return err
 		}
+		if v <= m.WebhookSecretVersion {
+			return fmt.Errorf("merchant: secret store returned version %d, not above %d", v, m.WebhookSecretVersion)
+		}
+		version = v
 		m.WebhookSecretVersion = version
 		return nil
 	})

@@ -54,7 +54,7 @@ func TestPutWebhookSecret(t *testing.T) {
 		gotPath, gotTok, gotMethod = r.URL.Path, r.Header.Get("X-Vault-Token"), r.Method
 		b, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(b, &gotBody)
-		_, _ = w.Write([]byte(`{"data":{"version":1}}`))
+		_, _ = w.Write([]byte(`{"data":{"version":7}}`))
 	}))
 	defer srv.Close()
 	tf := tokenFile(t, "tok-1")
@@ -62,20 +62,21 @@ func TestPutWebhookSecret(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.PutWebhookSecret(context.Background(), id, 2, "whsec_x"); err != nil {
-		t.Fatal(err)
+	v, err := c.PutWebhookSecret(context.Background(), id, "whsec_x")
+	if err != nil || v != 7 {
+		t.Fatalf("put: %d %v", v, err)
 	}
-	if gotMethod != http.MethodPost || gotPath != "/v1/kv/data/webhook-secrets/"+id.String()+"/2" || gotTok != "tok-1" {
+	if gotMethod != http.MethodPost || gotPath != "/v1/kv/data/webhook/"+id.String() || gotTok != "tok-1" {
 		t.Errorf("request: %s %s %q", gotMethod, gotPath, gotTok)
 	}
-	if gotBody["data"]["secret"] != "whsec_x" || gotBody["data"]["version"] != float64(2) {
+	if gotBody["data"]["secret"] != "whsec_x" || len(gotBody["data"]) != 1 {
 		t.Errorf("body: %v", gotBody)
 	}
 	// The token file is re-read on every request.
 	if err := os.WriteFile(tf, []byte("tok-2"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.PutWebhookSecret(context.Background(), id, 3, "whsec_y"); err != nil || gotTok != "tok-2" {
+	if _, err := c.PutWebhookSecret(context.Background(), id, "whsec_y"); err != nil || gotTok != "tok-2" {
 		t.Errorf("token reread: %v %q", err, gotTok)
 	}
 }
@@ -86,17 +87,30 @@ func TestPutWebhookSecretFailures(t *testing.T) {
 	}))
 	tf := tokenFile(t, "t")
 	c, _ := New(Config{Addr: srv.URL, TokenFile: tf})
-	err := c.PutWebhookSecret(context.Background(), uuid.New(), 2, "whsec_SECRET")
+	_, err := c.PutWebhookSecret(context.Background(), uuid.New(), "whsec_SECRET")
 	if !errors.Is(err, ErrUnavailable) || strings.Contains(err.Error(), "whsec_SECRET") {
 		t.Errorf("sealed: %v", err)
 	}
 	srv.Close()
-	err = c.PutWebhookSecret(context.Background(), uuid.New(), 2, "whsec_SECRET")
+	_, err = c.PutWebhookSecret(context.Background(), uuid.New(), "whsec_SECRET")
 	if !errors.Is(err, ErrUnavailable) || strings.Contains(err.Error(), "whsec_SECRET") {
 		t.Errorf("closed: %v", err)
 	}
 	c2, _ := New(Config{Addr: srv.URL, TokenFile: filepath.Join(t.TempDir(), "none")})
-	if err := c2.PutWebhookSecret(context.Background(), uuid.New(), 2, "s"); !errors.Is(err, ErrUnavailable) {
+	if _, err := c2.PutWebhookSecret(context.Background(), uuid.New(), "s"); !errors.Is(err, ErrUnavailable) {
 		t.Errorf("no token file: %v", err)
+	}
+}
+
+func TestPutWebhookSecretBadResponse(t *testing.T) {
+	for name, body := range map[string]string{"no version": `{"data":{}}`, "not json": `x`} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(body))
+		}))
+		c, _ := New(Config{Addr: srv.URL, TokenFile: tokenFile(t, "t")})
+		if _, err := c.PutWebhookSecret(context.Background(), uuid.New(), "s"); !errors.Is(err, ErrUnavailable) {
+			t.Errorf("%s: %v", name, err)
+		}
+		srv.Close()
 	}
 }

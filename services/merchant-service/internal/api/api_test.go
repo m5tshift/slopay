@@ -507,14 +507,16 @@ func TestRotateWebhookSecretNotImplemented(t *testing.T) {
 type fakeSecrets struct {
 	got map[int]string
 	err error
+	n   int
 }
 
-func (f *fakeSecrets) PutWebhookSecret(_ context.Context, _ uuid.UUID, version int, secret string) error {
+func (f *fakeSecrets) PutWebhookSecret(_ context.Context, _ uuid.UUID, secret string) (int, error) {
 	if f.err != nil {
-		return f.err
+		return 0, f.err
 	}
-	f.got[version] = secret
-	return nil
+	f.n++
+	f.got[f.n] = secret
+	return f.n, nil
 }
 
 func TestRotateWebhookSecret(t *testing.T) {

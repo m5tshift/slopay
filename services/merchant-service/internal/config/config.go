@@ -24,8 +24,16 @@ type Config struct {
 	// Postgres is read by storage.PostgresConfigFromEnv("POSTGRES").
 	Postgres storage.PostgresConfig
 
-	// JWTKeyFile is the mounted ECDSA P-256 private key in PEM (JWT_SIGNING_KEY_FILE, required).
+	// JWTKeyFile is the mounted ECDSA P-256 private key in PEM (JWT_SIGNING_KEY_FILE). It is the signing
+	// mode of the minimal stand and is required unless JWTTransitKey is set.
 	JWTKeyFile string
+	// JWTTransitKey is the name of the OpenBao Transit key (ECDSA P-256) that signs the JWTs
+	// (JWT_TRANSIT_KEY, normally merchant-jwt). It excludes JWT_SIGNING_KEY_FILE and needs OPENBAO_ADDR.
+	JWTTransitKey string
+	// OpenBaoTransitMount is the Transit mount (OPENBAO_TRANSIT_MOUNT, default "transit").
+	OpenBaoTransitMount string
+	// TransitKeysRefresh is how long the Transit public keys are cached (TRANSIT_KEYS_REFRESH, default 1m).
+	TransitKeysRefresh time.Duration
 	// JWTIssuer is the iss claim checked by the gateway (JWT_ISSUER, default weigate-merchant-service).
 	JWTIssuer string
 	// JWTTTL is the token lifetime (JWT_TTL, SRS 4.1.10: 15m).
@@ -64,7 +72,10 @@ func FromEnv() (Config, error) {
 		LogLevel:     envOr("LOG_LEVEL", "info"),
 		KafkaBrokers: splitList(os.Getenv("KAFKA_BROKERS")),
 		JWTKeyFile:   os.Getenv("JWT_SIGNING_KEY_FILE"),
-		JWTIssuer:    envOr("JWT_ISSUER", "weigate-merchant-service"),
+
+		JWTTransitKey:       os.Getenv("JWT_TRANSIT_KEY"),
+		OpenBaoTransitMount: envOr("OPENBAO_TRANSIT_MOUNT", "transit"),
+		JWTIssuer:           envOr("JWT_ISSUER", "weigate-merchant-service"),
 
 		OpenBaoAddr:      os.Getenv("OPENBAO_ADDR"),
 		OpenBaoTokenFile: os.Getenv("OPENBAO_TOKEN_FILE"),
@@ -76,8 +87,13 @@ func FromEnv() (Config, error) {
 	if len(c.KafkaBrokers) == 0 {
 		errs = append(errs, errors.New("KAFKA_BROKERS is required"))
 	}
-	if c.JWTKeyFile == "" {
-		errs = append(errs, errors.New("JWT_SIGNING_KEY_FILE is required"))
+	switch {
+	case c.JWTKeyFile != "" && c.JWTTransitKey != "":
+		errs = append(errs, errors.New("JWT_SIGNING_KEY_FILE and JWT_TRANSIT_KEY are mutually exclusive"))
+	case c.JWTKeyFile == "" && c.JWTTransitKey == "":
+		errs = append(errs, errors.New("JWT_SIGNING_KEY_FILE or JWT_TRANSIT_KEY is required"))
+	case c.JWTTransitKey != "" && c.OpenBaoAddr == "":
+		errs = append(errs, errors.New("JWT_TRANSIT_KEY requires OPENBAO_ADDR"))
 	}
 	pg, err := storage.PostgresConfigFromEnv("POSTGRES")
 	errs = append(errs, err)
@@ -86,6 +102,8 @@ func FromEnv() (Config, error) {
 	c.JWTTTL, err = duration("JWT_TTL", 15*time.Minute)
 	errs = append(errs, err)
 	c.JWKSMaxAge, err = duration("JWKS_MAX_AGE", 5*time.Minute)
+	errs = append(errs, err)
+	c.TransitKeysRefresh, err = duration("TRANSIT_KEYS_REFRESH", time.Minute)
 	errs = append(errs, err)
 	c.KeyRotationGrace, err = duration("API_KEY_ROTATION_GRACE", 24*time.Hour)
 	errs = append(errs, err)

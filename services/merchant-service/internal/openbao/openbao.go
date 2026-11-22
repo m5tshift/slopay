@@ -1,5 +1,6 @@
-// Package openbao is a minimal client of the OpenBao KV v2 engine: it writes webhook signing secrets
-// (SRS 4.1.10, INF-2.4). webhook-service reads them by the version carried in merchant.updated.
+// Package openbao is a minimal client of OpenBao: the KV v2 engine for webhook signing secrets and the
+// Transit engine for the JWT signing key (SRS 4.1.10, INF-2.4). webhook-service reads the secrets by the
+// version carried in merchant.updated.
 package openbao
 
 import (
@@ -18,8 +19,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// SecretsPrefix is the path prefix inside the KV mount: <mount>/data/webhook-secrets/<merchantId>/<version>.
-const SecretsPrefix = "webhook-secrets"
+// SecretsPrefix is the path prefix inside the KV mount: <mount>/data/webhook/<merchantId>.
+const SecretsPrefix = "webhook"
 
 // ErrUnavailable is returned when OpenBao cannot take the secret (sealed, unreachable, token rejected).
 // It never contains the secret.
@@ -63,40 +64,64 @@ func New(cfg Config) (*Client, error) {
 	return &Client{cfg: cfg, base: u}, nil
 }
 
-// Path is the KV v2 API path of one version of a merchant secret.
-func Path(mount string, merchantID uuid.UUID, version int) string {
-	return fmt.Sprintf("/v1/%s/data/%s/%s/%d", strings.Trim(mount, "/"), SecretsPrefix, merchantID, version)
+// Path is the KV v2 API path of the webhook secret of a merchant. Every write creates a new KV version.
+func Path(mount string, merchantID uuid.UUID) string {
+	return fmt.Sprintf("/v1/%s/data/%s/%s", strings.Trim(mount, "/"), SecretsPrefix, merchantID)
 }
 
-// PutWebhookSecret stores the secret of the given version. Each version has its own path, so the previous
-// version stays readable for the 24 h the merchant accepts both. Writing the same version again overwrites it
-// (a version whose event was never published).
-func (c *Client) PutWebhookSecret(ctx context.Context, merchantID uuid.UUID, version int, secret string) error {
+// PutWebhookSecret writes the secret to <mount>/data/webhook/<merchantId> and returns the KV version it got.
+// That version is the secret version published in merchant.updated; older versions stay readable for the
+// 24 h the merchant accepts both.
+func (c *Client) PutWebhookSecret(ctx context.Context, merchantID uuid.UUID, secret string) (int, error) {
+	body, err := json.Marshal(map[string]any{"data": map[string]any{"secret": secret}})
+	if err != nil {
+		return 0, err
+	}
+	out, err := c.do(ctx, http.MethodPost, Path(c.cfg.Mount, merchantID), body)
+	if err != nil {
+		return 0, err
+	}
+	var resp struct {
+		Data struct {
+			Version int `json:"version"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(out, &resp); err != nil || resp.Data.Version < 1 {
+		return 0, fmt.Errorf("%w: no version in response", ErrUnavailable)
+	}
+	return resp.Data.Version, nil
+}
+
+// do sends one request with the current token and returns the body of a 2xx answer. Errors are
+// ErrUnavailable and never contain the request body.
+func (c *Client) do(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	tok, err := os.ReadFile(c.cfg.TokenFile)
 	if err != nil {
-		return fmt.Errorf("%w: read token file", ErrUnavailable)
-	}
-	body, err := json.Marshal(map[string]any{"data": map[string]any{"secret": secret, "version": version}})
-	if err != nil {
-		return err
+		return nil, fmt.Errorf("%w: read token file", ErrUnavailable)
 	}
 	u := *c.base
-	u.Path = strings.TrimRight(u.Path, "/") + Path(c.cfg.Mount, merchantID, version)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
+	u.Path = strings.TrimRight(u.Path, "/") + path
+	var rd io.Reader
+	if body != nil {
+		rd = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u.String(), rd)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("X-Vault-Token", strings.TrimSpace(string(tok)))
-	req.Header.Set("Content-Type", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 	resp, err := c.cfg.HTTP.Do(req)
 	if err != nil {
-		// The transport error may quote the URL, not the secret; keep only the fact.
-		return fmt.Errorf("%w: request failed", ErrUnavailable)
+		// The transport error may quote the URL, not the body; keep only the fact.
+		return nil, fmt.Errorf("%w: request failed", ErrUnavailable)
 	}
 	defer func() { _ = resp.Body.Close() }()
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<16))
+	out, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if resp.StatusCode/100 != 2 {
-		return fmt.Errorf("%w: status %d", ErrUnavailable, resp.StatusCode)
+		return nil, fmt.Errorf("%w: status %d", ErrUnavailable, resp.StatusCode)
 	}
-	return nil
+	return out, nil
 }
