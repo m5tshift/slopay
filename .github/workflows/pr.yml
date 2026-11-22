@@ -176,6 +176,20 @@ jobs:
       - name: Test USDT contract (forge test)
         run: make erc20-test
 
+  c4:
+    name: c4
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate the C4 model (structurizr/cli 2025.11.09)
+        run: >-
+          docker run --rm -v "$PWD:/work" -w /work
+          structurizr/cli@sha256:0399ac8e24c16e41277cfcec22caa29e4775013e5395c0720016828426d62749
+          validate -workspace docs/architecture/workspace.dsl
+
   policy:
     name: policy
     runs-on: ubuntu-latest
