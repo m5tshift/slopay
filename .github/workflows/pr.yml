@@ -155,6 +155,8 @@ jobs:
         run: make bootstrap-check
       - name: Stand secrets (shellcheck, script on a fake kubectl)
         run: make stand-secrets-check
+      - name: Karpenter KWOK build (shellcheck, script on fake git and ko)
+        run: make karpenter-kwok-check
       - name: Deploy runbook matches infra
         run: make runbook-check
       - name: Install actionlint

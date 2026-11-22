@@ -1,7 +1,7 @@
 # Targets mirror the "Команды" section of AGENTS.md.
 # Targets for directories that do not exist yet skip without error.
 
-.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint ansible-test bootstrap-check stand-secrets-check runbook-check ci-check erc20-test precommit
+.PHONY: build generate-check lint test test-integration helm-lint tf-validate ansible-lint ansible-test bootstrap-check stand-secrets-check karpenter-kwok-check runbook-check ci-check erc20-test precommit
 
 build:
 	go build ./...
@@ -76,6 +76,15 @@ stand-secrets-check:
 	elif [ -n "$$CI" ]; then echo "stand-secrets-check: shellcheck is required in CI"; exit 1; \
 	else echo "stand-secrets-check: shellcheck not installed, skipping it"; fi; \
 	infra/stand-secrets/test.sh
+
+# infra/karpenter-kwok: shellcheck and build.sh against a fake git and ko; no network, no registry.
+karpenter-kwok-check:
+	@if [ ! -d infra/karpenter-kwok ]; then echo "karpenter-kwok-check: no infra/karpenter-kwok/, skipping"; exit 0; fi; \
+	set -e; \
+	if command -v shellcheck >/dev/null; then shellcheck infra/karpenter-kwok/*.sh; \
+	elif [ -n "$$CI" ]; then echo "karpenter-kwok-check: shellcheck is required in CI"; exit 1; \
+	else echo "karpenter-kwok-check: shellcheck not installed, skipping it"; fi; \
+	infra/karpenter-kwok/test.sh
 
 # docs/runbooks: commands and paths of the deploy runbook match infra/ and .github/; needs grep only.
 runbook-check:
