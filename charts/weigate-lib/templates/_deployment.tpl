@@ -112,8 +112,8 @@ spec:
       {{- end }}
     spec:
       serviceAccountName: {{ include "weigate-lib.serviceAccountName" . }}
-      # The Kubernetes API is needed only for the leader Lease (pkg/leader).
-      automountServiceAccountToken: {{ $v.leader.enabled }}
+      # The Kubernetes API is needed for the leader Lease (pkg/leader) and for the login of the token sidecar.
+      automountServiceAccountToken: {{ or $v.leader.enabled $v.openbao.enabled }}
       terminationGracePeriodSeconds: {{ $v.terminationGracePeriodSeconds }}
       {{- with $v.imagePullSecrets }}
       imagePullSecrets:
@@ -126,6 +126,35 @@ spec:
         fsGroup: 65532
         seccompProfile:
           type: RuntimeDefault
+      {{- if $v.openbao.enabled }}
+      # Native sidecar: the startup probe holds back the application until the token file exists.
+      initContainers:
+        - name: openbao-agent
+          image: "{{ $v.openbao.image.repository }}:{{ $v.openbao.image.tag }}@{{ $v.openbao.image.digest }}"
+          imagePullPolicy: {{ $v.image.pullPolicy }}
+          restartPolicy: Always
+          args: ["agent", "-config=/etc/openbao-agent/agent.hcl"]
+          startupProbe:
+            exec:
+              command: ["test", "-s", "/var/run/secrets/weigate/openbao/token"]
+            periodSeconds: 2
+            failureThreshold: 60
+          resources:
+            {{- toYaml $v.openbao.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: openbao-token
+              mountPath: /var/run/secrets/weigate/openbao
+            - name: openbao-agent
+              mountPath: /etc/openbao-agent
+              readOnly: true
+      {{- end }}
       containers:
         - name: {{ include "weigate-lib.fullname" . }}
           image: "{{ $v.image.repository }}:{{ $v.image.tag }}"
@@ -175,6 +204,11 @@ spec:
               mountPath: {{ include "weigate-lib.secretDir" .name }}
               readOnly: true
             {{- end }}
+            {{- if $v.openbao.enabled }}
+            - name: openbao-token
+              mountPath: /var/run/secrets/weigate/openbao
+              readOnly: true
+            {{- end }}
       volumes:
         - name: tmp
           emptyDir:
@@ -184,6 +218,15 @@ spec:
           secret:
             secretName: {{ include "weigate-lib.secretName" (dict "ctx" $ "s" .) }}
             defaultMode: 0440
+        {{- end }}
+        {{- if $v.openbao.enabled }}
+        - name: openbao-token
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
+        - name: openbao-agent
+          configMap:
+            name: {{ include "weigate-lib.fullname" . }}-openbao-agent
         {{- end }}
       {{- if $v.topologySpread.enabled }}
       topologySpreadConstraints:

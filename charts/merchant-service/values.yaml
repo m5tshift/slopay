@@ -31,6 +31,20 @@ postgres:
     secret: postgres
     key: password
 
+# Transit mode (SRS INF-2.4): JWTs are signed by OpenBao Transit, webhook secrets go to KV v2. Needs the
+# Kubernetes-auth role merchant-service of the Terraform layer openbao, so it is off until OpenBao is ready.
+# Set openbao.enabled and openbao.addr; the signing key file and its Secret are dropped then.
+openbao:
+  enabled: false
+  addr: ""
+  role: merchant-service
+  env:
+    JWT_TRANSIT_KEY: merchant-jwt
+  omitSecrets:
+    - jwt-signing
+  omitEnv:
+    - JWT_SIGNING_KEY_FILE
+
 env:
   JWT_SIGNING_KEY_FILE: /var/run/secrets/weigate/jwt-signing/private.pem
   JWT_ISSUER: weigate-merchant-service

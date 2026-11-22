@@ -55,7 +55,7 @@ Istio, ExternalSecret и ServiceMonitor по умолчанию выключен
 - `resources.requests` и `resources.limits` для `cpu` и `memory` обязательны (SRS 6.2): без них рендер падает.
 - При включённом HPA поле `replicas` не задаётся, по умолчанию 2 реплики (SRS 6.3).
 - Пользователь 65532 (distroless `nonroot`), корневая ФС только на чтение, запись — в `/tmp` (emptyDir).
-- Токен ServiceAccount монтируется только при `leader.enabled`: API Kubernetes нужен лишь для Lease.
+- Токен ServiceAccount монтируется только при `leader.enabled` (Lease) или `openbao.enabled` (вход sidecar).
 - Реплики разносятся по узлам (`topologySpread.enabled`, мягкое ограничение).
 
 ## Переменные окружения
@@ -100,6 +100,25 @@ postgres:
 Секрет монтируется каталогом, без `subPath`: kubelet обновляет файл после ротации пароля, и сервис
 перечитывает его без рестарта (SRS INF-2.4). `refreshInterval` ExternalSecret по умолчанию — 1 мин.
 Ссылка `password.secret` на секрет, которого нет в `secrets`, — ошибка рендера.
+
+## Токен OpenBao
+
+Для компонентов, которые ходят в OpenBao сами (Transit, KV). По умолчанию выключено.
+
+```yaml
+openbao:
+  enabled: true
+  addr: http://openbao.secrets.svc:8200
+  role: merchant-service        # роль Kubernetes auth; по умолчанию имя компонента
+  env: {JWT_TRANSIT_KEY: merchant-jwt}   # добавляется в env
+  omitSecrets: [jwt-signing]    # эти secrets не монтируются и не создаются
+  omitEnv: [JWT_SIGNING_KEY_FILE]
+```
+
+Native sidecar (`initContainers` с `restartPolicy: Always`, образ сервера OpenBao с закреплённым digest)
+входит по Kubernetes auth и пишет токен в `/var/run/secrets/weigate/openbao/token` (emptyDir в памяти).
+Startup probe sidecar ждёт файл, поэтому приложение стартует уже с токеном. В env добавляются
+`OPENBAO_ADDR` и `OPENBAO_TOKEN_FILE`; создаётся ConfigMap `<компонент>-openbao-agent`.
 
 ## Istio (SRS 4.1.9, INF-3.1)
 

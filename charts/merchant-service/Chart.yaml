@@ -2,7 +2,7 @@ apiVersion: v2
 name: merchant-service
 description: Weigate merchant-service - merchants, API keys, JWT, xpub and webhook settings (SRS 4.1.10)
 type: application
-version: 0.1.2
+version: 0.1.3
 appVersion: "0.1.0"
 dependencies:
   - name: weigate-lib

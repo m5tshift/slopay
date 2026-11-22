@@ -64,6 +64,30 @@ telemetry:
   traceSampleRatio: ""
 env: {}
 extraEnv: []
+# Token of the OpenBao Kubernetes-auth role for components that call OpenBao themselves (SRS INF-2.4):
+# a bao agent native sidecar logs in and writes the token to a file shared through an emptyDir.
+# When enabled: the ServiceAccount token is mounted, env gets OPENBAO_ADDR, OPENBAO_TOKEN_FILE and
+# openbao.env; secrets named in omitSecrets and env keys in omitEnv are dropped.
+openbao:
+  enabled: false
+  addr: ""
+  # Kubernetes-auth role; the component name by default.
+  role: ""
+  authPath: auth/kubernetes
+  image:
+    repository: quay.io/openbao/openbao
+    tag: 2.7.3
+    digest: sha256:ba4b133eb9586630024e71a617e66f37f29cc3534cdd46a6233e098ceded8dc9
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 96Mi
+  env: {}
+  omitSecrets: []
+  omitEnv: []
 secretStore:
   kind: ClusterSecretStore
   name: openbao
@@ -127,5 +151,17 @@ istio:
 {{/* Defaults merged with the consumer's values, as YAML. Use: $v := include "weigate-lib.values" . | fromYaml */}}
 {{- define "weigate-lib.values" -}}
 {{- $defaults := include "weigate-lib.defaults" . | fromYaml -}}
-{{- toYaml (mergeOverwrite $defaults (deepCopy .Values)) -}}
+{{- $v := mergeOverwrite $defaults (deepCopy .Values) -}}
+{{- if $v.openbao.enabled -}}
+{{- $keep := list -}}
+{{- range $v.secrets -}}
+{{- if not (has .name $v.openbao.omitSecrets) -}}{{- $keep = append $keep . -}}{{- end -}}
+{{- end -}}
+{{- $_ := set $v "secrets" $keep -}}
+{{- range $v.openbao.omitEnv -}}{{- $_ := unset $v.env . -}}{{- end -}}
+{{- $_ := set $v.env "OPENBAO_ADDR" $v.openbao.addr -}}
+{{- $_ := set $v.env "OPENBAO_TOKEN_FILE" "/var/run/secrets/weigate/openbao/token" -}}
+{{- range $k, $val := $v.openbao.env -}}{{- $_ := set $v.env $k $val -}}{{- end -}}
+{{- end -}}
+{{- toYaml $v -}}
 {{- end -}}
