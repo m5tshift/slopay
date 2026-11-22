@@ -24,10 +24,14 @@ resource "helm_release" "cilium" {
         cleanCiliumState = ["NET_ADMIN", "SYS_ADMIN", "SYS_RESOURCE"]
       }
     }
+    # Metrics for the OTel Collector of weigate-gitops (SRS 4.5.3, item 7): agent :9962, operator :9963, Hubble :9965.
+    prometheus = { enabled = true }
+    operator   = { prometheus = { enabled = true } }
     hubble = {
       enabled = true
       relay   = { enabled = true }
       ui      = { enabled = true }
+      metrics = { enabled = ["dns", "drop", "tcp", "flow", "port-distribution", "icmp", "httpV2"] }
     }
   })]
 }

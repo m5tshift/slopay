@@ -6,7 +6,7 @@ INF-2.1, INF-2.2, 4.4). Состояние локальное, вне Git. Сл�
 
 | Файл | Назначение |
 |---|---|
-| `cilium.tf` | Cilium и Hubble (`kubeProxyReplacement`, `cni.exclusive=false`, `socketLB.hostNamespaceOnly=true`); только при `install_cilium` (полный стенд) |
+| `cilium.tf` | Cilium и Hubble (`kubeProxyReplacement`, `cni.exclusive=false`, `socketLB.hostNamespaceOnly=true`), метрики агента, operator и Hubble для OTel Collector; только при `install_cilium` (полный стенд) |
 | `namespaces.tf` | неймспейсы из `infra/bootstrap/namespaces.yaml`; ServiceAccount, Role, RoleBinding `agent-reader` в `apps` |
 | `argocd.tf` | ArgoCD (чарт и values из `infra/bootstrap`) и root Application на `weigate-gitops` через чарт `argocd-apps` |
 | `minimal.tfvars.example`, `full.tfvars.example` | параметры минимального и полного стенда |
