@@ -31,7 +31,7 @@ func newClient(t *testing.T, h http.HandlerFunc, token string) *Client {
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	c, err := New(Config{Addr: srv.URL, TokenFile: tokenFile(t, token),
-		Backoff: storage.Backoff{Initial: time.Millisecond, Max: time.Millisecond, Total: 50 * time.Millisecond}})
+		Backoff: storage.Backoff{Initial: time.Millisecond, Max: time.Millisecond, Total: 5 * time.Second}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,10 +98,10 @@ func TestSecretRereadsTokenAfterDenied(t *testing.T) {
 	var file string
 	c := newClient(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-Vault-Token") != "new" {
-			w.WriteHeader(http.StatusForbidden)
 			if err := os.WriteFile(file, []byte("new"), 0o600); err != nil {
 				t.Error(err)
 			}
+			w.WriteHeader(http.StatusForbidden)
 			return
 		}
 		_, _ = w.Write([]byte(`{"data":{"data":{"secret":"s"},"metadata":{"version":1}}}`))
@@ -114,6 +114,7 @@ func TestSecretRereadsTokenAfterDenied(t *testing.T) {
 
 func TestSecretDeniedGivesUp(t *testing.T) {
 	c := newClient(t, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusForbidden) }, "s3cr3t-value")
+	c.cfg.Backoff.Total = 20 * time.Millisecond
 	_, err := c.Secret(context.Background(), merchant, 1)
 	if !errors.Is(err, ErrUnavailable) || strings.Contains(err.Error(), "s3cr3t-value") {
 		t.Errorf("err = %v", err)
