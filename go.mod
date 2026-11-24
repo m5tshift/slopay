@@ -21,8 +21,8 @@ require (
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.45.0
 	github.com/twmb/franz-go v1.22.3
 	github.com/twmb/franz-go/pkg/kmsg v1.15.1
-	github.com/valkey-io/valkey-go v1.0.79
-	github.com/valkey-io/valkey-go/mock v1.0.79
+	github.com/valkey-io/valkey-go v1.0.80
+	github.com/valkey-io/valkey-go/mock v1.0.80
 	go.mongodb.org/mongo-driver/v2 v2.10.0
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.47.0
