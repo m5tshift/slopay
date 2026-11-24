@@ -76,6 +76,10 @@ resource "vault_policy" "eso_read" {
     path "secret/data/garage/*"       { capabilities = ["read"] }
     path "secret/data/grafana/*"      { capabilities = ["read"] }
     path "secret/data/alertmanager/*" { capabilities = ["read"] }
+    path "secret/data/clickhouse/*"   { capabilities = ["read"] }
+    path "secret/data/mongodb/*"      { capabilities = ["read"] }
+    path "secret/data/valkey/*"       { capabilities = ["read"] }
+    path "secret/data/ci/*"           { capabilities = ["read"] }
     path "database/static-creds/*"    { capabilities = ["read"] }
   EOT
 }

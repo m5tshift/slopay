@@ -1,0 +1,22 @@
+# Full stand (SRS 6.3): adds ledger-pg (static role ledger-service) on top of the minimal stand clusters.
+openbao_addr = "http://127.0.0.1:8200"
+# kubernetes_host defaults to https://kubernetes.default.svc
+# vault_admin_passwords (merchant-pg, invoice-pg, ledger-pg) and the provider token come from the environment (see README).
+
+postgres_clusters = {
+  merchant-pg = {
+    host         = "merchant-pg-rw.data.svc"
+    database     = "merchant"
+    static_roles = { merchant-service = "merchant-service" }
+  }
+  invoice-pg = {
+    host         = "invoice-pg-rw.data.svc"
+    database     = "invoice"
+    static_roles = { invoice-service = "invoice-service" }
+  }
+  ledger-pg = {
+    host         = "ledger-pg-rw.data.svc"
+    database     = "ledger"
+    static_roles = { ledger-service = "ledger-service" }
+  }
+}

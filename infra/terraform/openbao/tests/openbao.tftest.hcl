@@ -26,8 +26,8 @@ run "kubernetes_auth_and_policies" {
     error_message = "kubernetes auth role external-secrets in namespace secrets expected"
   }
   assert {
-    condition     = strcontains(vault_policy.eso_read.policy, "secret/data/garage/*")
-    error_message = "eso-read must read garage/*"
+    condition     = strcontains(vault_policy.eso_read.policy, "secret/data/garage/*") && strcontains(vault_policy.eso_read.policy, "secret/data/clickhouse/*") && strcontains(vault_policy.eso_read.policy, "secret/data/mongodb/*") && strcontains(vault_policy.eso_read.policy, "secret/data/valkey/*") && strcontains(vault_policy.eso_read.policy, "secret/data/ci/*")
+    error_message = "eso-read must read garage/*, clickhouse/*, mongodb/*, valkey/* and ci/*"
   }
   assert {
     condition     = !strcontains(vault_policy.webhook_service.policy, "create") && strcontains(vault_policy.merchant_service.policy, "secret/data/webhook/*")
@@ -41,5 +41,35 @@ run "static_roles" {
   assert {
     condition     = length(vault_database_secret_backend_static_role.pg) == 2 && alltrue([for r in vault_database_secret_backend_static_role.pg : r.rotation_period == 86400])
     error_message = "Static roles rotate every 24 h"
+  }
+}
+
+run "static_roles_full" {
+  command = plan
+
+  variables {
+    postgres_clusters = {
+      merchant-pg = {
+        host         = "merchant-pg-rw.data.svc"
+        database     = "merchant"
+        static_roles = { merchant-service = "merchant-service" }
+      }
+      invoice-pg = {
+        host         = "invoice-pg-rw.data.svc"
+        database     = "invoice"
+        static_roles = { invoice-service = "invoice-service" }
+      }
+      ledger-pg = {
+        host         = "ledger-pg-rw.data.svc"
+        database     = "ledger"
+        static_roles = { ledger-service = "ledger-service" }
+      }
+    }
+    vault_admin_passwords = { merchant-pg = "x", invoice-pg = "y", ledger-pg = "z" }
+  }
+
+  assert {
+    condition     = length(vault_database_secret_backend_static_role.pg) == 3 && contains(keys(vault_database_secret_backend_static_role.pg), "ledger-service") && alltrue([for r in vault_database_secret_backend_static_role.pg : r.rotation_period == 86400])
+    error_message = "Full stand adds ledger-pg static role rotating every 24 h"
   }
 }
