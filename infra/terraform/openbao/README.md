@@ -8,9 +8,9 @@
 |---|---|
 | KV v2 | mount `secret` |
 | Kubernetes auth | mount `kubernetes`; роли `external-secrets` (SA в `secrets`), `merchant-service`, `webhook-service` (SA в `apps`) |
-| Политики | `eso-read`: `secret/data/{garage,grafana,alertmanager}/*`, `database/static-creds/*`; `merchant-service`: запись `secret/data/webhook/*`, подпись `transit/sign/merchant-jwt`; `webhook-service`: чтение `secret/data/webhook/*` |
+| Политики | `eso-read`: `secret/data/{garage,grafana,alertmanager,clickhouse,mongodb,valkey,ci}/*`, `database/static-creds/*`; `merchant-service`: запись `secret/data/webhook/*`, подпись `transit/sign/merchant-jwt`; `webhook-service`: чтение `secret/data/webhook/*` |
 | Transit | ключ `merchant-jwt` (ECDSA P-256, не экспортируется) |
-| Database | подключения к `merchant-pg` и `invoice-pg`, статические роли `merchant-service` и `invoice-service`, ротация 24 ч |
+| Database | подключения к `merchant-pg` и `invoice-pg` по умолчанию (плюс `ledger-pg` в `full.tfvars.example`), статические роли с ротацией 24 ч |
 
 Значения секретов в Terraform не задаются: Transit-ключ и пароли статических ролей генерирует OpenBao,
 `webhook/<merchantId>` записывает `merchant-service`. В state попадает только пароль роли `vault-admin`
