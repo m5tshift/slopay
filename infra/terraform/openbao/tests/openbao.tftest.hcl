@@ -26,8 +26,8 @@ run "kubernetes_auth_and_policies" {
     error_message = "kubernetes auth role external-secrets in namespace secrets expected"
   }
   assert {
-    condition     = strcontains(vault_policy.eso_read.policy, "secret/data/garage/*") && strcontains(vault_policy.eso_read.policy, "secret/data/clickhouse/*") && strcontains(vault_policy.eso_read.policy, "secret/data/mongodb/*") && strcontains(vault_policy.eso_read.policy, "secret/data/valkey/*") && strcontains(vault_policy.eso_read.policy, "secret/data/ci/*")
-    error_message = "eso-read must read garage/*, clickhouse/*, mongodb/*, valkey/* and ci/*"
+    condition     = strcontains(vault_policy.eso_read.policy, "secret/data/garage/*") && strcontains(vault_policy.eso_read.policy, "secret/data/clickhouse/*") && strcontains(vault_policy.eso_read.policy, "secret/data/mongodb/*") && strcontains(vault_policy.eso_read.policy, "secret/data/valkey/*") && strcontains(vault_policy.eso_read.policy, "secret/data/payer-keys/*") && strcontains(vault_policy.eso_read.policy, "secret/data/ci/*")
+    error_message = "eso-read must read garage/*, clickhouse/*, mongodb/*, valkey/*, payer-keys/* and ci/*"
   }
   assert {
     condition     = !strcontains(vault_policy.webhook_service.policy, "create") && strcontains(vault_policy.merchant_service.policy, "secret/data/webhook/*")

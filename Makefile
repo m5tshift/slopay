@@ -105,7 +105,9 @@ ci-check:
 	elif [ -n "$$CI" ]; then echo "ci-check: shellcheck is required in CI"; exit 1; \
 	else echo "ci-check: shellcheck not installed, skipping it"; fi; \
 	.github/scripts/changed-components_test.sh; \
-	.github/scripts/bump-gitops-tags_test.sh
+	.github/scripts/changed-charts_test.sh; \
+	.github/scripts/bump-gitops-tags_test.sh; \
+	.github/scripts/bump-gitops-charts_test.sh
 
 # testkit/erc20: forge test; forge-std is fetched into the git-ignored lib/ on first run, needs foundry and network.
 erc20-test:

@@ -79,6 +79,7 @@ resource "vault_policy" "eso_read" {
     path "secret/data/clickhouse/*"   { capabilities = ["read"] }
     path "secret/data/mongodb/*"      { capabilities = ["read"] }
     path "secret/data/valkey/*"       { capabilities = ["read"] }
+    path "secret/data/payer-keys/*"   { capabilities = ["read"] }
     path "secret/data/ci/*"           { capabilities = ["read"] }
     path "database/static-creds/*"    { capabilities = ["read"] }
   EOT

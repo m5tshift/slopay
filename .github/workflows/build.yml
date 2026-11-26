@@ -1,5 +1,6 @@
-# Image build after merge (SRS CI-5.2) on the minimal stand (SRS 6.4): GitHub-hosted runners, images in GHCR,
-# the tag in weigate-gitops updated with a deploy key. ARC, Zot and OCI charts come later (#75, #76).
+# Image and OCI chart build after merge (SRS CI-5.1, CI-5.2, CI-5.3) on the full stand (SRS 6.3):
+# self-hosted ARC runners in namespace ci, rootless BuildKit sidecar, local Zot registry,
+# image.tag and chart targetRevision in weigate-gitops updated with a deploy key.
 # Only components affected by the push are rebuilt (AGENTS.md, "Сборка образов"); a manual run rebuilds all.
 name: build
 
@@ -10,22 +11,28 @@ on:
 
 permissions: {}
 
+env:
+  ZOT_REGISTRY: zot.registry.svc:5000/weigate
+  BUILDKIT_VERSION: 0.35.1
+  YQ_VERSION: v4.52.2
+
 jobs:
   detect:
     name: detect
-    runs-on: ubuntu-latest
+    runs-on: arc-runners
     timeout-minutes: 5
     permissions:
       contents: read
     outputs:
       components: ${{ steps.changed.outputs.components }}
+      charts: ${{ steps.changed.outputs.charts }}
       tag: ${{ steps.changed.outputs.tag }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Changed components
+      - name: Changed components and charts
         id: changed
         env:
           EVENT: ${{ github.event_name }}
@@ -33,22 +40,27 @@ jobs:
         run: |
           if [ "$EVENT" = workflow_dispatch ]; then
             components="$(.github/scripts/changed-components.sh --all)"
+            charts="$(.github/scripts/changed-charts.sh --all)"
           else
             components="$(.github/scripts/changed-components.sh "$BEFORE" "$GITHUB_SHA")"
+            charts="$(.github/scripts/changed-charts.sh "$BEFORE" "$GITHUB_SHA")"
           fi
           echo "components: $components"
-          echo "components=$components" >> "$GITHUB_OUTPUT"
-          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          echo "charts: $charts"
+          {
+            echo "components=$components"
+            echo "charts=$charts"
+            echo "tag=${GITHUB_SHA::7}"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: build (${{ matrix.component }})
     needs: detect
     if: needs.detect.outputs.components != '[]'
-    runs-on: ubuntu-latest
+    runs-on: arc-runners
     timeout-minutes: 30
     permissions:
       contents: read
-      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -70,34 +82,69 @@ jobs:
           done
           echo "no Dockerfile for $COMPONENT" >&2
           exit 1
-      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4.8.0
+      - name: Install buildctl
+        run: |
+          if command -v buildctl >/dev/null 2>&1; then exit 0; fi
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSfL "https://github.com/moby/buildkit/releases/download/v${BUILDKIT_VERSION}/buildkit-v${BUILDKIT_VERSION}.linux-amd64.tar.gz" |
+            tar -xz -C "$RUNNER_TEMP/bin" --strip-components=1 bin/buildctl
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      # BuildKit runs rootless as a sidecar of the ARC runner pod (platform/arc/runners/values.yaml).
+      - name: Build and push image to Zot
+        env:
+          COMPONENT: ${{ matrix.component }}
+          DOCKERFILE: ${{ steps.dockerfile.outputs.path }}
+          TAG: ${{ needs.detect.outputs.tag }}
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          buildctl --addr "${BUILDKIT_HOST:-unix:///run/buildkit/buildkitd.sock}" build \
+            --frontend dockerfile.v0 \
+            --local context=. \
+            --local dockerfile=. \
+            --opt "filename=${DOCKERFILE}" \
+            --opt platform=linux/amd64 \
+            --opt "label:org.opencontainers.image.source=${SOURCE_URL}" \
+            --opt "label:org.opencontainers.image.revision=${REVISION}" \
+            --output "type=image,name=${ZOT_REGISTRY}/${COMPONENT}:${TAG},push=true,registry.insecure=true"
+
+  charts:
+    name: charts (${{ matrix.chart }})
+    needs: detect
+    if: needs.detect.outputs.charts != '[]'
+    runs-on: arc-runners
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        chart: ${{ fromJSON(needs.detect.outputs.charts) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
-      # The stand runs on amd64, the default platform of the runner.
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
+          persist-credentials: false
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e  # v5.1.0
         with:
-          context: .
-          file: ${{ steps.dockerfile.outputs.path }}
-          platforms: linux/amd64
-          push: true
-          provenance: false
-          tags: ghcr.io/${{ github.repository }}/${{ matrix.component }}:${{ needs.detect.outputs.tag }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-          cache-from: type=gha,scope=${{ matrix.component }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+          version: v4.3.2
+      - name: Package and push OCI chart to Zot
+        env:
+          CHART: ${{ matrix.chart }}
+        run: |
+          if grep -q '^dependencies:' "charts/${CHART}/Chart.yaml"; then
+            helm dependency build "charts/${CHART}"
+          fi
+          mkdir -p "$RUNNER_TEMP/charts"
+          helm package "charts/${CHART}" -d "$RUNNER_TEMP/charts"
+          helm push --plain-http "$RUNNER_TEMP/charts/${CHART}"-*.tgz "oci://${ZOT_REGISTRY}/charts"
 
   # Pushes straight to main of weigate-gitops: the ruleset lets deploy keys bypass the PR rule,
-  # and image.tag is changed only here (weigate-gitops AGENTS.md). Runs when every build succeeded.
+  # and image.tag / chart targetRevision are changed only here (weigate-gitops AGENTS.md).
   gitops:
     name: gitops
-    needs: [detect, build]
-    if: needs.detect.outputs.components != '[]'
-    runs-on: ubuntu-latest
+    needs: [detect, build, charts]
+    if: ${{ !failure() && !cancelled() && (needs.detect.outputs.components != '[]' || needs.detect.outputs.charts != '[]') }}
+    runs-on: arc-runners
     timeout-minutes: 10
     permissions:
       contents: read
@@ -113,26 +160,46 @@ jobs:
           ref: main
           path: .gitops
           ssh-key: ${{ secrets.GITOPS_DEPLOY_KEY }}
-      - name: Update image tags
+      - name: Install yq
+        run: |
+          if command -v yq >/dev/null 2>&1; then exit 0; fi
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -sSfL -o "$RUNNER_TEMP/bin/yq" \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          chmod +x "$RUNNER_TEMP/bin/yq"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Update image tags and chart revisions
         env:
           COMPONENTS: ${{ needs.detect.outputs.components }}
+          CHARTS: ${{ needs.detect.outputs.charts }}
           TAG: ${{ needs.detect.outputs.tag }}
         run: |
           mapfile -t components < <(jq -r '.[]' <<< "$COMPONENTS")
+          mapfile -t charts < <(jq -r '.[]' <<< "$CHARTS")
           git -C .gitops config user.name "github-actions[bot]"
           git -C .gitops config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Another run may push in between: start again from the fresh main.
           for attempt in 1 2 3; do
             git -C .gitops fetch -q origin main
             git -C .gitops reset -q --hard origin/main
-            updated="$(.github/scripts/bump-gitops-tags.sh .gitops . "$TAG" "${components[@]}" | paste -sd, -)"
-            if [ -z "$updated" ]; then
+            updated_images=""
+            updated_charts=""
+            if [ "${#components[@]}" -gt 0 ]; then
+              updated_images="$(.github/scripts/bump-gitops-tags.sh .gitops . "$TAG" "${components[@]}" | paste -sd, -)"
+            fi
+            if [ "${#charts[@]}" -gt 0 ]; then
+              updated_charts="$(.github/scripts/bump-gitops-charts.sh .gitops . "${charts[@]}" | paste -sd, -)"
+            fi
+            if [ -z "$updated_images" ] && [ -z "$updated_charts" ]; then
               echo "weigate-gitops is up to date"
               exit 0
             fi
-            git -C .gitops commit -qam "chore(gitops): ${updated} image ${TAG}"
+            msg="chore(gitops):"
+            if [ -n "$updated_images" ]; then msg="$msg ${updated_images} image ${TAG}"; fi
+            if [ -n "$updated_charts" ]; then msg="$msg charts ${updated_charts}"; fi
+            git -C .gitops commit -qam "$msg"
             if git -C .gitops push -q origin HEAD:main; then
-              echo "weigate-gitops: ${updated} -> ${TAG}"
+              echo "$msg"
               exit 0
             fi
             echo "push failed (attempt $attempt), retrying"
