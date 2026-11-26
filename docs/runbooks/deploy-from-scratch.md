@@ -33,11 +33,10 @@
    Правило ветки `main` в `weigate-gitops` должно пропускать deploy key без PR.
 2. Приватную часть сохранить секретом репозитория `weigate` с именем `GITOPS_DEPLOY_KEY`: Settings, Secrets and
    variables, Actions. Файл ключа удалить или оставить вне репозитория (шаблоны `*deploy_key*` в `.gitignore`).
-3. Образы публикуются в `ghcr.io/m5tshift/weigate/<component>`. Пакет, созданный первой сборкой, приватный:
-   после первой сборки сделать каждый пакет публичным (профиль или организация, Packages, пакет,
-   Package settings, Change visibility, Public). У кластера нет `imagePullSecrets`.
-4. Первая сборка: Actions, workflow `build`, Run workflow (пересобирает все компоненты) либо любой push в `main`.
-   Job `gitops` пишет тег `<7 знаков SHA>` в `services/<component>/values.yaml` репозитория `weigate-gitops`.
+3. Образы и OCI-чарты публикуются в локальный реестр `zot.registry.svc:5000/weigate/<component>`
+   и `oci://zot.registry.svc:5000/weigate/charts` из self-hosted ARC-раннеров (`arc-runners`). У кластера нет `imagePullSecrets`.
+4. Первая сборка: Actions, workflow `build`, Run workflow (пересобирает все компоненты и публикует все чарты) либо любой push в `main`.
+   Job `gitops` пишет тег `<7 знаков SHA>` в `services/<component>/values.yaml` и `targetRevision` в `apps/services/<component>.yaml` репозитория `weigate-gitops`.
 
 Проверка: все job workflow `build` зелёные; в `weigate-gitops` есть коммит `chore(gitops): … image <тег>`;
 в списке пакетов одиннадцать: `chain-watcher`, `invoice-service`, `merchant-service`, `ledger-service`,

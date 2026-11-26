@@ -64,9 +64,8 @@ need "talos layer README" "$root/infra/terraform/talos/README.md" 'kubeconfig-ad
 # Image build and deploy key.
 in_doc 'GITOPS_DEPLOY_KEY'
 need "build workflow" "$root/.github/workflows/build.yml" 'secrets.GITOPS_DEPLOY_KEY'
-in_doc 'ghcr.io/m5tshift/weigate/<component>'
-# shellcheck disable=SC2016  # the pattern is literal workflow text
-need "build workflow" "$root/.github/workflows/build.yml" 'ghcr.io/${{ github.repository }}'
+in_doc 'zot.registry.svc:5000/weigate/<component>'
+need "build workflow" "$root/.github/workflows/build.yml" 'ZOT_REGISTRY: zot.registry.svc:5000/weigate'
 
 # Load balancer step.
 in_doc 'infra/ansible/roles/lb'
