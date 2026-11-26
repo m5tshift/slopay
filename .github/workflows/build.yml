@@ -47,9 +47,11 @@ jobs:
           fi
           echo "components: $components"
           echo "charts: $charts"
-          echo "components=$components" >> "$GITHUB_OUTPUT"
-          echo "charts=$charts" >> "$GITHUB_OUTPUT"
-          echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          {
+            echo "components=$components"
+            echo "charts=$charts"
+            echo "tag=${GITHUB_SHA::7}"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: build (${{ matrix.component }})
