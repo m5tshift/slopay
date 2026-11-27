@@ -1,12 +1,22 @@
 locals {
   eso_namespace  = "secrets"
   apps_namespace = "apps"
+  data_namespace = "data"
 
   static_roles = merge([
     for cluster, c in var.postgres_clusters : {
       for role, user in c.static_roles : role => { cluster = cluster, user = user }
     }
   ]...)
+
+  vault_admin_passwords = {
+    for cluster, _ in var.postgres_clusters :
+    cluster => (
+      var.manage_vault_admin_secrets
+      ? try(random_password.vault_admin[cluster].result, "")
+      : try(var.vault_admin_passwords[cluster], "")
+    )
+  }
 }
 
 resource "vault_mount" "kv" {
@@ -34,6 +44,37 @@ resource "vault_mount" "database" {
   type = "database"
 }
 
+# Optional IaC management of <cluster>-vault-admin Secrets for CNPG managed roles.
+# Passwords are rotated via `bao write -f database/rotate-root/<cluster>` right after apply.
+resource "random_password" "vault_admin" {
+  for_each = var.manage_vault_admin_secrets ? var.postgres_clusters : {}
+
+  length  = 24
+  special = false
+}
+
+resource "kubernetes_secret_v1" "vault_admin" {
+  for_each = var.manage_vault_admin_secrets ? var.postgres_clusters : {}
+
+  metadata {
+    name      = "${each.key}-vault-admin"
+    namespace = local.data_namespace
+  }
+  type = "kubernetes.io/basic-auth"
+  data = {
+    username = "vault-admin"
+    password = random_password.vault_admin[each.key].result
+  }
+}
+
+# Wait for the CNPG role controller to reconcile vault-admin passwords into PostgreSQL before OpenBao verifies them.
+resource "time_sleep" "cnpg_roles" {
+  count = var.manage_vault_admin_secrets ? 1 : 0
+
+  create_duration = "15s"
+  depends_on      = [kubernetes_secret_v1.vault_admin]
+}
+
 resource "vault_database_secret_backend_connection" "pg" {
   for_each = var.postgres_clusters
 
@@ -45,8 +86,10 @@ resource "vault_database_secret_backend_connection" "pg" {
   postgresql {
     connection_url = "postgresql://{{username}}:{{password}}@${each.value.host}:5432/${each.value.database}"
     username       = "vault-admin"
-    password       = var.vault_admin_passwords[each.key]
+    password       = local.vault_admin_passwords[each.key]
   }
+
+  depends_on = [time_sleep.cnpg_roles]
 }
 
 resource "vault_database_secret_backend_static_role" "pg" {
@@ -79,6 +122,7 @@ resource "vault_policy" "eso_read" {
     path "secret/data/clickhouse/*"   { capabilities = ["read"] }
     path "secret/data/mongodb/*"      { capabilities = ["read"] }
     path "secret/data/valkey/*"       { capabilities = ["read"] }
+    path "secret/data/anvil/*"        { capabilities = ["read"] }
     path "secret/data/payer-keys/*"   { capabilities = ["read"] }
     path "secret/data/ci/*"           { capabilities = ["read"] }
     path "database/static-creds/*"    { capabilities = ["read"] }

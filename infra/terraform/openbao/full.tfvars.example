@@ -1,7 +1,10 @@
-# Full stand (SRS 6.3): adds ledger-pg (static role ledger-service) on top of the minimal stand clusters.
-openbao_addr = "http://127.0.0.1:8200"
-# kubernetes_host defaults to https://kubernetes.default.svc
-# vault_admin_passwords (merchant-pg, invoice-pg, ledger-pg) and the provider token come from the environment (see README).
+# Full stand (SRS 6.3): manages <cluster>-vault-admin Secrets for all 3 CNPG clusters and seeds all KV v2 secrets.
+openbao_addr               = "http://127.0.0.1:8200"
+manage_vault_admin_secrets = true
+kubeconfig_path            = "/path/to/kubeconfig-admin"
+seed_kv_secrets            = true
+# Optional secrets passed via environment (never committed):
+#   TF_VAR_telegram_bot_token, TF_VAR_telegram_chat_id, TF_VAR_github_token, TF_VAR_anvil_mnemonic, TF_VAR_payer_keys
 
 postgres_clusters = {
   merchant-pg = {
