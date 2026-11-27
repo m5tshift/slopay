@@ -52,4 +52,9 @@ resource "hyperv_machine_instance" "vm" {
   }
 
   depends_on = [hyperv_vhd.disk, terraform_data.iso]
+
+  # Avoid stopping/restarting running VMs on subsequent applies.
+  lifecycle {
+    ignore_changes = [state]
+  }
 }

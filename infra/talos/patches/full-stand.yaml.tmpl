@@ -1,6 +1,7 @@
 # Machine config patch for every node of the full stand. Rendered by infra/terraform/talos (templatefile).
 # Cilium replaces flannel and kube-proxy (SRS INF-1.1a); Zot is the registry mirror (SRS INF-1.4),
-# one path per upstream: /v2/<host>. No skipFallback: nodes pull from the upstream until Zot is up.
+# one path per upstream: /v2/<host>, plus direct HTTP mirror for in-cluster images (zot.registry.svc:5000).
+# Endpoints list all workers' NodePort 30500 so containerd survives losing any single worker.
 cluster:
   network:
     cni:
@@ -10,9 +11,16 @@ cluster:
 machine:
   registries:
     mirrors:
+      "zot.registry.svc:5000":
+        endpoints:
+%{ for ep in zot_endpoints ~}
+          - ${ep}
+%{ endfor ~}
 %{ for host in mirror_hosts ~}
       ${host}:
         endpoints:
-          - ${zot_endpoint}/v2/${host}
+%{ for ep in zot_endpoints ~}
+          - ${ep}/v2/${host}
+%{ endfor ~}
         overridePath: true
 %{ endfor ~}

@@ -8,6 +8,7 @@ variables {
     "talos-cp-1" = "https://factory.example/image/cp1/metal-amd64.iso"
     "talos-w-1"  = "https://factory.example/image/w1/metal-amd64.iso"
   }
+  extra_iso_urls = {}
   vms = {
     "talos-cp-1" = { vcpu = 2, ram_gb = 3, disks = [20], mac = "020000000001" }
     "talos-w-1"  = { vcpu = 6, ram_gb = 14, disks = [20, 50], mac = "020000000002" }

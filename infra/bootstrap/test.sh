@@ -23,6 +23,8 @@ fail() { echo "test: $*" >&2; exit 1; }
   || fail "argocd-cm has no Application health check"
 [ "$(yq -N 'select(.kind == "ConfigMap" and .metadata.name == "argocd-cmd-params-cm") | .data["server.insecure"]' "$tmp/rendered.yaml")" = "true" ] \
   || fail "server.insecure is not set"
+[ "$(yq -N 'select(.kind == "Secret" and .metadata.labels["argocd.argoproj.io/secret-type"] == "repository") | .data.insecureOCIForceHttp | @base64d' "$tmp/rendered.yaml")" = "true" ] \
+  || fail "zot-charts OCI repository missing insecureOCIForceHttp"
 [ -z "$(yq -N 'select(.kind == "Deployment" and .metadata.name == "argocd-dex-server") | .kind' "$tmp/rendered.yaml")" ] \
   || fail "dex is rendered"
 ! grep -qi bitnami "$tmp/rendered.yaml" || fail "bitnami in rendered chart"
