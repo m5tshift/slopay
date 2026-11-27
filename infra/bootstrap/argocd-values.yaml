@@ -6,6 +6,14 @@ global:
 configs:
   params:
     server.insecure: true
+  repositories:
+    # Plain-HTTP OCI chart registry in Zot (SRS CI-5.3) used by full-stand Applications.
+    zot-charts:
+      type: helm
+      name: zot-charts
+      url: zot.registry.svc:5000/weigate/charts
+      enableOCI: "true"
+      insecureOCIForceHttp: "true"
   cm:
     # Without this, sync-wave between child Applications of the App of Apps does not wait for their health (issue #108).
     resource.customizations.health.argoproj.io_Application: |

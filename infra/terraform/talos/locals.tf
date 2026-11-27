@@ -12,6 +12,12 @@ locals {
     ]
   }
 
+  zot_port = var.full_stand ? regex(":([0-9]+)$", var.zot_endpoint)[0] : ""
+  zot_endpoints = var.full_stand ? distinct(concat(
+    [var.zot_endpoint],
+    [for _, n in var.nodes : "http://${n.ip}:${local.zot_port}" if n.role == "worker"],
+  )) : []
+
   # Every patch is its own list element: the UserVolumeConfig document is not merged into another document.
   patches = {
     for name, n in var.nodes : name => concat(
@@ -25,8 +31,8 @@ locals {
         install_image = data.talos_image_factory_urls.node[name].urls.installer
       })],
       var.full_stand ? [templatefile("${path.module}/../../talos/patches/full-stand.yaml.tmpl", {
-        mirror_hosts = var.registry_mirror_hosts
-        zot_endpoint = var.zot_endpoint
+        mirror_hosts  = var.registry_mirror_hosts
+        zot_endpoints = local.zot_endpoints
       })] : [],
       n.role == "worker" ? [file("${path.module}/../../talos/patches/worker-data-volume.yaml.tmpl")] : [],
     )

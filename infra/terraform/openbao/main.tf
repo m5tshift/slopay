@@ -65,6 +65,10 @@ resource "kubernetes_secret_v1" "vault_admin" {
     username = "vault-admin"
     password = random_password.vault_admin[each.key].result
   }
+
+  lifecycle {
+    ignore_changes = [data]
+  }
 }
 
 # Wait for the CNPG role controller to reconcile vault-admin passwords into PostgreSQL before OpenBao verifies them.
@@ -87,6 +91,10 @@ resource "vault_database_secret_backend_connection" "pg" {
     connection_url = "postgresql://{{username}}:{{password}}@${each.value.host}:5432/${each.value.database}"
     username       = "vault-admin"
     password       = local.vault_admin_passwords[each.key]
+  }
+
+  lifecycle {
+    ignore_changes = [postgresql[0].password]
   }
 
   depends_on = [time_sleep.cnpg_roles]

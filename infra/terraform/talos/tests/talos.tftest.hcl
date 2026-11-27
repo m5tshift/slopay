@@ -20,9 +20,11 @@ variables {
     "talos-cp-1" = { role = "controlplane", ip = "192.0.2.11" }
     "talos-w-1"  = { role = "worker", ip = "192.0.2.12" }
   }
-  gateway    = "192.0.2.1"
-  dns        = "192.0.2.53"
-  config_dir = "/tmp/weigate-test"
+  gateway      = "192.0.2.1"
+  dns          = "192.0.2.53"
+  config_dir   = "/tmp/weigate-test"
+  full_stand   = false
+  zot_endpoint = ""
 }
 
 run "patches" {
@@ -189,12 +191,14 @@ run "full_stand" {
       for k, n in var.nodes : (
         yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).cluster.network.cni.name == "none" &&
         yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).cluster.proxy.disabled == true &&
-        toset(keys(yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors)) == toset(["docker.io", "ghcr.io", "quay.io", "registry.k8s.io"]) &&
+        toset(keys(yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors)) == toset(["zot.registry.svc:5000", "docker.io", "ghcr.io", "quay.io", "registry.k8s.io"]) &&
         yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors["ghcr.io"].endpoints[0] == "http://192.0.2.12:30500/v2/ghcr.io" &&
-        yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors["ghcr.io"].overridePath == true
+        length(yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors["ghcr.io"].endpoints) == 3 &&
+        yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors["ghcr.io"].overridePath == true &&
+        length(yamldecode(data.talos_machine_configuration.node[k].config_patches[1]).machine.registries.mirrors["zot.registry.svc:5000"].endpoints) == 3
       )
     ])
-    error_message = "full stand: no CNI and kube-proxy, Zot mirrors on every node"
+    error_message = "full stand: no CNI and kube-proxy, Zot mirrors across all 3 workers incl. zot.registry.svc:5000"
   }
   assert {
     condition = alltrue([
