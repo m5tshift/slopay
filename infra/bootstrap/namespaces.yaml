@@ -61,6 +61,9 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: ci
+  labels:
+    # Rootless BuildKit sidecar in ARC runners needs Unconfined seccomp/AppArmor profiles.
+    pod-security.kubernetes.io/enforce: privileged
 ---
 apiVersion: v1
 kind: Namespace

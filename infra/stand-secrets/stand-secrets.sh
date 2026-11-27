@@ -107,9 +107,9 @@ anvil() {
   if [ "$rotate" != anvil ] && [ "$have_m" = 1 ]; then
     read_key "$CHAIN_NS" anvil-mnemonic mnemonic "$tmp/mnemonic"
   elif [ -n "$mnemonic_src" ]; then
-    tr -s '[:space:]' ' ' < "$mnemonic_src" | sed 's/^ //; s/ $//' > "$tmp/mnemonic"
+    tr -s '[:space:]' ' ' < "$mnemonic_src" | sed 's/^ //; s/ $//' | tr -d '\n' > "$tmp/mnemonic"
   else
-    cast wallet new-mnemonic --json | jq -r '.data.mnemonic' > "$tmp/mnemonic"
+    cast wallet new-mnemonic --json | jq -j '.data.mnemonic' > "$tmp/mnemonic"
   fi
   [ -s "$tmp/mnemonic" ] || die "empty mnemonic"
   local i key
