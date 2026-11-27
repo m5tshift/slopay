@@ -6,11 +6,11 @@
 
 | Что | Ресурсы |
 |---|---|
-| KV v2 | mount `secret` |
+| KV v2 | mount `secret`; при `seed_kv_secrets = true` — начальные секреты `garage/{core,keys}`, `grafana/admin`, `alertmanager/telegram`, `mongodb/users`, `valkey/users`, `clickhouse/users`, `ci/github`, `anvil/mnemonic`, `payer-keys/anvil` (с `ignore_changes` на последующие ротации) |
 | Kubernetes auth | mount `kubernetes`; роли `external-secrets` (SA в `secrets`), `merchant-service`, `webhook-service` (SA в `apps`) |
-| Политики | `eso-read`: `secret/data/{garage,grafana,alertmanager,clickhouse,mongodb,valkey,ci}/*`, `database/static-creds/*`; `merchant-service`: запись `secret/data/webhook/*`, подпись `transit/sign/merchant-jwt`; `webhook-service`: чтение `secret/data/webhook/*` |
+| Политики | `eso-read`: `secret/data/{garage,grafana,alertmanager,clickhouse,mongodb,valkey,anvil,payer-keys,ci}/*`, `database/static-creds/*`; `merchant-service`: запись `secret/data/webhook/*`, подпись `transit/sign/merchant-jwt`; `webhook-service`: чтение `secret/data/webhook/*` |
 | Transit | ключ `merchant-jwt` (ECDSA P-256, не экспортируется) |
-| Database | подключения к `merchant-pg` и `invoice-pg` по умолчанию (плюс `ledger-pg` в `full.tfvars.example`), статические роли с ротацией 24 ч |
+| Database | подключения к `merchant-pg` и `invoice-pg` по умолчанию (плюс `ledger-pg` в `full.tfvars.example`), статические роли с ротацией 24 ч; при `manage_vault_admin_secrets = true` Terraform сам создаёт `<кластер>-vault-admin` Secret в `data` и ждёт 15 с синхронизации CNPG |
 
 Значения секретов в Terraform не задаются: Transit-ключ и пароли статических ролей генерирует OpenBao,
 `webhook/<merchantId>` записывает `merchant-service`. В state попадает только пароль роли `vault-admin`
