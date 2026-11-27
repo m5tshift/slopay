@@ -6,10 +6,10 @@
 net_adapter_name = "Ethernet"
 
 vms = {
-  "talos-cp-1" = { vcpu = 2, ram_gb = 3, disks = [20], mac = "020000000001" }
-  "talos-w-1"  = { vcpu = 3, ram_gb = 7.5, disks = [20, 50], mac = "020000000002" }
-  "talos-w-2"  = { vcpu = 3, ram_gb = 7.5, disks = [20, 50], mac = "020000000003" }
-  "talos-w-3"  = { vcpu = 3, ram_gb = 7.5, disks = [20, 50], mac = "020000000004" }
+  "talos-cp-1" = { vcpu = 2, ram_gb = 4, disks = [20], mac = "020000000001" }
+  "talos-w-1"  = { vcpu = 3, ram_gb = 7, disks = [20, 50], mac = "020000000002" }
+  "talos-w-2"  = { vcpu = 3, ram_gb = 7, disks = [20, 50], mac = "020000000003" }
+  "talos-w-3"  = { vcpu = 3, ram_gb = 7, disks = [20, 50], mac = "020000000004" }
   "lb-1"       = { vcpu = 1, ram_gb = 0.5, disks = [8], mac = "020000000005" }
   "lb-2"       = { vcpu = 1, ram_gb = 0.5, disks = [8], mac = "020000000006" }
 }

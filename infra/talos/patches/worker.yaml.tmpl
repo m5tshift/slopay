@@ -1,5 +1,8 @@
 # Machine config patch for talos-w-1. Rendered by infra/terraform/talos (templatefile).
 machine:
+  sysctls:
+    # Rootless BuildKit sidecar inside ARC runners (namespace ci) needs user namespaces.
+    user.max_user_namespaces: "11255"
   install:
     disk: ${install_disk}
     image: ${install_image}

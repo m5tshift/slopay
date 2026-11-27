@@ -91,6 +91,7 @@ openssl pkey -in "$STORE/apps/merchant-service-jwt-signing/private.pem" -noout -
 grep -qvE '^0x[0-9a-f]{64}$' "$STORE/apps/payer-sim-payer-keys/keys" && fail "payer-keys format"
 [ "$(sort -u "$STORE/apps/payer-sim-payer-keys/keys" | wc -l)" -eq 10 ] || fail "payer keys repeat"
 [ "$(wc -w < "$STORE/chain/anvil-mnemonic/mnemonic")" -eq 12 ] || fail "mnemonic is not 12 words"
+[ "$(wc -l < "$STORE/chain/anvil-mnemonic/mnemonic")" -eq 0 ] || fail "mnemonic has trailing newline"
 want="0x$({ cat "$STORE/chain/anvil-mnemonic/mnemonic"; echo 3; } | openssl dgst -sha256 | sed 's/.*= //')"
 [ "$(sed -n 4p "$STORE/apps/payer-sim-payer-keys/keys")" = "$want" ] || fail "payer keys are not derived from the mnemonic"
 

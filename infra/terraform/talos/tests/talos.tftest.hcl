@@ -57,9 +57,10 @@ run "patches" {
   assert {
     condition = (
       data.talos_machine_configuration.node["talos-cp-1"].machine_type == "controlplane" &&
-      data.talos_machine_configuration.node["talos-w-1"].machine_type == "worker"
+      data.talos_machine_configuration.node["talos-w-1"].machine_type == "worker" &&
+      yamldecode(data.talos_machine_configuration.node["talos-w-1"].config_patches[0]).machine.sysctls["user.max_user_namespaces"] == "11255"
     )
-    error_message = "machine types"
+    error_message = "machine types and worker user.max_user_namespaces sysctl"
   }
 }
 
